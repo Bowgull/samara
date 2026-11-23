@@ -74,7 +74,7 @@ export function plainMedia(v: { src: string; at: number; live: boolean; poster: 
 }
 
 /** Twitch's public web-player id (the one its own site sends; no account). */
-const TWITCH_CLIENT = 'kimne78kx3ncx6brgo4mv6wki5h1ko';
+const TWITCH_CLIENT = 'kimne78kx3ncx6brgo4mv6wki5h1ko'; // gitleaks:allow (public: twitch.tv sends it from every browser)
 /** A Twitch stream or past broadcast as its HLS playlist, which the TV plays by itself. */
 export async function twitchMedia(url: string, title: string, at = 0): Promise<CastMedia | null> {
   const t = twitchOf(url);
