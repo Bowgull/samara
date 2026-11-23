@@ -1,0 +1,17 @@
+#!/bin/sh
+# Refuse a commit that would put a secret or a personal detail into this public repo.
+# gitleaks checks only what is staged, with .gitleaks.local.toml (private extra rules, gitignored) when it exists, else
+# .gitleaks.toml. Turn it on once per clone:  git config core.hooksPath tools/git-hooks
+# Needs gitleaks 8.25 or newer on PATH (Windows: winget install gitleaks, Mac: brew install gitleaks). Without it the
+# commit is refused.
+root="$(git rev-parse --show-toplevel)"
+cfg="$root/.gitleaks.toml"
+[ -f "$root/.gitleaks.local.toml" ] && cfg="$root/.gitleaks.local.toml"
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks is not installed, so this commit was not checked and is refused." >&2
+  exit 1
+fi
+gitleaks git --pre-commit --staged --redact --no-banner --config "$cfg" "$root" || {
+  echo "pre-commit: gitleaks found something above. Take it out of the staged files, then commit again." >&2
+  exit 1
+}

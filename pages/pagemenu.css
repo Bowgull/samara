@@ -1,0 +1,54 @@
+/* 6.22b bug 2: the page's right-click menu, in the tab menu's own wood (browser.css .tabmenu, sheet 3 section 7). */
+html,body{margin:0;background:var(--wood2);overflow:hidden;user-select:none}
+.pm{display:inline-block;min-width:210px;max-width:320px;box-sizing:border-box;padding:6px;
+  background:linear-gradient(180deg,#56371F,var(--wood2));border:3px solid var(--outline);
+  box-shadow:inset 0 3px 0 rgba(255,224,150,.14)}
+.pm button{display:flex;justify-content:space-between;gap:16px;width:100%;padding:7px 9px;border:none;border-radius:5px;background:none;cursor:pointer;
+  font:600 13px var(--body);color:#E6DCC8;text-shadow:1px 1px 0 rgba(0,0,0,.7);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pm button:hover:not(:disabled),.pm button:focus-visible{background:rgba(255,224,150,.10);outline:none}
+.pm button:disabled{color:#8a7a62;cursor:default}
+.pm button i{font:700 12px var(--body);font-style:normal;color:#c4b294;flex:0 0 auto;align-self:center}
+.pm button span{overflow:hidden;text-overflow:ellipsis}
+.pm .sep{height:3px;margin:5px 2px;background:rgba(0,0,0,.45)}
+
+/* 2026-10-12: the glove on the item you point at (FFX), the same as every menu in the browser */
+.pm button{position:relative;transition:padding-left .08s ease-out}
+.pm button:hover:not(:disabled),.pm button:focus-visible{background:none;color:#ffe28c;padding-left:34px}
+.pm button:hover:not(:disabled)::before,.pm button:focus-visible::before{content:"";position:absolute;left:4px;top:50%;width:24px;height:18px;margin-top:-9px;
+  background:url(art/browser/hand.png) 0 0/24px 18px;image-rendering:pixelated}
+
+/* ---- sheet 27, the wood swap (2026-10-14): no flat browns. Light wood for bars and frames, dark wood behind
+   content, "carved" (very dark wood) for the small name tags. ---- */
+html,body{background:linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.25)),url(art/browser/tray.png) 0 0/128px 256px;image-rendering:pixelated}
+.pm{background:linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.25)),url(art/browser/tray.png) 0 0/128px 256px;image-rendering:pixelated}
+
+/* Send to companion carries the companion's face (cleanup 2026-10-22: a name carries its icon); 18 px = the art at 1x. */
+.pm button.toaang{justify-content:flex-start;align-items:center}
+.pm .aface{width:18px;height:18px;flex:none;margin:-2px 8px -2px 0;image-rendering:pixelated}
+
+/* Sheet 109 (2026-10-30): the window is see-through, so Ask Claude's list can hang beside the menu (pagemenu.js). */
+html,body{background:none}
+body{position:relative;display:block;min-height:100%;overflow:visible}
+.pm.sm{position:absolute;top:0;min-width:220px}
+.pm.sm[hidden]{display:none}
+.pm button.ic{justify-content:flex-start;align-items:center}
+.pm button.ic span{flex:1}
+.pm .gem{width:22px;height:22px;flex:none;margin:-3px 8px -3px -2px;image-rendering:pixelated}
+.pm .plus{width:18px;height:18px;flex:none;margin:-2px 10px -2px 0;image-rendering:pixelated}
+.pm .arr{width:8px;height:12px;flex:none;margin-left:14px;image-rendering:pixelated}
+.pm button[aria-haspopup]{justify-content:flex-start;align-items:center}
+.pm button.open{color:#ffe28c}
+
+/* ---- Sheet 120 A, wood refined (2026-11-20): the menu is the tray's grain in its gold-cornered frame, rows 34
+   high in light words, the row he points at lit with a gold edge, shortcuts as small key chips, gold lines between groups.
+   The window is still sized from the menu's own box (pagemenu.js), so the frame is counted in. */
+.pm{min-width:230px;max-width:340px;padding:8px 6px;border:8px solid transparent;border-image:url(art/browser/trayframe.png) 4 repeat;
+  background:var(--wood-panel);image-rendering:pixelated;box-shadow:none}
+.pm button{height:34px;min-height:34px;align-items:center;gap:18px;padding:0 10px;border-radius:7px;font:600 14.5px var(--body);color:#ECDFC4;
+  text-shadow:1px 1px 0 rgba(0,0,0,.75);image-rendering:auto;transition:none}
+.pm button:hover:not(:disabled),.pm button:focus-visible,.pm button.open{padding-left:10px;color:#FFF6E0;background:rgba(255,226,140,.12);box-shadow:inset 3px 0 0 var(--gold);outline:none}
+.pm button:hover:not(:disabled)::before,.pm button:focus-visible::before{content:none}
+.pm button:disabled{color:#A39274}
+.pm button i.wkbd{font:400 9px var(--label);color:#E3D3AE;text-shadow:none;align-self:center}
+.pm .sep.wsep{height:2px;margin:6px 6px;background:linear-gradient(90deg,transparent,rgba(255,196,60,.32),transparent)}
+.pm .arr path{fill:var(--gold)}

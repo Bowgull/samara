@@ -1,0 +1,110 @@
+// Sheet 83 v2 (2026-10-23): the real Settings page, off screen, with a stand-in for its doors. Checks the chapters, the
+// switches and segmented rows, the home page row, the half-second help line, the address lookup, the PIN slots and eye; takes pictures.
+// Run: npx electron test/electron/settings83-check.ts <folder for pictures>
+import { app, BrowserWindow } from 'electron';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { servePages } from '../../src/pageserver.ts';
+
+process.on('uncaughtException', (e) => { console.log('HARNESS ERROR ' + (e as Error).stack); app.exit(2); });
+process.on('unhandledRejection', (e) => { console.log('HARNESS REJECTION ' + String((e as Error)?.stack ?? e)); app.exit(2); });
+setTimeout(() => { console.log('HARNESS TIMEOUT'); app.exit(3); }, 90_000).unref();
+app.setPath('userData', mkdtempSync(path.join(os.tmpdir(), 'settings83-')));
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const OUT = path.resolve(process.argv[process.argv.length - 1] ?? os.tmpdir());
+mkdirSync(OUT, { recursive: true });
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+app.whenReady().then(async () => {
+  const pages = await servePages(path.join(HERE, '..', '..', 'pages'));
+  const w = new BrowserWindow({ show: false, width: 1100, height: 720, webPreferences: { offscreen: true, preload: path.join(HERE, 'settings83-stub.cjs') } });
+  await w.loadURL(`${pages.origin}/settings.html`);
+  await wait(600);
+  const js = (c: string) => w.webContents.executeJavaScript(c);
+  let bad = 0;
+  const check = (what: string, ok: boolean, d = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} ${what}${d ? ' (' + d + ')' : ''}`); if (!ok) bad++; };
+  const shot = async (n: string) => writeFileSync(path.join(OUT, `s83-${n}.png`), (await w.webContents.capturePage()).toPNG());
+  const go = (sec: string) => js(`document.querySelector('.side a[data-sec="${sec}"]').click()`);
+
+  check('seven chapters, no search box', (await js(`document.querySelectorAll('.side a').length`)) === 7 && !(await js(`!!document.getElementById('find')`)));
+  check('no grey line under any row', (await js(`document.querySelectorAll('.r small').length`)) === 0);
+  check('home page row shows what is saved', (await js(`document.getElementById('homev').textContent`)) === 'search.brave.com');
+  check('When Samara opens has My tabs chosen', (await js(`document.querySelector('[data-cyc=startup] [aria-checked=true]')?.textContent`)) === 'My tabs');
+  check('the switch is named by its row', (await js(`(() => { const s = document.querySelector('[data-cyc=dark] .sw'); return s.getAttribute('role') + '|' + s.getAttribute('aria-label') + '|' + s.getAttribute('aria-checked'); })()`)) === 'switch|Dark websites|true');
+  await shot('start');
+  await js(`document.getElementById('homerow').click()`);
+  check('a click on it opens the box with it in', (await js(`document.getElementById('homein').value`)) === 'search.brave.com' && !(await js(`document.getElementById('homeedit').hidden`)));
+  await js(`(() => { const i = document.getElementById('homein'); i.value = 'reddit.com'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); })()`);
+  check('Enter saves reddit.com', (await js(`__sent()`)).includes('"key":"home","value":"reddit.com"'));
+  await js(`document.querySelector('[data-cyc=startup] [data-v=home]').click()`);
+  check('a click on Home page chooses it', (await js(`document.querySelector('[data-cyc=startup] [aria-checked=true]')?.textContent`)) === 'Home page' && (await js(`__sent()`)).includes('"key":"startup","value":"home"'));
+  await js(`(() => { const b = document.querySelector('[data-cyc=startup] [data-v=home]'); b.focus(); b.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })); })()`);
+  check('Left arrow moves back to My tabs, focus with it', (await js(`document.activeElement?.dataset.v + '|' + document.activeElement?.getAttribute('aria-checked') + '|' + document.activeElement?.tabIndex`)) === 'tabs|true|0');
+
+  // the help line waits half a second
+  await go('look');
+  await js(`document.querySelector('[data-cyc=dark]').dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))`);
+  await wait(1200);
+  check('no label yet after 1.2 s', !(await js(`document.querySelector('.tip').classList.contains('on')`)));
+  await wait(1000);
+  check('the label by the mouse after 2 s', (await js(`document.querySelector('.tip.on')?.textContent ?? ''`)).startsWith('Websites shown dark'));
+  check('no frame at the bottom', !(await js(`!!document.getElementById('help')`)));
+  await shot('look-help');
+
+  for (const s of ['search', 'autofill', 'privacy', 'sounds', 'about']) { await go(s); await wait(150); await shot(s); }
+
+  // details: the address lookup
+  await go('autofill');
+  await js(`document.querySelector('[data-go=details]').click()`);
+  await js(`(() => { const i = document.getElementById('af-street'); i.focus(); i.value = '100 Queen'; i.dispatchEvent(new Event('input')); })()`);
+  await wait(700);
+  check('the lookup shows addresses to pick', (await js(`document.querySelectorAll('#sug div').length`)) === 2);
+  await shot('details-lookup');
+  await js(`document.querySelector('#sug div').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))`);
+  await wait(150);
+  const got = await js(`['street','city','region','postal','country'].map(k => document.getElementById('af-' + k).value).join('|')`);
+  check('picking it fills the rest', got === '100 Queen Street West|Toronto|Ontario|M5H 2N2|Canada', got);
+  check('each filled box has its tick', (await js(`[...document.querySelectorAll('[data-ok]')].filter(t => !t.hidden).length`)) === 5);
+  check('and it is kept at once', (await js(`__sent()`)).includes('"postal":"M5H 2N2"'));
+  await shot('details-picked');
+  await js(`(() => { for (const [k, v] of [['given', 'Mary Ann'], ['family', 'van der Berg']]) { const i = document.getElementById('af-' + k); i.value = v; i.dispatchEvent(new Event('change')); } })()`);
+  await js(`(() => { const i = document.getElementById('af-em0'); i.value = 'you@example.com'; i.dispatchEvent(new Event('input')); i.dispatchEvent(new Event('change')); })()`);
+  check('a second email row appears under the first', (await js(`document.querySelectorAll('[data-em]').length`)) === 2);
+  await js(`(() => { const i = document.getElementById('af-phone'); i.value = '416-555-0142'; i.dispatchEvent(new Event('input')); i.dispatchEvent(new Event('change')); })()`);
+  check('the phone is tidied as typed', (await js(`document.getElementById('af-phone').value`)) === '(416) 555-0142');
+  check('...with its tick', !(await js(`document.querySelector('[data-ok=phone]').hidden`)));
+  await shot('details-v4');
+  check('first and last name are two boxes, kept as typed', (await js(`__sent()`)).includes('"given":"Mary Ann","family":"van der Berg"'));
+
+  // PIN
+  await js(`document.querySelector('[data-back]:not([hidden])') ; document.querySelector('section[data-sec=details] [data-back]').click()`);
+  await js(`document.querySelector('[data-go=pin]').click()`);
+  await wait(100);
+  check('PIN starts at 6 slots', (await js(`document.querySelectorAll('#pin1 i').length`)) === 6);
+  const len = (n: number) => js(`document.querySelector('[aria-label="PIN length"] [data-v="${n}"]').click()`);
+  check('the lengths are 4 to 8', (await js(`[...document.querySelectorAll('[aria-label="PIN length"] [role=radio]')].map(b => b.textContent).join('')`)) === '45678');
+  await len(8);
+  check('8 gives 8 slots', (await js(`document.querySelectorAll('#pin1 i').length`)) === 8);
+  await len(4);
+  check('4 gives 4 slots', (await js(`document.querySelectorAll('#pin1 i').length`)) === 4);
+  await len(6);
+  for (const d of '4817') await js(`document.getElementById('pin1').dispatchEvent(new KeyboardEvent('keydown', { key: '${d}', bubbles: true }))`);
+  check('typed numbers are hidden', (await js(`[...document.querySelectorAll('#pin1 i.f')].map(i => i.textContent).join('')`)) === '●●●●');
+  await js(`document.getElementById('eye').click()`);
+  check('the eye shows them', (await js(`[...document.querySelectorAll('#pin1 i.f')].map(i => i.textContent).join('')`)) === '4817');
+  await shot('pin');
+  for (const d of '48') await js(`document.getElementById('pin1').dispatchEvent(new KeyboardEvent('keydown', { key: '${d}', bubbles: true }))`);
+  for (const d of '481748') await js(`document.getElementById('pin1').dispatchEvent(new KeyboardEvent('keydown', { key: '${d}', bubbles: true }))`);
+  check('both typed: it is sent to be set', (await js(`__sent()`)).includes('"pin":"481748","again":"481748"'));
+
+  // Bitwarden
+  await js(`document.querySelector('section[data-sec=pin] [data-back]').click(); document.querySelector('[data-go=bw]').click()`);
+  await js(`document.querySelector('[data-cyc=lockAfter] [data-v="2h"]').click()`);
+  check('lock time moves to 2 hours', (await js(`document.querySelector('[data-cyc=lockAfter] [aria-checked=true]')?.textContent`)) === '2 hours');
+  await shot('bw');
+  w.destroy(); pages.close();
+  console.log(bad ? `${bad} FAILED` : 'ALL PASS');
+  app.exit(bad ? 1 : 0);
+});

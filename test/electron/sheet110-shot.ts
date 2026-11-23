@@ -1,0 +1,86 @@
+// Sheet 110 (2026-10-31): the gold strip on the left of Claude's tabs in the tab list looked generic.
+// It marks a tab as one of Claude's (or the companion's) hidden tabs. Real band and list layer, two of their own tabs and a
+// made-up "Job scan" of three Claude tabs; VARIANT puts each fix on the real list for its picture. Nothing is built.
+// Run (from src/Shell): VARIANT=now|a|b|c npx electron test/electron/sheet110-shot.ts <out.png>
+import { app, BrowserWindow, screen } from 'electron';
+import http from 'node:http';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+process.on('uncaughtException', (e) => console.log('HARNESS NOTE ' + (e as Error).message));
+setTimeout(() => { console.log('HARNESS TIMEOUT'); app.exit(3); }, 90_000).unref();
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+app.setPath('userData', mkdtempSync(path.join(os.tmpdir(), 's110-ud-')));
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.on('window-all-closed', () => {});
+// The user's rule (2026-10-29): test windows never touch their main monitor or take their keyboard.
+const away = () => { const d = screen.getAllDisplays().find((x) => x.id !== screen.getPrimaryDisplay().id); return d ? d.bounds : null; };
+BrowserWindow.prototype.show = function (this: BrowserWindow) { const b = away(); if (b) this.setPosition(b.x + 20, b.y + 20); this.setOpacity(0); this.setFocusable(false); this.showInactive(); };
+BrowserWindow.prototype.focus = function () {};
+app.focus = () => {};
+app.dock?.hide();
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// Plain made-up favicons: a coloured square with a letter.
+const fav = (bg: string, ch: string) => 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" rx="3" fill="${bg}"/><text x="8" y="12.5" font-family="Arial" font-weight="700" font-size="12" fill="#fff" text-anchor="middle">${ch}</text></svg>`);
+const DRIVERS = [{ id: 'j1', name: 'JOB SCAN', kind: 'claude', working: true, pages: [
+  { id: 'p1', url: 'https://jobs.northwind.example/1', title: 'Client Account Manager @ Northwind', favicon: fav('#3b4bd8', 'N') },
+  { id: 'p2', url: 'https://jobs.contoso.example/2', title: 'Contoso - Account Manager, Partners', favicon: fav('#2f8f7f', 'C') },
+  { id: 'p3', url: 'https://jobs.fabrikam.example/3', title: 'Sign In', favicon: fav('#d07a2a', 'F') },
+] }];
+// Claude's spark, the same 9x9 one the group header uses.
+const VARIANTS: Record<string, string> = {
+  now: '',
+  // A: no strip. The header above already says whose tabs these are.
+  a: `.drawer .tp.drv{box-shadow:0 4px 0 var(--outline) !important}`,
+  // B: no strip; Claude's spark sits at the end of each row, where the close key sits on their own tabs.
+  b: `.drawer .tp.drv{box-shadow:0 4px 0 var(--outline) !important}.drawer .tp.drv .own110{margin-left:auto;flex:0 0 auto;display:grid;place-items:center;width:22px;height:22px;opacity:.9}`,
+  // E (v3, 2026-10-31): B plus a soft orange glow that breathes, Claude's own orange. PHASE (0..1) freezes the
+  // breath at one point so each frame is a real picture.
+  e: `.drawer .tp.drv{animation:claude110 3.2s ease-in-out infinite;animation-play-state:paused;animation-delay:calc(var(--ph,0) * -3.2s)}
+    @keyframes claude110{0%,100%{box-shadow:0 4px 0 var(--outline),0 0 0 2px rgba(217,119,87,.30),0 0 6px 1px rgba(217,119,87,.18)}50%{box-shadow:0 4px 0 var(--outline),0 0 0 2px rgba(217,119,87,.75),0 0 14px 3px rgba(217,119,87,.45)}}
+    .drawer .tp.drv .own110{margin-left:auto;flex:0 0 auto;display:grid;place-items:center;width:22px;height:22px;opacity:.9}
+    .drawer{--ph:${process.env.PHASE ?? 0}}`,
+  // C: no strip; Claude's tabs are pressed into the list (borrowed), their own stand up as keys.
+  c: `.drawer .tp.drv{background:#1f140b !important;color:#c9b48c !important;border-color:#0a0603 !important;box-shadow:inset 0 4px 0 rgba(0,0,0,.6),inset 0 -2px 0 rgba(255,222,170,.12) !important;transform:translateY(3px)}.drawer .tp.drv .fi{filter:saturate(.6) brightness(.85)}`,
+  // D: no strip; Claude's group sits in its own sunk velvet shelf, the bookmarks' own frame.
+  d: `.drawer .tp.drv{box-shadow:0 4px 0 var(--outline) !important}.drawer .shelf-bk.claude110{margin:8px 0 12px}.drawer .shelf-bk.claude110 .th{margin:0 2px 10px}.drawer .shelf-bk.claude110 .tp:last-child{margin-bottom:0}`,
+};
+app.whenReady().then(async () => {
+  http.createServer((q, r) => r.writeHead(200, { 'Content-Type': 'text/html' }).end(`<!doctype html><title>${q.url === '/p/0' ? 'Inbox - Mail' : 'Weekend plans'}</title><p>${q.url}`)).listen(47110, '127.0.0.1');
+  const { servePages } = await import('../../src/pageserver.ts');
+  const { SamaraBrowser } = await import('../../src/browser.ts');
+  const { wireBrowser } = await import('../../src/browseripc.ts');
+  const pages = await servePages(path.join(HERE, '..', '..', 'pages'));
+  const stateDir = mkdtempSync(path.join(os.tmpdir(), 's110-state-'));
+  writeFileSync(path.join(stateDir, 'browser-tabs.json'), JSON.stringify({ v: 1, active: 0, fronts: [0], tabs: [0, 1].map((i) => ({ url: `http://127.0.0.1:47110/p/${i}`, title: i ? 'Weekend plans' : 'Inbox - Mail', scrollY: 0, zoom: 0, win: 0, trail: null })), trails: [], closed: [] }));
+  const b: any = new SamaraBrowser({ origin: pages.origin, stateDir, preloadPath: path.join(HERE, '..', '..', 'src', 'samarapreload.cjs'),
+    tabPreloadPath: path.join(HERE, '..', '..', 'src', 'tabpreload.cjs'), settingsPreloadPath: path.join(HERE, '..', '..', 'src', 'settingspreload.cjs'), thingsPreloadPath: path.join(HERE, '..', '..', 'src', 'thingspreload.cjs') } as any);
+  wireBrowser(() => b);
+  b.driver.view = () => DRIVERS;
+  b.open();
+  await wait(4000);
+  b.sendTabs();
+  b.tray(true, { x: 42, y: 62, hy: 80 });
+  await wait(1500);
+  const v = process.env.VARIANT ?? 'now';
+  if (VARIANTS[v]) await b.trayV.webContents.insertCSS(VARIANTS[v]!);
+  await b.trayV.webContents.executeJavaScript(`(() => {
+    const spark = document.querySelector('.drawer .th.driver .who-ic')?.innerHTML ?? '';
+    if (['b', 'e'].includes(${JSON.stringify(v)})) for (const r of document.querySelectorAll('.drawer .tp.drv')) {
+      const s = document.createElement('span'); s.className = 'own110'; s.innerHTML = spark; r.append(s);
+    }
+    if (${JSON.stringify(v)} === 'd') {
+      const h = document.querySelector('.drawer .th.driver'), box = document.createElement('div'); box.className = 'shelf-bk claude110';
+      h.before(box); box.append(h, ...document.querySelectorAll('.drawer .tp.drv'));
+    }
+    return document.querySelectorAll('.drawer .tp.drv').length;
+  })()`).then((n: number) => console.log('DRIVER ROWS ' + n));
+  await wait(800);
+  // Just the end of their own tabs and Claude's group, so the difference is big enough to see.
+  const r = await b.trayV.webContents.executeJavaScript(`(() => { const a = [...document.querySelectorAll('.drawer .tp')].filter((x) => !x.classList.contains('drv')).pop().getBoundingClientRect(), z = [...document.querySelectorAll('.drawer .tp.drv')].pop().getBoundingClientRect(); return { y: Math.round(a.top - 8), h: Math.round(z.bottom + 16 - a.top + 8) }; })()`);
+  const img = await b.trayV.webContents.capturePage({ x: 0, y: r.y, width: 340, height: r.h });
+  writeFileSync(process.argv.find((a) => a.endsWith('.png')) ?? path.join(os.tmpdir(), 's110.png'), img.toPNG());
+  console.log('SHOT ' + JSON.stringify(img.getSize()));
+  app.exit(0);
+});

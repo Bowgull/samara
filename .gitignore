@@ -1,0 +1,5 @@
+node_modules/
+engines/
+out/
+*.log
+.gitleaks.local.toml

@@ -1,0 +1,193 @@
+// The Mac's mockup door (2026-10-22: every Claude session's mockups go to Samara, on the Mac too).
+//
+// On the PC, a Claude session's show_mockup (the claude-link mod, claude-link/hooks/register.ts) goes to the companion, which
+// checks it and leaves a .mockup file for Samara (src/Core/src/mockupdrop.ts). The Mac has no companion beside Samara, so
+// Samara on the Mac takes the same request itself, here: one small door on this Mac's loopback only.
+//
+// THE LOCK (the same shape as the companion's link, claudelink.ts):
+//   - Samara writes a fresh random key each run to mockup-door.key in its own folder (~/Library/Application Support/Samara),
+//     readable by this user only. The key never leaves this Mac and never travels in an update.
+//   - Every request is signed: x-samara-link-ts + x-samara-link-sig = HMAC(key, 'req', ts, method, path, body). Stale (over
+//     a minute) or wrong: refused. A web page cannot sign (it cannot read the key), and any request that carries an
+//     Origin header, or a Host other than 127.0.0.1:<port>, is refused before anything else (DNS rebinding).
+//   - GET /hello?n=<nonce> answers HMAC(key, 'hello', nonce), so the mod tells nothing (folders, file names) to whoever
+//     else might be on the port.
+// THE CHECKS (the browser checks again when it opens it): a file must be an .html page inside its project's folder (its
+// git repo, else the session's folder, else its own folder; real path, links followed), no dot folder or file on the
+// way; a live page must be http(s) on this computer. 2026-10-31: the page need not be committed in its project any more:
+// Samara copies it into the private mockups home and commits it there (mockhome.ts), so a public repo never carries it.
+import { execFileSync } from 'node:child_process';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { chmodSync, existsSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import http from 'node:http';
+import path from 'node:path';
+import { cleanBranch, cleanIcon, cleanLive, type MockupDrop, type MockVersion } from './mockups.ts';
+import { projectRoot } from './mockhome.ts';
+
+export const MOCKUP_DOOR_PORT = 47844;
+export const mockupDoorKeyFile = (stateDir: string) => path.join(stateDir, 'mockup-door.key');
+export const doorMac = (key: string, ...parts: string[]): string => createHmac('sha256', key).update(parts.join('\n')).digest('hex');
+const same = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
+
+export interface DoorAsk { cwd?: unknown; path?: unknown; url?: unknown; title?: unknown; branch?: unknown; project?: unknown; icon?: unknown }
+export type DoorAnswer = { ok: boolean; message: string };
+
+/**
+ * The file a live page on this Mac is, when the program answering on its port serves a plain folder: the folder it was
+ * started in (lsof), the address's path under it, an existing .html file. Null for anything else.
+ */
+export function servedFile(u: string, lsof = '/usr/sbin/lsof'): string | null {
+  try {
+    const x = new URL(u);
+    const port = Number(x.port || (x.protocol === 'https:' ? 443 : 80));
+    if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
+    const pids = execFileSync(lsof, ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'], { encoding: 'utf8', timeout: 3000 }).split('\n').filter((n) => /^\d+$/.test(n));
+    let rel = decodeURIComponent(x.pathname);
+    if (rel.endsWith('/')) rel += 'index.html';
+    if (!/\.html?$/i.test(rel) || rel.includes('\0') || rel.split('/').includes('..')) return null;
+    for (const pid of pids) {
+      const out = execFileSync(lsof, ['-a', '-p', pid, '-d', 'cwd', '-Fn'], { encoding: 'utf8', timeout: 3000 });
+      const dir = /^n(\/.*)$/m.exec(out)?.[1];
+      if (!dir) continue;
+      const f = path.join(dir, rel);
+      if (inside(f, dir) && existsSync(f) && statSync(f).isFile()) return f;
+    }
+  } catch { /* not ours to find */ }
+  return null;
+}
+
+/** The nearest folder up from `dir` with a .git, or null. */
+export function repoOf(dir: string): string | null {
+  let d = path.resolve(dir);
+  for (let i = 0; i < 60; i++) {
+    if (existsSync(path.join(d, '.git'))) return d;
+    const up = path.dirname(d);
+    if (up === d) return null;
+    d = up;
+  }
+  return null;
+}
+/** What Claude is told when Samara would not open a sheet: Samara's own reason, and what to do about it. */
+export function refused(name: string, why: string, live: boolean): string {
+  const said = why.trim().slice(0, 400) || (live ? 'it could not open that page' : 'it could not keep the page in the mockups repo (~/projects/mockups missing, or the page could not be read)');
+  return `Samara refused ${name.slice(0, 200)}: ${said}${/[.!?]$/.test(said) ? '' : '.'} It is NOT in the Mockups trail. ${live
+    ? 'Save the page as a file and send that.'
+    : 'If it says commit: copy the page and its art folder into the private mockups repo ~/projects/mockups under <project folder>/<same path> (never a public project repo), commit it there, and send that copy. Otherwise tell the user where the file is.'}`;
+}
+export const NEED_TOPIC = "Give branch: the topic inside its project (\"Top bar\", \"TV\"), 1 to 40 characters, so it is filed in its place and never under Other. Then call show_mockup again.";
+const inside = (p: string, dir: string) => { const r = path.relative(dir, p); return r === '' || (!!r && !r.startsWith('..') && !path.isAbsolute(r)); };
+// eslint-disable-next-line no-control-regex
+const cleanTitle = (t: unknown) => (typeof t === 'string' ? t.slice(0, 1000).replace(/[\x00-\x1f\x7f-\x9f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80).trim() : '');
+
+/** One request checked and turned into a drop, or why not. Never touches the disk beyond reading paths. */
+export function checkAsk(ask: DoorAsk): { ok: true; drop: MockupDrop; name: string } | { ok: false; message: string } {
+  const title = cleanTitle(ask.title);
+  const branch = typeof ask.branch === 'string' && ask.branch ? cleanBranch(ask.branch) : null;
+  const project = typeof ask.project === 'string' && ask.project ? cleanBranch(ask.project) : null, icon = cleanIcon(ask.icon);
+  const hasPath = typeof ask.path === 'string' && ask.path.trim() !== '', hasUrl = typeof ask.url === 'string' && ask.url.trim() !== '';
+  if (hasPath === hasUrl) return { ok: false, message: 'Pass either path (an .html file in your repo) or url (a page on http://127.0.0.1 or localhost), not both.' };
+  const cwd = typeof ask.cwd === 'string' ? ask.cwd : '';
+  if (hasUrl) {
+    const u = cleanLive(String(ask.url).trim());
+    if (!u) return { ok: false, message: 'url must be a page on this computer: http://127.0.0.1, http://localhost or http://[::1] (any port), with no user name.' };
+    // A page served straight from a folder (python -m http.server and the like) is a file in disguise: filed as that
+    // file when it sits in a git repo, so it keeps working after the server stops. A real dev server stays live.
+    const f = servedFile(u);
+    if (f) { const c = checkAsk({ path: f, title: ask.title, branch: ask.branch, project: ask.project, icon: ask.icon }); if (c.ok) return c; }
+    // A live page has no file to say whose it is: it belongs to the project the session works in (2026-10-30,
+    // "close the gaps": a Waymark dev server used to land in Other).
+    const own = project ?? (cwd && path.isAbsolute(cwd) && existsSync(cwd) ? (() => { const r = repoOf(cwd); return r ? cleanBranch(path.basename(r)) : null; })() : null);
+    return { ok: true, drop: { path: '', repo: null, url: u, title, branch, project: own, icon }, name: u };
+  }
+  const raw = String(ask.path).trim();
+  if (raw.length > 1000 || raw.startsWith('//') || raw.startsWith('\\\\')) return { ok: false, message: 'path must be a file in a git repo.' };
+  // 2026-10-28 (mockups were not being filed correctly): the repo is the FILE's, not the session's. A session
+  // in a folder outside any repo (~/Handoff/project) used to be told to serve the page on 127.0.0.1, and every such page
+  // became a live row that died with its server. An absolute path needs no session folder at all.
+  if (!path.isAbsolute(raw) && (!cwd || !path.isAbsolute(cwd) || !existsSync(cwd))) return { ok: false, message: "Your session's folder is not known here. Pass the page's full path." };
+  let file = '';
+  try {
+    file = realpathSync.native(path.resolve(cwd || '/', raw));
+    if (!statSync(file).isFile()) throw new Error('not a file');
+  } catch { return { ok: false, message: `No such file: ${raw.slice(0, 200)}` }; }
+  // Its project's folder: the repo, else the session's folder, else the page's own (never his whole home folder).
+  const root0 = projectRoot(file, cwd, repoOf);
+  if (!root0) return { ok: false, message: 'Put the page in its project\'s folder (not straight in the home folder), then call show_mockup again.' };
+  let root = '';
+  try { root = realpathSync.native(root0); } catch { return { ok: false, message: `No such file: ${raw.slice(0, 200)}` }; }
+  if (!inside(file, root)) return { ok: false, message: 'path must be inside your own repo.' };
+  const rel = path.relative(root, file).split(path.sep).join('/');
+  if (!/\.html?$/i.test(rel)) return { ok: false, message: 'path must be an .html page.' };
+  if (rel.length > 400 || root.length > 400 || rel.split('/').some((s) => !s || s.startsWith('.'))) return { ok: false, message: 'That file is in a hidden folder (or its path is too long), so it is not shown.' };
+  return { ok: true, drop: { path: rel, repo: root, url: null, title, branch, project, icon }, name: rel };
+}
+
+/**
+ * Opens the door. `open` puts a checked drop in the trail (SamaraBrowser.openMockupDropWhy): a string is why it was not
+ * opened, and Claude is told exactly that (2026-11-03: ten refused sheets used to come back as "Showing"). `why` says why mockups are off on this Mac, or null when they are on. Returns a close function.
+ */
+/** Sheet 79: the marks in the trail, for Claude: every marked version, and one mark set on a sheet in the user's repo. */
+export interface DoorMarks { list(): unknown[]; set(a: { repo: string; sheet: string; v: number | null; stage: string; said: string; note: string }): string }
+export function startMockupDoor(stateDir: string, open: (d: MockupDrop) => Promise<MockVersion | string | null>, why: () => string | null, port = (process.env.SAMARA_TEST && Number(process.env.SAMARA_TEST_MOCKUP_DOOR_PORT)) || MOCKUP_DOOR_PORT, marks?: DoorMarks): () => void {
+  const key = randomBytes(32).toString('hex');
+  const keyFile = mockupDoorKeyFile(stateDir);
+  try { writeFileSync(keyFile, key, { mode: 0o600 }); chmodSync(keyFile, 0o600); } catch (e) { console.error('samara: the mockup door has no key: ' + (e as Error).message); return () => {}; }
+  let busy: Promise<unknown> = Promise.resolve();
+  const srv = http.createServer((req, res) => {
+    const peer = String(req.socket.remoteAddress ?? '');
+    const json = (code: number, j: unknown) => { res.writeHead(code, { 'content-type': 'application/json' }).end(JSON.stringify(j)); };
+    if (req.headers.origin || String(req.headers.host ?? '') !== `127.0.0.1:${port}` || !/^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)$/.test(peer)) { res.writeHead(403).end(); return; }
+    const url = String(req.url ?? '');
+    let body = '';
+    req.on('data', (d) => { body += d; if (body.length > 8192) req.destroy(); });
+    req.on('end', () => {
+      const ts = String(req.headers['x-samara-link-ts'] ?? ''), sig = String(req.headers['x-samara-link-sig'] ?? '');
+      const fresh = /^\d{10,16}$/.test(ts) && Math.abs(Date.now() - Number(ts)) < 60_000;
+      if (!fresh || !/^[0-9a-f]{64}$/.test(sig) || !same(sig, doorMac(key, 'req', ts, String(req.method), url, body))) { res.writeHead(403).end(); return; }
+      const q = new URL(url, 'http://127.0.0.1');
+      if (req.method === 'GET' && q.pathname === '/hello') {
+        const n = q.searchParams.get('n') ?? '';
+        if (!/^[0-9a-f]{16,64}$/.test(n)) { res.writeHead(400).end(); return; }
+        json(200, { proof: doorMac(key, 'hello', n) });
+        return;
+      }
+      // Sheet 79 (2026-10-23): what is approved, built, to fix or parked; and Claude's own mark on one version (an approval
+      // only with the user's words, said in the chat).
+      if (req.method === 'GET' && q.pathname === '/stages') {
+        if (!marks) { json(200, { ok: false, message: 'Marks are not on in this Samara.' }); return; }
+        json(200, { ok: true, stages: marks.list() });
+        return;
+      }
+      if (req.method === 'POST' && q.pathname === '/stage') {
+        let ask: DoorAsk & { v?: unknown; stage?: unknown; said?: unknown; note?: unknown } = {};
+        try { ask = JSON.parse(body); } catch { json(400, { ok: false, message: 'Not a request.' }); return; }
+        if (!marks) { json(200, { ok: false, message: 'Marks are not on in this Samara.' }); return; }
+        const c = checkAsk({ cwd: ask.cwd, path: ask.path });
+        if (!c.ok || !c.drop.repo || !c.drop.path) { json(200, c.ok ? { ok: false, message: 'Pass path: the sheet in your repo.' } : c); return; }
+        const why2 = marks.set({ repo: c.drop.repo, sheet: c.drop.path, v: Number.isInteger(ask.v) ? Number(ask.v) : null, stage: String(ask.stage ?? ''),
+          said: typeof ask.said === 'string' ? ask.said.slice(0, 300) : '', note: typeof ask.note === 'string' ? ask.note.slice(0, 300) : '' });
+        json(200, why2 ? { ok: false, message: why2 } : { ok: true, message: `Marked ${c.name} in Samara's Mockups trail.` });
+        return;
+      }
+      if (req.method === 'POST' && q.pathname === '/mockup') {
+        let ask: DoorAsk = {};
+        try { ask = JSON.parse(body); } catch { json(400, { ok: false, message: 'Not a request.' }); return; }
+        const off = why();
+        if (off) { json(200, { ok: false, message: off }); return; }
+        // Every mockup names its topic, so none lands under Other (2026-10-30; old sessions' mods included).
+        if (!(typeof ask.branch === 'string' && cleanBranch(ask.branch))) { json(200, { ok: false, message: NEED_TOPIC }); return; }
+        const c = checkAsk(ask);
+        if (!c.ok) { json(200, c); return; }
+        busy = busy.then(() => open(c.drop).then((v) => json(200, v && typeof v === 'object'
+          ? { ok: true, message: `Showing ${c.name} in Samara's Mockups trail${c.drop.branch ? ` (branch ${c.drop.branch})` : ''}.${v.src ? ` It joined the sheet ${v.sheet.slice(0, 200)} as its version ${v.v} (same project, number and file name); if that is wrong, give it its own number.` : ''}` }
+          : { ok: false, message: refused(c.name, typeof v === 'string' ? v : '', !!c.drop.url) }),
+        () => json(500, { ok: false, message: 'Samara could not open it.' })));
+        return;
+      }
+      res.writeHead(404).end();
+    });
+  });
+  srv.on('error', (e) => console.error('samara: the mockup door would not open: ' + (e as Error).message));
+  srv.listen(port, '127.0.0.1');
+  return () => { try { srv.close(); } catch { /* gone */ } };
+}

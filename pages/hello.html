@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- A page Samara draws loads nothing from anywhere, and runs nothing written into the page itself.
+     The style and the script are their own files so this can say 'self' instead of 'unsafe-inline',
+     which the Electron audit flagged on 2026-10-04. Every later page follows this shape. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; form-action 'none'; base-uri 'none'">
+<title>Samara</title>
+<link rel="stylesheet" href="hello.css">
+</head>
+<body>
+  <div class="card">
+    <h1>Samara</h1>
+    <p>The window layer. Nothing is drawn here yet.</p>
+    <div class="lamp" id="lamp"><i class="gem"></i><span id="state">starting…</span></div>
+    <div class="seen" id="seen"></div>
+  </div>
+<script src="hello.js"></script>
+</body>
+</html>

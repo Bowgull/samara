@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Sheet 107 (2026-10-30: one place is enough): Mockups, the one place. A tab per
+     project with its logo along the top; inside, its topics as sub headings and its Done at the bottom; a sheet opens
+     on the right at its true size, with its versions, its mark and a way back. Drawn with textContent only; the only
+     doors are window.mocklog. The sheets come from Samara's own mockup server on this computer, in a frame that can
+     never reach this page or its doors. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data: http://127.0.0.1:*; frame-src http://127.0.0.1:* http://localhost:* https://127.0.0.1:* https://localhost:* http://[::1]:* https://[::1]:*; font-src 'self'; style-src-attr 'unsafe-inline'; form-action 'none'; base-uri 'none'">
+<title>Mockups</title>
+<link rel="stylesheet" href="cockpit.css">
+<link rel="stylesheet" href="mocklog.css">
+</head>
+<body class="wait">
+<div class="log panel">
+  <!-- Sheet 119: Back to Samara stays put; only the tabs scroll, between two edges that show when more tabs sit that way -->
+  <div class="ptabbar" id="ptabbar"><div class="pwrap"><div class="ptabs" id="ptabs" role="tablist"></div>
+    <button class="pedge l" id="pedgel" type="button" tabindex="-1" aria-label="More tabs to the left"><i class="arw"></i><i class="gemnew"></i></button>
+    <button class="pedge r" id="pedger" type="button" tabindex="-1" aria-label="More tabs to the right"><i class="arw"></i><i class="gemnew"></i></button></div></div>
+  <div class="body">
+    <div class="side"><div class="find" id="find"></div><div class="list" id="list"></div></div>
+    <div class="view" id="view"></div>
+  </div>
+</div>
+<script type="module" src="mocklog.js"></script>
+</body>
+</html>

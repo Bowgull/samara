@@ -1,0 +1,358 @@
+// C7 Claude's rune in Samara's band (2026-10-21, sheet 50, B + Q): no rune with no jobs (or no brain); the
+// rune appears only with a running job, its ring lit to the job's %; one rune for two jobs, with NO number on it (sheet 58,
+// 2026-10-21: the numbers are not wanted); helper agents as small rows under their job; a click drops a
+// ROUNDED panel with both jobs folded; each unfolds on its own; needs you turns it blue; a finished job turns teal and
+// it goes by itself after a few seconds (Nice is only the pop-out's); Pause, Play, a message (now / after) and Open in Claude go out as the checked messages only, and
+// anything else from the band is refused. Clicks are made inside the page (element.click()), never real mouse or keys;
+// Open in Claude is caught by the test, so the Claude app is never opened. Two pictures: the bar, and the open panel.
+//
+// Run: npx electron test/electron/rune-check.ts [folder for the pictures]
+import { app, BrowserWindow, screen } from 'electron';
+import http from 'node:http';
+import { mkdirSync, mkdtempSync, statSync, writeFileSync } from 'node:fs';
+import os from 'node:os'; import path from 'node:path'; import { fileURLToPath } from 'node:url';
+import { servePages } from '../../src/pageserver.ts'; import { SamaraBrowser } from '../../src/browser.ts'; import { wireBrowser } from '../../src/browseripc.ts';
+process.on('uncaughtException', (e) => { console.log('HARNESS NOTE ' + String((e as Error)?.stack ?? e).split('\n').slice(0, 3).join(' | ')); });
+process.on('unhandledRejection', (e) => { console.log('HARNESS REJECTION ' + String((e as Error)?.stack ?? e)); app.exit(2); });
+setTimeout(() => { console.log('HARNESS TIMEOUT'); app.exit(3); }, 90_000).unref();
+app.on('window-all-closed', () => {});
+// 2026-10-21: an off-screen window still counts as on screen, so its pages draw (the panel's slide, the test video).
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+// Off the main screen, never in front of a game.
+BrowserWindow.prototype.show = function (this: BrowserWindow) { this.setPosition(-6000, 100); this.showInactive(); };
+BrowserWindow.prototype.focus = function () {};
+BrowserWindow.prototype.moveTop = function () {};
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+let bad = 0;
+const check = (what: string, ok: boolean, d = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}${d ? '  -- ' + String(d).slice(0, 260) : ''}`); if (!ok) bad++; };
+const until = async (fn: () => boolean | Promise<boolean>, ms = 6000) => { const end = Date.now() + ms; while (Date.now() < end) { if (await fn()) return true; await wait(80); } return fn(); };
+const OUT = (() => { const a = process.argv.at(-1); try { return a && statSync(a).isDirectory() ? a : os.tmpdir(); } catch { return os.tmpdir(); } })();
+
+const S1 = '0b6c2a8e-1111-4c3d-9e2f-aaaaaaaaaaaa', S2 = '7f3e9d21-2222-4b8a-8c1d-bbbbbbbbbbbb';
+const tasks = (done: number, names: string[]) => names.map((text, i) => ({ text, status: i < done ? 'completed' : i === done ? 'in_progress' : 'pending', ...(i === done ? { active: text + '...' } : {}) }));
+const W1 = ['Replay harness', 'Athlete model', 'Rules-only brain', 'AI joins in', 'Readiness meter', 'Test week'];
+const W2 = ['Read the drawer code', 'Round the plaques', 'Hover sounds', 'Test it'];
+const job = (id: string, project: string, phase: string, t: any[], percent: number | null, etaMs: number | null) => ({
+  id, machine: 'pc', cwd: 'C:\\x', project, model: 'opus', phase, startedAt: id === S1 ? 2 : 1, lastActivity: 1, prompt: 'go', tasks: t,
+  current: '', percent, etaMs, usage: null, open: `claude://claude.ai/epitaxy/${id}`, held: 0 });
+
+// 2026-10-21: a page playing a video made on the spot (a canvas stream, looping colours): no network, no file.
+const VIDEO_PAGE = `<!doctype html><title>Video</title><body style="margin:0;background:#000"><canvas id="c" width="320" height="180" hidden></canvas>
+<video id="v" muted autoplay playsinline style="width:100%;height:100%"></video><script>
+const c = document.getElementById('c'), g = c.getContext('2d'); let f = 0;
+setInterval(() => { f++; g.fillStyle = 'hsl(' + (f * 7 % 360) + ',70%,50%)'; g.fillRect(0, 0, 320, 180); g.fillStyle = '#fff'; g.fillText(String(f), 20, 40); }, 33);
+const v = document.getElementById('v'); v.srcObject = c.captureStream(30); setInterval(() => { if (v.paused) v.play().catch(() => {}); }, 200);
+</script></body>`;
+
+app.whenReady().then(async () => {
+  (screen as any).getCursorScreenPoint = () => ({ x: -20000, y: 500 });
+  const site = http.createServer((q, r) => r.writeHead(200, { 'Content-Type': 'text/html' }).end(q.url === '/video' ? VIDEO_PAGE : '<!doctype html><title>Page</title><body style="background:#f6f3ee;font:20px sans-serif;padding:40px">A web page</body>'));
+  await new Promise<void>((r) => site.listen(0, '127.0.0.1', () => r()));
+  const port = (site.address() as { port: number }).port;
+  const st = mkdtempSync(path.join(os.tmpdir(), 'rune-state-'));
+  mkdirSync(path.join(st, 'open-urls'));
+  // RUNE_PAGES: another copy of the pages (only to picture an older rune beside this one); normally unset.
+  const pages = await servePages(process.env.RUNE_PAGES || path.join(HERE, '..', '..', 'pages'));
+  const b = new SamaraBrowser({ origin: pages.origin, stateDir: st, preloadPath: path.join(HERE, '..', '..', 'src', 'samarapreload.cjs'), tabPreloadPath: path.join(HERE, '..', '..', 'src', 'tabpreload.cjs'), settingsPreloadPath: path.join(HERE, '..', '..', 'src', 'settingspreload.cjs'), thingsPreloadPath: path.join(HERE, '..', '..', 'src', 'thingspreload.cjs'), testLocal: true } as any) as any;
+  wireBrowser(() => b);
+  const sent: any[] = [], opened: string[] = [];
+  b.onClaude = (m: any) => sent.push(m);
+  // 2026-10-21: a checked target (claudewire.ts claudeOpenTarget): the exact link, or 'front' / 'mac'.
+  b.onClaudeOpen = (t: any) => opened.push(t.kind === 'link' ? t.url : t.kind);
+  b.open(`http://127.0.0.1:${port}/`);
+  await until(() => !!b.win);
+  const w: BrowserWindow = b.win;
+  w.setSize(1180, 640);
+  const js = (s: string) => w.webContents.executeJavaScript(s, true);
+  // 2026-10-21: the rune's panel is drawn in its own see-through layer above the live page (browser.ts runeView).
+  const layerOf = () => { const p = b.panes.find((x: any) => x.win === w); return p?.runeV && !p.runeV.webContents.isDestroyed() ? p.runeV : null; };
+  const rjs = async (s: string) => { await until(() => !!layerOf() && !layerOf().webContents.isLoading(), 6000); return layerOf().webContents.executeJavaScript(s, true); };
+  const shut = () => until(async () => (await rjs(`document.getElementById('rpanel').hidden`)) === true, 1500);
+  await until(async () => (await js(`!!document.getElementById('runeslot') && document.readyState === 'complete'`)) === true, 10000);
+  await wait(400);
+  const slotShown = () => js(`!document.getElementById('runeslot').hidden && !!document.querySelector('#runeslot .rune')`);
+  const bandH = () => js(`document.getElementById('band').getBoundingClientRect().height`);
+  const h0 = await bandH();
+
+  // 1. No brain (Samara on its own) and no jobs: no rune at all.
+  check('no brain: no rune', (await slotShown()) === false);
+  b.claudeNews({ t: 'claude.jobs', jobs: [job(S1, 'Waymark', 'idle', [], null, null)] });
+  await wait(250);
+  check('an idle session with nothing running: still no rune', (await slotShown()) === false);
+
+  // 1b. 2026-10-21,: no spin. A job with no to-do list shows the ring's empty track, still: nothing in the rune
+  // rotates or animates (not the old quarter turn, not the breathing), and none of the ring is lit.
+  b.claudeNews({ t: 'claude.jobs', jobs: [job(S1, 'Waymark', 'working', [], null, null)] });
+  check('a job with no list: the rune appears', await until(slotShown));
+  await wait(300);
+  const quiet = await js(`(() => { const s = document.getElementById('runeslot'), rg = s.querySelector('.rg'); const anims = document.getAnimations().filter((a) => s.contains(a.effect?.target));
+    const g = rg.getContext('2d').getImageData(0, 0, rg.width, rg.height).data; let lit = 0, track = 0; for (let i = 0; i < g.length; i += 4) if (g[i + 3]) { if (g[i] === 240 && g[i + 1] === 166) lit++; else track++; }
+    return { anims: anims.length, busy: !!s.querySelector('.busy'), tf: getComputedStyle(rg).transform, lit, track }; })()`);
+  check('no list: nothing spins or animates, the ring is an empty still track', quiet.anims === 0 && !quiet.busy && /^matrix\(1, 0, 0, 1, /.test(quiet.tf) && quiet.lit === 0 && quiet.track > 100, JSON.stringify(quiet));
+  // 2026-10-21 ("—% all done · Working"): no percent, no "all done", and "Working" said once.
+  await js(`document.querySelector('#runeslot .rune').click()`);
+  await until(async () => (await rjs(`!document.getElementById('rpanel').hidden`)) === true);
+  await wait(200);
+  const bare = await rjs(`document.getElementById('rpanel').innerText`);
+  check('no list: no "—%", no "all done", "Working" once', !/—%|%/.test(bare) && !/all done/i.test(bare) && (bare.match(/\bWorking\b/g) || []).length === 1, bare);
+  // Open in Claude pressed somewhere else (the bubble, a pop-out): main.ts folds every rune panel away.
+  b.claudeFold();
+  check('Open in Claude elsewhere folds the panel', await shut());
+  // A job with no app link (a terminal session) still opens something: the Claude window forward.
+  b.claudeNews({ t: 'claude.jobs', jobs: [{ ...job(S1, 'Waymark', 'working', [], null, null), open: null }] });
+  await wait(250);
+  await js(`document.querySelector('#runeslot .rune').click()`);
+  await until(async () => (await rjs(`!document.getElementById('rpanel').hidden`)) === true);
+  await rjs(`document.querySelector('#rpanel .job')?.click(); true`); await wait(200);
+  await rjs(`document.querySelector('#rpanel .job [data-act=open]')?.click(); true`);
+  check('no app link: Open in Claude still brings Claude forward', await until(() => opened.at(-1) === 'front', 1500) && await shut(), JSON.stringify(opened));
+  opened.length = 0;
+
+  // 2. One job running: the rune, amber, its ring lit to the job's %.
+  b.claudeNews({ t: 'claude.jobs', jobs: [job(S1, 'Waymark', 'working', tasks(3, W1), 62, 38 * 60_000)] });
+  check('a running job: the rune appears', await until(slotShown));
+  check('it is the working state, take B', await js(`(() => { const r = document.querySelector('#runeslot .rune'); return r.classList.contains('tB') && r.dataset.state === 'working' && r.style.getPropertyValue('--c') === '#f0a64a'; })()`) === true);
+  // The job had no list a moment ago, so the ring eases in from empty: wait out the ~300 ms fill first.
+  await wait(500);
+  const litOf = () => js(`(() => { const c = document.querySelector('#runeslot .rg'), g = c.getContext('2d'); const d = g.getImageData(0, 0, c.width, c.height).data; let on = 0, all = 0;
+    for (let y = 0; y < c.height; y += 2) for (let x = 0; x < c.width; x += 2) { const i = (y * c.width + x) * 4; if (!d[i + 3]) continue; all++; if (d[i] === 240 && d[i + 1] === 166 && d[i + 2] === 74) on++; } return [on, all]; })()`);
+  const lit = await litOf();
+  check('the ring is lit to about 62%', lit[1] > 20 && Math.abs(lit[0] / lit[1] - 0.62) < 0.06, `${lit[0]} of ${lit[1]}`);
+  // 2026-10-21,: back to sheet 50 take B's size. The sheet's own band (docs/cockpit/sheet-50/band.html?take=B)
+  // is opened off screen and its stone + ring measured, so the real rune is held to the original, not to a number.
+  const sheet = new BrowserWindow({ show: false, width: 1180, height: 200, webPreferences: { offscreen: false } });
+  await sheet.loadFile(path.join(HERE, '..', '..', '..', '..', 'docs', 'cockpit', 'sheet-50', 'band.html'), { query: { take: 'B', two: 'count' } });
+  await wait(400);
+  const boxOf = (run: (s: string) => Promise<any>) => run(`(() => { const s = document.querySelector('.rune .stone').getBoundingClientRect(), rg = document.querySelector('.rune .rg').getBoundingClientRect(); return { w: s.width, h: s.height, rw: rg.width, rh: rg.height, x: s.left, y: s.top }; })()`);
+  const want = await boxOf((s) => sheet.webContents.executeJavaScript(s, true)), got = await boxOf(js);
+  check('the rune is the original size (sheet 50 take B, within 1 px)', Math.abs(got.w - want.w) <= 1 && Math.abs(got.h - want.h) <= 1 && Math.abs(got.rw - want.rw) <= 1 && Math.abs(got.rh - want.rh) <= 1, `sheet ${JSON.stringify(want)} real ${JSON.stringify(got)}`);
+  const sheetShot = await sheet.webContents.capturePage({ x: Math.max(0, Math.round(want.x) - 60), y: 0, width: 156, height: 70 });
+  writeFileSync(path.join(OUT, 'rune-sheet50-closed.png'), sheetShot.toPNG()); console.log('PICTURE ' + path.join(OUT, 'rune-sheet50-closed.png'));
+  sheet.destroy();
+  // The fill eases (~300 ms) from where it stands to the new value: never a jump, never backwards on the way. Its own
+  // job id, because the engine holds a job's furthest % (S1 must stay at 62 for the rest).
+  const S4 = '4d4d4d4d-4444-4c3d-9e2f-dddddddddddd';
+  b.claudeNews({ t: 'claude.jobs', jobs: [job(S4, 'Waymark', 'working', tasks(3, W1), 62, 38 * 60_000)] });
+  await wait(500);
+  b.claudeNews({ t: 'claude.jobs', jobs: [job(S4, 'Waymark', 'working', tasks(4, W1), 85, 20 * 60_000)] });
+  const seen: number[] = [];
+  for (let k = 0; k < 10; k++) { const [on, all] = await litOf(); seen.push(Math.round((on / all) * 100)); await wait(45); }
+  await wait(300);
+  const [on2, all2] = await litOf();
+  const target = Number(await js(`document.querySelector('#runeslot .rune').dataset.p`));
+  check('a new % fills smoothly: in-between steps, never back, lands on the %', seen.some((v) => v > 64 && v < 83) && seen.every((v, i) => i === 0 || v >= seen[i - 1]) && Math.abs((on2 / all2) * 100 - target) < 6 && target === 85, `${seen.join(' ')} -> ${Math.round((on2 / all2) * 100)} (target ${target})`);
+  b.claudeNews({ t: 'claude.jobs', jobs: [job(S1, 'Waymark', 'working', tasks(3, W1), 62, 38 * 60_000)] });   // back to S1 for the rest
+  await wait(200);
+  check('the band keeps its height', (await bandH()) === h0, `${h0} -> ${await bandH()}`);
+  check('no number with one job', await js(`!document.querySelector('#runeslot .pip')`) === true);
+  // 2026-10-21,: the glyph is Claude's own terracotta starburst on the icon's cream stone, whatever the state.
+  const px = (rgb: string) => js(`(() => { const c = document.querySelector('#runeslot .rn'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] && [d[i], d[i + 1], d[i + 2]].join() === '${rgb}') n++; return n; })()`);
+  const sun = await px('217,119,87'), cream = await px('240,227,200');
+  // Back on the original 12-pixel stone (2026-10-21): 8 thin rays round a small centre, 22 art pixels of terracotta.
+  check("the glyph is Claude's terracotta starburst on cream", sun === 88 && cream >= 150, `${sun} terracotta, ${cream} cream screen px`);
+
+  // 3. Two jobs: ONE rune, and no number on it (sheet 58, 2026-10-21: the gold count pip is gone).
+  const two = () => [job(S1, 'Waymark', 'working', tasks(3, W1), 62, 38 * 60_000), job(S2, 'Samara', 'working', tasks(1, W2), 15, 50 * 60_000)];
+  b.claudeNews({ t: 'claude.jobs', jobs: two() });
+  const noNumber = () => js(`(() => { const s = document.getElementById('runeslot'); return !s.querySelector('.pip') && !/\\d/.test(s.textContent); })()`);
+  check('two jobs: one rune, no number on it', await until(async () => (await js(`document.querySelectorAll('#runeslot .rune').length`)) === 1) && (await noNumber()) === true);
+  const pic = async (name: string, rect?: Electron.Rectangle) => { const img = await w.webContents.capturePage(rect); const f = path.join(OUT, name); writeFileSync(f, img.toPNG()); console.log('PICTURE ' + f); };
+  await wait(400);
+  await pic('rune-bar.png', { x: 0, y: 0, width: 1180, height: 70 });
+  // The rune closed, cropped the same way as the sheet's (rune-sheet50-closed.png), to lay side by side.
+  const rx = await js(`Math.round(document.querySelector('#runeslot .stone').getBoundingClientRect().left)`);
+  await pic('rune-real-closed.png', { x: Math.max(0, rx - 60), y: 0, width: 156, height: 70 });
+
+  // 4. Click: the rounded panel with both jobs folded.
+  await js(`document.querySelector('#runeslot .rune').click()`);
+  check('a click opens the panel', await until(async () => (await rjs(`!document.getElementById('rpanel').hidden`)) === true));
+  const look = await rjs(`(() => { const p = document.getElementById('rpanel'), s = getComputedStyle(p); return { r: parseFloat(s.borderTopLeftRadius), img: s.borderImageSource, jobs: p.querySelectorAll('.job').length, open: p.querySelectorAll('.job.open').length, gh: p.querySelector('.gh').textContent }; })()`);
+  check('the panel has round, soft corners (no square pixel frame)', look.r >= 12 && look.img === 'none', JSON.stringify(look));
+  check('both jobs are listed, folded', look.jobs === 2 && look.open === 0 && look.gh === 'CLAUDE · 2 JOBS', JSON.stringify(look));
+  check('the rune shows it is pressed', await js(`document.querySelector('#runeslot .rune').classList.contains('on')`) === true);
+  check('open: still no number on the rune', (await noNumber()) === true);
+  await pic('rune-bar-open.png', { x: 560, y: 0, width: 620, height: 420 });
+  await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`);
+  check('closed: the same rune, not redrawn, and no number', await until(async () => (await js(`document.querySelectorAll('#runeslot .rune').length === 1 && !document.querySelector('#runeslot .rune').classList.contains('on')`)) === true, 1500) && (await noNumber()) === true);
+  await js(`document.querySelector('#runeslot .rune').click()`);
+  await until(async () => (await rjs(`!document.getElementById('rpanel').hidden`)) === true);
+  const card = (id: string) => `#rpanel .job[data-id="${id}"]`;
+  await rjs(`document.querySelector('${card(S1)}').click()`);
+  check('the first unfolds on its own', await rjs(`[document.querySelector('${card(S1)}').classList.contains('open'), document.querySelector('${card(S2)}').classList.contains('open')].join()`) === 'true,false');
+  await rjs(`document.querySelector('${card(S2)}').click()`);
+  check('then the second too: both open', await rjs(`document.querySelectorAll('#rpanel .job.open').length`) === 2);
+  check('the card has the tasks, the pill, Pause and Open in Claude', await rjs(`(() => { const c = document.querySelector('${card(S1)}'); return c.querySelectorAll('.ob').length === 6 && !!c.querySelector('canvas.jpill') && !!c.querySelector('[data-act=pause]') && !!c.querySelector('[data-act=open]') && !!c.querySelector('.msg') && c.querySelector('.pct').textContent === '62%'; })()`) === true);
+  await rjs(`document.querySelector('${card(S2)}').click()`);
+  check('and folds again on its own', await rjs(`[document.querySelector('${card(S1)}').classList.contains('open'), document.querySelector('${card(S2)}').classList.contains('open')].join()`) === 'true,false');
+  await wait(400);
+  await pic('rune-panel.png', { x: 560, y: 0, width: 620, height: 640 });
+
+  // 5. The actions: the same checked messages the cockpit sends.
+  await rjs(`document.querySelector('${card(S1)} [data-act=pause]').click()`);
+  check('Pause sends claude.pause for that session', await until(() => sent.some((m) => m.t === 'claude.pause' && m.session === S1)), JSON.stringify(sent));
+  await rjs(`document.querySelector('${card(S2)} .msg').click()`);
+  check('the purple key opens the say box for that session', await rjs(`!!document.querySelector('${card(S2)} .say input')`) === true);
+  await rjs(`(() => { const i = document.querySelector('${card(S2)} .say input'); i.value = 'Use the round plaques'; i.dispatchEvent(new Event('input')); document.querySelector('${card(S2)} [data-act=send]').click(); })()`);
+  check('Send: claude.send now', await until(() => sent.some((m) => m.t === 'claude.send' && m.session === S2 && m.text === 'Use the round plaques' && m.when === 'now')), JSON.stringify(sent.at(-1)));
+  await rjs(`document.querySelector('${card(S2)} .msg').click()`);
+  await rjs(`(() => { const i = document.querySelector('${card(S2)} .say input'); i.value = 'Then the sounds'; i.dispatchEvent(new Event('input')); document.querySelector('${card(S2)} [data-act=after]').click(); })()`);
+  check('After this task: claude.send after', await until(() => sent.some((m) => m.t === 'claude.send' && m.when === 'after' && m.text === 'Then the sounds')));
+  b.claudeNews({ t: 'claude.jobs', jobs: [job(S1, 'Waymark', 'paused', tasks(3, W1), 62, null), two()[1]] });
+  await until(async () => (await rjs(`!!document.querySelector('${card(S1)} [data-act=play]')`)) === true);
+  await rjs(`document.querySelector('${card(S1)} [data-act=play]').click()`);
+  check('a paused job: Play sends claude.play', await until(() => sent.some((m) => m.t === 'claude.play' && m.session === S1)));
+  // 2026-10-21: Open in Claude hands over that session's link and the panel folds away at once.
+  await rjs(`document.querySelector('${card(S1)} [data-act=open]').click()`);
+  check('Open in Claude hands over the exact claude:// link', await until(() => opened.includes(`claude://claude.ai/epitaxy/${S1}`)), JSON.stringify(opened));
+  check('...and the panel folds away at once', await shut());
+  await js(`document.querySelector('#runeslot .rune').click()`);   // open again for the steps below
+  await until(async () => (await rjs(`!document.getElementById('rpanel').hidden`)) === true);
+  // Anything else from the band is refused: an answer (the band never approves anything), a bad id, a non-Claude link.
+  const before = sent.length;
+  await js(`window.samara.browserClaude({ t: 'claude.answer', id: 'toolu_1', decision: 'allow' }); window.samara.browserClaude({ t: 'claude.send', session: '../x y', text: 'a', when: 'now' }); window.samara.browserClaude({ t: 'claude.pause', session: 5 }); window.samara.browserOpenClaude('https://example.com/x'); window.samara.browserOpenClaude('claude://claude.ai/epitaxy/a b');`);
+  await wait(400);
+  check('the band cannot answer, send to a bad id, or open other links', sent.length === before && opened.length === 1, JSON.stringify(sent.slice(before)) + ' ' + JSON.stringify(opened));
+
+  // 6. Needs you: blue, first.
+  b.claudeNews({ t: 'claude.jobs', jobs: two() });
+  b.claudeNews({ t: 'claude.wait', items: [{ id: 'toolu_9', session: S2, project: 'Samara', kind: 'permission', tool: 'Bash', summary: 'x', input: 'SECRET INPUT', canAlways: true, at: 1 }] });
+  check('needs you: the rune turns blue', await until(async () => (await js(`document.querySelector('#runeslot .rune').dataset.state`)) === 'needs'));
+  check('the needing job comes first, and says so', await rjs(`(() => { const j = document.querySelectorAll('#rpanel .job'); return j[0].dataset.id === '${S2}' && j[0].classList.contains('needs') && /NEEDS YOU/.test(j[0].textContent); })()`) === true);
+  check("Claude's exact input never reaches the band", await js(`!document.body.innerHTML.includes('SECRET INPUT')`) === true);
+
+  // 7. Finished: teal, the tick, no Nice (only the pop-out has one), and it goes by itself after ~4 s.
+  b.claudeNews({ t: 'claude.wait', items: [] });
+  b.claudeNews({ t: 'claude.jobs', jobs: [job(S1, 'Waymark', 'idle', tasks(6, W1), 100, 0), two()[1]] });
+  check('a finished job: a teal card, no Nice', await until(async () => (await rjs(`!!document.querySelector('${card(S1)}.done') && !document.querySelector('${card(S1)} [data-act=nice]')`)) === true));
+  // 2026-10-21: the whole finished card is a door to its session; the panel folds, then opens again here.
+  opened.length = 0;
+  await rjs(`document.querySelector('${card(S1)}.done .big').click(); true`);
+  check('a click on the finished card opens that session in Claude', await until(() => opened.includes(`claude://claude.ai/epitaxy/${S1}`), 1500) && await shut(), JSON.stringify(opened));
+  await wait(350);
+  await js(`document.querySelector('#runeslot .rune').click()`);
+  await until(async () => (await rjs(`!document.getElementById('rpanel').hidden`)) === true);
+  check('the panel still lists it, and the rune has no number', await rjs(`document.querySelectorAll('#rpanel .job').length`) === 2 && (await noNumber()) === true);
+  await wait(300);
+  await pic('rune-panel-done.png', { x: 560, y: 0, width: 620, height: 640 });
+  check('the finished one goes by itself', await until(async () => (await rjs(`!!document.querySelector('${card(S1)}')`)) === false, 7000));
+  b.claudeNews({ t: 'claude.jobs', jobs: [job(S2, 'Samara', 'idle', tasks(4, W2), 100, 0)] });
+  check('the last job finishing: the rune becomes the teal tick', await until(async () => (await js(`document.querySelector('#runeslot .rune')?.dataset.state`)) === 'complete'));
+  await wait(400);
+  await pic('rune-bar-done.png', { x: 900, y: 0, width: 280, height: 70 });
+  const teal = await px('63,196,180'), sunLeft = await px('217,119,87');
+  check('finished: the starburst turns into a teal tick', teal >= 40 && sunLeft === 0, `${teal} teal, ${sunLeft} terracotta`);
+
+  // 8. Esc and a click elsewhere fold it; no brain: no rune.
+  await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`);
+  check('Esc folds the panel', await shut());
+  await js(`document.querySelector('#runeslot .rune').click()`);
+  await until(async () => (await rjs(`!document.getElementById('rpanel').hidden`)) === true && await js(`document.querySelector('#runeslot .rune')?.classList.contains('on')`) === true);
+  await js(`document.querySelector('.slot').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`);
+  check('a click elsewhere folds it', await shut());
+  b.claudeNews(null);
+  check('the brain goes away: no rune', await until(async () => (await slotShown()) === false));
+
+  // 8b. The shared live progress engine (2026-10-21, claudejobs.js): the panel says what Claude is doing right now and
+  // its helper agents, the % creeps between messages, and never goes back when the brain's next message lands.
+  const S3 = '3c3c3c3c-3333-4c3d-9e2f-cccccccccccc';
+  const liveJob = () => ({ ...job(S3, 'Waymark', 'working', tasks(3, W1), 50, null),
+    progress: { done: 3, total: 6, cur: 3, elapsedMs: 0, at: Date.now(), paceMs: 6000, rev: 0, rewroteAt: null },
+    activity: { now: 'Running the tests · npm test', since: Date.now() - 12_000, agents: [{ kind: 'Explore', what: 'Mapping the code', since: Date.now() }] } });
+  b.claudeNews({ t: 'claude.jobs', jobs: [liveJob()] });
+  await until(slotShown);
+  await js(`document.querySelector('#runeslot .rune').click()`);
+  await until(async () => (await rjs(`!!document.querySelector('${card(S3)}')`)) === true);
+  await rjs(`document.querySelector('${card(S3)}').click()`);
+  const actLine = await rjs(`(() => { const r = document.querySelector('${card(S3)} .agc .agr'); return [document.querySelector('${card(S3)} .act .an')?.textContent, r?.dataset.type, r?.querySelector('b')?.textContent, r?.querySelector('.wh')?.textContent, r?.querySelector('.tm')?.textContent, !!document.querySelector('${card(S3)} .act .agr')].join(' | '); })()`);
+  // Sheet 58 C (2026-10-21): the helper is its own row under the job's bar (type icon, label, its bar), not in the drop-down.
+  check('the live description above the tasks; the helper as a row under the bar', /^Running the tests · npm test \(1\d s\) \| explore \| Explore \| Mapping the code \| \d+ s \| false$/.test(actLine), actLine);
+  const pctNow = async () => parseInt(await rjs(`document.querySelector('${card(S3)} .pct').textContent`), 10);
+  const p1 = await pctNow(); await wait(1500); const p2 = await pctNow();
+  check('the % creeps between messages', p1 >= 50 && p2 > p1, `${p1} -> ${p2}`);
+  const ring1 = Number(await js(`document.querySelector('#runeslot .rune').dataset.p`));
+  check('the ring follows the same live %', Math.abs(ring1 - p2) <= 3, `ring ${ring1}, panel ${p2}`);
+  await pic('rune-panel-live.png', { x: 560, y: 0, width: 620, height: 640 });
+  b.claudeNews({ t: 'claude.jobs', jobs: [liveJob()] });   // the brain's next message: its own clock starts again
+  await wait(300);
+  const p3 = await pctNow();
+  check('and never goes back when the next message lands', p3 >= p2, `${p2} -> ${p3}`);
+  // Sheet 58 C: five helpers on one job: three rows (icon, label, own bar), "+2 more", the panel still one job, no number.
+  {
+    const n0 = Date.now();
+    const five = [
+      { id: 'a1', kind: 'general-purpose', what: 'Map tiles docs research', since: n0 - 4 * 60_000, calls: 9, est: { mu: Math.log(6 * 60_000), sigma: 0.5 }, n: 5, fg: false },
+      { id: 'a2', kind: 'general-purpose', what: 'Write the route list', since: n0 - 3 * 60_000, calls: 14, done: 5, total: 8, fg: false },
+      { id: 'a3', kind: 'general-purpose', what: 'Running the tests', since: n0 - 60_000, calls: 2, fg: false },
+      { id: 'a4', kind: 'Explore', what: 'Mapping the code', since: n0 - 30_000, fg: false },
+      { id: 'a5', kind: 'Plan', what: 'Plan the sync', since: n0 - 20_000, fg: false },
+    ];
+    await rjs(`document.querySelector('${card(S3)}').click()`);     // folded: the helper rows stay in view
+    b.claudeNews({ t: 'claude.jobs', jobs: [{ ...liveJob(), activity: { now: 'Wiring the route list', since: n0 - 40_000, agents: five } }] });
+    await until(async () => (await rjs(`document.querySelectorAll('${card(S3)} .agc .agr').length`)) === 3, 3000);
+    const A = await rjs(`(() => { const c = document.querySelector('${card(S3)}'); return { open: c.classList.contains('open'), rows: [...c.querySelectorAll('.agc .agr')].map(r => [r.dataset.type, r.querySelector('b').textContent, !!r.querySelector('canvas.agi'), !!r.querySelector('canvas.agb'), r.querySelector('.tm').textContent].join('/')),
+      more: c.querySelector('.agmore')?.textContent, jobs: document.querySelectorAll('#rpanel .job').length }; })()`);
+    check('helpers in the rune panel: 3 rows with icon + bar, "+2 more", folded card, still one job', A.open === false && A.jobs === 1 && A.more === '+2 more'
+      && /^research\/Research\/true\/true\/4 min,build\/Build\/true\/true\/63%,check\/Check\/true\/true\/1 min$/.test(A.rows.join()), JSON.stringify(A));
+    check('helpers: no number on the rune', (await noNumber()) === true);
+    await wait(300);
+    // Laid beside sheet 58's rune-C.png: the panel with its job and helpers.
+    { const f = path.join(OUT, 'rune-agents.png'); writeFileSync(f, (await layerOf().webContents.capturePage()).toPNG()); console.log('PICTURE ' + f); }
+  }
+  await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`);
+
+  // 8c. 2026-10-21 (opening the rune hurt the browser, especially over a)
+  // video; it should be smooth). Over a playing video: the page is never hidden, frozen or pictured while the panel opens
+  // and closes, the video keeps playing, and the panel slides in and out.
+  {
+    b.open(`http://127.0.0.1:${port}/video`);
+    await until(() => b.cur()?.url?.endsWith('/video') && !b.cur()?.loading, 8000);
+    const tab = b.cur(), vjs = (s: string) => tab.view.webContents.executeJavaScript(s, true);
+    await until(async () => Number(await vjs(`document.getElementById('v').currentTime`)) > 0.3, 6000);
+    b.claudeNews({ t: 'claude.jobs', jobs: [job(S1, 'Waymark', 'working', tasks(3, W1), 62, 38 * 60_000)] });
+    await until(slotShown);
+    // Counted from here: opening and closing the panel only.
+    let shots = 0, frozen = 0;
+    const shotOf = b.shotOf.bind(b);
+    b.shotOf = async (...a: unknown[]) => { shots++; return shotOf(...a); };
+    const send = w.webContents.send.bind(w.webContents);
+    (w.webContents as any).send = (ch: string, ...a: unknown[]) => { if (ch === 'browser:frozen' && a[0]) frozen++; return send(ch, ...a); };
+    const t0 = Number(await vjs(`document.getElementById('v').currentTime`));
+    let hiddenSeen = false;
+    const watch = setInterval(() => { if (tab.view && !tab.view.getVisible()) hiddenSeen = true; }, 15);
+    await js(`document.querySelector('#runeslot .rune').click()`);
+    await until(async () => (await rjs(`!document.getElementById('rpanel').hidden`)) === true, 3000);
+    await wait(60);
+    const mid = Number(await rjs(`getComputedStyle(document.getElementById('rpanel')).opacity`));
+    await wait(400);
+    const end = await rjs(`(() => { const s = getComputedStyle(document.getElementById('rpanel')); return { o: s.opacity, tr: s.transitionDuration, ease: s.transitionTimingFunction }; })()`);
+    check('the panel slides in (part way at 60 ms, there by 460 ms, 260 ms on Samara ease)', mid < 1 && end.o === '1' && /0\.26s/.test(end.tr) && /cubic-bezier\(0\.32, 0\.72, 0, 1\)/.test(end.ease), JSON.stringify({ mid, end }));
+    const layer = layerOf();
+    check('it is its own layer, over the page (the page view stays under it)', !!layer && layer.getVisible() && w.contentView.children.indexOf(layer) > w.contentView.children.indexOf(tab.view));
+    await rjs(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`);
+    await wait(60);
+    const out = Number(await rjs(`getComputedStyle(document.getElementById('rpanel')).opacity`));
+    check('it slides out (part way at 60 ms) and is gone after', out < 1 && await shut() && await until(() => !layer.getVisible(), 1000), String(out));
+    clearInterval(watch);
+    const t1 = Number(await vjs(`document.getElementById('v').currentTime`));
+    const playing = await vjs(`(() => { const v = document.getElementById('v'); return !v.paused && v.readyState >= 2; })()`);
+    check('the page was never hidden, frozen or pictured, and the video kept playing', !hiddenSeen && shots === 0 && frozen === 0 && playing === true && t1 > t0 + 0.4, JSON.stringify({ hiddenSeen, shots, frozen, t0, t1, playing }));
+    b.shotOf = shotOf; (w.webContents as any).send = send;
+    b.close(tab.id);
+    await wait(200);
+  }
+
+  // 9. Samara's taskbar right-click list (2026-10-21, jumplist.ts): what each item does once it reaches Samara.
+  const nTabs = b.tabs.length;
+  b.jumpTask('new-tab');
+  check('taskbar New tab: one more tab', await until(() => b.tabs.length === nTabs + 1), `${nTabs} -> ${b.tabs.length}`);
+  b.jumpTask('settings');
+  check('taskbar Settings: the settings tab, in front', await until(() => b.cur()?.internal === 'settings'));
+  const panes = () => b.panes.filter((p: any) => p.win && !p.win.isDestroyed()).length;
+  b.jumpTask('new-window');
+  check('taskbar New window: a second window', await until(() => panes() === 2), String(panes()));
+
+  console.log(bad ? `${bad} FAILED` : 'ALL PASS'); app.exit(bad ? 1 : 0);
+});

@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- The browser's Settings, as its own tab. Sheet 83 v2 (his "B but its a hover time yes?", 2026-10-23): chapters down the
+     left, each row a name and its value with nothing under it, ‹ › to change a value, a › row opens one level in, and one
+     help line for the row the glove has rested on for half a second. Dark ink cards on recessed wood, gold arrow caps,
+     the white glove (sheet of 2026-10-12). v4 (his "yes i approve build v4"): the help is a small label by the mouse after
+     it rests on a row for 2 seconds, no frame; one row per email; the phone tidied as he types. Everything drawn with textContent; the only doors are window.settings. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; font-src 'self'; form-action 'none'; base-uri 'none'">
+<title>Settings</title>
+<link rel="stylesheet" href="cockpit.css">
+<link rel="stylesheet" href="settings.css">
+<link rel="stylesheet" href="samaralook.css">
+</head>
+<body>
+<div class="set">
+  <nav class="side" aria-label="Settings chapters">
+    <h1>Settings</h1>
+    <a href="#start" data-sec="start"><i><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges"><path d="M3 0h1v1H3zM2 1h3v1H2zM1 2h5v1H1zM0 3h7v1H0zM1 4h5v3H4V5H3v2H1z"/></svg></i>Start</a>
+    <a href="#look" data-sec="look"><i><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges"><path d="M2 0h3v1h1v1h1v3H6v1H5v1H2V6H1V5H0V2h1V1h1zM3 2v1H2v1h1v1h1V4h1V3H4V2z"/></svg></i>Look</a>
+    <a href="#search" data-sec="search"><i><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges"><path d="M1 0h3v1h1v3H4v1H1V4H0V1h1zM1 1v3h3V1zM4 5h1v1H4zM5 6h2v1H5z"/></svg></i>Search</a>
+    <a href="#autofill" data-sec="autofill"><i><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges"><path d="M1 0h3v1h1v3H4v1H3v2H2V5H1V4H0V1h1zM2 1v2h1V1z"/></svg></i>Autofill</a>
+    <a href="#privacy" data-sec="privacy"><i><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges"><path d="M0 0h7v4H6v1H5v1H4v1H3V6H2V5H1V4H0z"/></svg></i>Privacy</a>
+    <a href="#sounds" data-sec="sounds"><i><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges"><path d="M3 0h1v7H3zM2 1h1v5H2zM0 2h2v3H0zM5 1h1v1H5zM5 5h1v1H5zM6 2h1v3H6z"/></svg></i>Sounds</a>
+    <!-- Sheet 99: his TV (the Mac only). The icon is the address bar's TV, at 7 x 7. -->
+    <a href="#tv" data-sec="tv" id="tvnav" hidden><i><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges"><path d="M0 0h7v5H0zM2 6h3v1H2z"/></svg></i>TV</a>
+    <a href="#about" data-sec="about"><i><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges"><path d="M3 0h1v1H3zM2 2h2v4H2zM2 6h3v1H2z"/></svg></i>About</a>
+  </nav>
+  <main class="main">
+    <!-- Chapters. A row: data-help is its help line; data-cyc a setting (a switch, or a segmented row of its choices); data-go one level in. -->
+    <section data-sec="start">
+      <h2>Start</h2>
+      <div class="card"><i class="caps"></i>
+        <div class="r" data-go="home" data-help="Every new tab opens here." id="homerow"><b>Home page</b><span class="v" id="homev"></span><i class="go"></i></div>
+        <div class="fld lit" id="homeedit" hidden><label for="homein">Home page</label><input id="homein" type="text" spellcheck="false" autocomplete="off"></div>
+        <div class="r" data-cyc="startup" data-help="My tabs: everything comes back. Home page: a fresh start."><b>When Samara opens</b></div>
+      </div>
+    </section>
+    <section data-sec="look" hidden>
+      <h2>Look</h2>
+      <div class="card"><i class="caps"></i>
+        <div class="r" data-cyc="dark" data-help="Websites shown dark. Off for one site from the shield."><b>Dark websites</b></div>
+        <div class="r" data-cyc="tabSize" data-help="How big the tab list is, on this computer."><b>Tab list size</b></div>
+      </div>
+    </section>
+    <section data-sec="search" hidden>
+      <h2>Search</h2>
+      <div class="card"><i class="caps"></i>
+        <div class="r" data-cyc="search" data-help="Where the address bar sends a search."><b>Search engine</b></div>
+        <div class="r" data-cyc="aiBox" data-help="The search engine's AI summary above the results. On unless you turn it off."><b>AI answer box</b></div>
+      </div>
+    </section>
+    <section data-sec="autofill" hidden>
+      <h2>Autofill</h2>
+      <div class="card"><i class="caps"></i>
+        <div class="r" data-go="details" data-help="What the light offers when you click a box on a page."><b>Your details</b><span class="v" id="detailsv"></span><i class="go"></i></div>
+        <div class="r" data-go="pin" data-help="Opens Bitwarden instead of your master password."><b>PIN</b><span class="v" id="pinv"></span><i class="go"></i></div>
+        <div class="r" data-go="bw" data-help="Your logins. Locked until you use your PIN."><b>Bitwarden</b><span class="v" id="bwv"></span><i class="go"></i></div>
+      </div>
+    </section>
+    <section data-sec="privacy" hidden>
+      <h2>Privacy</h2>
+      <div class="card"><i class="caps"></i>
+        <div class="r" data-cyc="ads" data-help="Ads and trackers, on every site."><b>Block ads and trackers</b></div>
+        <div class="r" data-cyc="popups" data-help="Ones a page opens by itself. Ones you click always open."><b>Block popups</b></div>
+        <div class="r" data-help="Known fake sites never load."><b>Fake-site lists</b><span class="tag2">ALWAYS ON</span></div>
+        <div class="r" data-help="Every site is tried secure first."><b>Secure version first</b><span class="tag2">ALWAYS ON</span></div>
+      </div>
+      <div class="card"><i class="caps"></i>
+        <div class="r" data-go="sites" data-help="Every site you set a rule for."><b>Your sites</b><span class="v" id="sitesv"></span><i class="go"></i></div>
+        <div class="r" data-go="exc" data-help="Downloads and plain http you said yes to."><b>Exceptions</b><span class="v" id="excv"></span><i class="go"></i></div>
+        <div class="r" data-help="Stays off: acting on your accounts needs the held lever."><b>Companion acts without asking</b><span class="tag2 off">OFF</span></div>
+      </div>
+    </section>
+    <section data-sec="sounds" hidden>
+      <h2>Sounds</h2>
+      <div class="card"><i class="caps"></i>
+        <div class="r" data-cyc="sounds" data-help="A soft tap for tabs and downloads."><b>Wood sounds</b></div>
+        <div class="r" data-cyc="afSounds" data-help="The call for your PIN, the unlock, the fill."><b>Autofill sounds</b></div>
+      </div>
+    </section>
+    <section data-sec="tv" hidden>
+      <h2>TV</h2>
+      <div class="card"><i class="caps"></i>
+        <div class="r" data-help="Send to TV opens the show in this TV's own apps, signed in as you."><b>Your TV</b><span class="v" id="tvv"></span></div>
+        <div class="r" data-cyc="tvAnswer" data-help="YouTube on the TV asks who is watching. Samara picks you."><b>Answer "Who's watching?"</b></div>
+        <div class="r" data-cyc="tvPause" data-help="The video here pauses as soon as the TV has it. YouTube also arrives paused on the TV."><b>Pause the video here</b></div>
+        <div class="r" data-act="tvunlink" id="tvunlink" data-help="Samara forgets this TV. The next Send to TV asks for the TV's code again."><b>Unlink this TV</b></div>
+      </div>
+    </section>
+    <section data-sec="about" hidden>
+      <h2>About</h2>
+      <div class="card"><i class="caps"></i>
+        <div class="r" id="enginerow"><b>Engine</b><span class="tag2" id="enginev"></span></div>
+        <div class="r" data-go="safe" data-help="Fake sites, ads and trackers, downloads."><b>What keeps you safe</b><i class="go"></i></div>
+      </div>
+    </section>
+
+    <!-- One level in. -->
+    <section data-sec="details" data-up="autofill" hidden>
+      <h2><span class="back" data-back>‹ Autofill</span>Your details</h2>
+      <div class="card"><i class="caps"></i>
+        <div class="fld"><label for="af-given">First name</label><input id="af-given" type="text" spellcheck="false" maxlength="60" autocomplete="off"></div>
+        <div class="fld"><label for="af-family">Last name</label><input id="af-family" type="text" spellcheck="false" maxlength="60" autocomplete="off"></div>
+        <div id="emails"></div>
+        <div class="fld"><label for="af-phone">Phone</label><input id="af-phone" type="text" spellcheck="false" maxlength="40" autocomplete="off"><i class="ok" data-ok="phone"></i></div>
+        <div class="fld" id="addrrow"><label for="af-street">Address</label><div class="grow"><input id="af-street" type="text" spellcheck="false" maxlength="200" autocomplete="off"><div class="sug" id="sug" hidden></div></div><i class="ok" data-ok="street"></i></div>
+        <div class="fld"><label for="af-city">City</label><input id="af-city" type="text" spellcheck="false" maxlength="100" autocomplete="off"><i class="ok" data-ok="city"></i></div>
+        <div class="fld"><label for="af-region">Province</label><input id="af-region" type="text" spellcheck="false" maxlength="100" autocomplete="off"><i class="ok" data-ok="region"></i></div>
+        <div class="fld"><label for="af-postal">Postal code</label><input id="af-postal" type="text" spellcheck="false" maxlength="20" autocomplete="off"><i class="ok" data-ok="postal"></i></div>
+        <div class="fld"><label for="af-country">Country</label><input id="af-country" type="text" spellcheck="false" maxlength="80" autocomplete="off"><i class="ok" data-ok="country"></i></div>
+      </div>
+    </section>
+    <section data-sec="pin" data-up="autofill" hidden>
+      <h2><span class="back" data-back>‹ Autofill</span>PIN</h2>
+      <div class="card"><i class="caps"></i>
+        <div class="r" data-help="Opens Bitwarden instead of your master password."><b>Length</b><span id="pinlen"></span></div>
+        <div class="fld lit" id="pinrow1"><label>New PIN</label><div class="slots" id="pin1" tabindex="0" role="textbox" aria-label="New PIN"></div><button class="eye" type="button" id="eye" aria-label="Show PIN"></button></div>
+        <div class="fld" id="pinrow2"><label>Again</label><div class="slots" id="pin2" tabindex="0" role="textbox" aria-label="The same PIN again"></div></div>
+        <div class="acts"><button class="act" type="button" id="pinset">Set</button><button class="act" type="button" data-act="afforgetpin" id="pinforget" hidden>Forget PIN</button><span class="say" id="pinsay"></span></div>
+      </div>
+    </section>
+    <section data-sec="bw" data-up="autofill" hidden>
+      <h2><span class="back" data-back>‹ Autofill</span>Bitwarden</h2>
+      <div class="card"><i class="caps"></i>
+        <div class="r" data-help="Your logins. Locked until you use your PIN."><b>Bitwarden</b><span class="tag2" id="bwstate"></span></div>
+        <div class="r" data-cyc="lockAfter" data-help="With no fills for this long, it locks itself."><b>Locks itself after</b></div>
+        <div class="acts"><button class="act" type="button" data-act="lockvault" id="lockbtn">Lock now</button><button class="act" type="button" data-act="signout" id="signout">Sign out</button></div>
+      </div>
+    </section>
+    <section data-sec="sites" data-up="privacy" hidden>
+      <h2><span class="back" data-back>‹ Privacy</span>Your sites</h2>
+      <!-- Sheet 37 (2026-10-14): every site he set a rule for, one row each, the same rules as the shield. -->
+      <div class="card yoursites"><i class="caps"></i>
+        <input class="find" id="sitefind" type="search" placeholder="Find a site" autocomplete="off" spellcheck="false">
+        <div class="ysgrid ysgroups"><span class="none"></span><span class="g1">SAMARA</span><span class="none"></span><span class="g2">CAN USE</span><span class="none"></span></div>
+        <div class="ysgrid yslegend"><span></span><span>CLAUDE<br>+ COMPANION</span><span>MY<br>LOGIN</span><span>AD<br>BLOCK</span><span>POPUP<br>BLOCK</span><span>DARK<br>MODE</span><span></span><span>CAMERA</span><span>MIC</span><span></span></div>
+        <div id="yoursites"></div>
+        <div class="yskey"><span class="slot on" data-pix="camera"></span>On / allowed <span class="slot" data-pix="camera"></span>Off <span class="slot ask" data-pix="camera"></span>Asks <span class="slot block" data-pix="camera"></span>Blocked</div>
+      </div>
+    </section>
+    <section data-sec="exc" data-up="privacy" hidden>
+      <h2><span class="back" data-back>‹ Privacy</span>Exceptions</h2>
+      <div class="card"><i class="caps"></i>
+        <div class="r" data-help="Programs from anywhere else ask first."><b>Trusted for downloads</b></div>
+        <div class="list chips" id="trusted"></div>
+        <div class="r" data-help="Sites you let through as plain http."><b>Opened without a secure version</b></div>
+        <div class="list chips" id="httpOk"></div>
+      </div>
+    </section>
+    <section data-sec="safe" data-up="about" hidden>
+      <h2><span class="back" data-back>‹ About</span>What keeps you safe</h2>
+      <div class="card"><i class="caps"></i>
+        <div class="r" id="phishsafe"><b>Fake sites</b></div>
+        <div class="r" data-help="Blocked with Ghostery's lists."><b>Ads and trackers</b></div>
+        <div class="r" data-help="Programs from new sites ask first."><b>Downloads</b></div>
+      </div>
+    </section>
+    <!-- Not a chapter (sheet 83 cut it): only the ⋯ menu's Bookmarks opens this, to take one off. -->
+    <section data-sec="bookmarks" hidden>
+      <h2>Bookmarks</h2>
+      <div class="card"><i class="caps"></i><div class="list" id="marklist"></div></div>
+    </section>
+
+  </main>
+</div>
+<script src="settings.js" type="module"></script>
+</body>
+</html>

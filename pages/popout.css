@@ -1,0 +1,215 @@
+/* The pop-out, built from sheet 4 section 1. The controls themselves are step 6.5; what is here is
+   the window: the wooden grab bar you drag, the source plaque, and the picture. */
+/* Silkscreen is the pixel label font the rest of Samara uses. Bundled, not fetched: a window that only
+   looks right with the internet up is not a window Samara can rely on (step 6.10 bundles the rest). */
+/* Figtree, bundled (cleanup 2026-10-22): these windows never loaded a face of their own, so the title and every label
+   fell back to Consolas, a monospace face no other window title uses. */
+@font-face{ font-family:"Figtree"; src:url("fonts/Figtree.woff2") format("woff2"); font-weight:300 900; font-display:block }
+:root{
+  --ink:#100A22; --panel2:#1A1132;
+  --gold:#FFC43C; --gold-deep:#C98C14; --gold-lit:#FFE096;
+  --plum:#4A2C6E; --plum-deep:#2C1848; --plum-edge:#966EC8;
+  --red:#FF5A4A; --text:#E8E4F0; --secondary:#C9C2DA;
+  --wood1:#4A2E1A; --wood2:#24160D; --wood-plaque:#1A0F09;
+  --outline:#120A05; --ow:4px;
+  --display:"Cinzel",Georgia,"Times New Roman",serif;
+  --body:"Figtree",system-ui,-apple-system,Segoe UI,sans-serif;
+  --label:"Silkscreen",ui-monospace,Consolas,monospace;
+  --bar:34px;
+}
+*{ box-sizing:border-box; margin:0; padding:0 }
+html,body{ height:100%; overflow:hidden; background:var(--panel2); color:var(--text);
+  font-family:var(--body); -webkit-user-select:none; user-select:none; cursor:default }
+
+/* The whole window is one carved chunk with a hard black edge, like everything else Samara draws. */
+.frame{ height:100%; display:grid; grid-template-rows:var(--bar) 1fr;
+  border:var(--ow) solid var(--outline); border-radius:10px; overflow:hidden; background:#000 }
+
+/* ---------------------------------------------------------------- the grab bar
+   Sheet 4: "the grip you drag, what is playing, where it came from, and two small keycaps".
+   It is dragged by hand (popout.js, 2026-10-22), not by Windows: the window family must be able to snap it mid-drag. */
+.bar{ -webkit-app-region:no-drag; cursor:grab; touch-action:none; display:flex; align-items:center; gap:9px; padding:0 8px;
+  background:linear-gradient(180deg,#56371F 0%,var(--wood1) 45%,var(--wood2) 100%);
+  border-bottom:3px solid var(--outline); box-shadow:inset 0 3px 0 rgba(255,224,150,.18) }
+
+/* The grip, exactly as sheet 4 draws it: a 3 by 3 of carved dots. */
+.grip{ display:grid; grid-template-columns:repeat(3,4px); gap:3px; flex:0 0 auto; padding:0 2px }
+.grip i{ width:4px; height:4px; border-radius:1px; background:var(--gold-deep); box-shadow:0 1px 0 rgba(0,0,0,.7) }
+
+/* The title (cleanup 2026-10-22): the standard window-title face, Figtree 700, not pixel caps. A long title is never
+   chopped through a letter: it is clipped on a whole pixel and fades out over its last 22 px. */
+.what{ flex:1; min-width:0; overflow:hidden; text-overflow:clip; white-space:nowrap;
+  font:700 13.5px/20px var(--body); color:var(--gold); letter-spacing:.1px; text-shadow:1px 1px 0 rgba(0,0,0,.8);
+  -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 22px),transparent); mask-image:linear-gradient(90deg,#000 calc(100% - 22px),transparent) }
+
+/* Gold for open video, purple for a paid service: the same purple that means "your own" elsewhere. */
+.src{ flex:0 0 auto; display:inline-flex; align-items:center; gap:5px; font:700 12px var(--body); letter-spacing:.2px; padding:3px 6px; border-radius:3px;
+  border:2px solid var(--outline); background:var(--gold-deep); color:#2a1c00 }
+/* Purple for a paid service: the same purple that means "your own" elsewhere in Samara. */
+.src.paid{ background:#A970FF; color:#1d0b33 }
+/* the site's icon in front of its name (2026-10-22) */
+.src img{ width:16px; height:16px; display:block; border-radius:3px; image-rendering:pixelated }
+.src svg{ display:block }
+/* Sheet 4 draws "TWITCH · LIVE" because its example was a stream that was live. Samara cannot know
+   that: a channel link tells him it is a channel, not whether anyone is on air. The first real run
+   showed "TWITCH · LIVE" over a player plainly saying the streamer was offline, which is worse than
+   saying nothing. The live flag is still carried, because it decides whether the scrub bar can be
+   dragged (step 6.5); it just does not claim anything here. */
+
+/* Keycaps are not draggable, or the bar would swallow the clicks. */
+.keys{ -webkit-app-region:no-drag; display:flex; gap:6px; flex:0 0 auto }
+/* Sheet 4's `.ico.sm`, matched value for value after a side-by-side on 2026-10-04. These had drifted
+   to 26x22 with a 5px radius and a 2px lip, which is LESS WEIGHT than the sheet asks for, and the
+   weight is the one thing he has said he loves about these buttons. The lip is 3px, like every other
+   small key in the sheets. */
+.key{ width:24px; height:24px; border-radius:6px; border:2px solid var(--outline); cursor:pointer;
+  background:linear-gradient(180deg,var(--plum),var(--plum-deep)); color:#e8e0f5;
+  font:700 12px var(--body); display:grid; place-items:center; position:relative; top:0;
+  box-shadow:0 3px 0 var(--outline), inset 0 2px 0 rgba(150,110,200,.45) }
+.key:active{ top:3px; box-shadow:0 0 0 var(--outline), inset 0 2px 0 rgba(150,110,200,.45) }
+/* Close was red here and plum in the sheet. Red reads as "danger" and this button only puts a video
+   away, which is not dangerous; it also broke the rule that red means no, or over. Back to the sheet. */
+
+/* ---------------------------------------------------------------- the picture */
+.stage{ position:relative; background:#000 }
+iframe{ width:100%; height:100%; border:0; display:block; background:#000 }
+
+/* Before anything is playing.
+   The [hidden] rule is not optional: a class that sets display beats the browser's own rule for the
+   hidden attribute, so without this the "nothing playing" line sits on top of the video. It did,
+   on the first real run, 2026-10-04. */
+.empty{ position:absolute; inset:0; display:grid; place-items:center; text-align:center;
+  font:500 13px var(--body); color:#7b7291; padding:16px }
+[hidden]{ display:none !important }
+
+/* The resize corner, drawn as the carved diagonal from the mockup. Windows does the dragging; this
+   only shows where to take hold. */
+.grab{ position:absolute; right:0; bottom:0; width:18px; height:18px; pointer-events:none;
+  background:linear-gradient(135deg,transparent 0 46%,var(--gold-deep) 46% 54%,transparent 54% 64%,
+    var(--gold-deep) 64% 72%,transparent 72% 82%,var(--gold-deep) 82% 90%,transparent 90%);
+  opacity:.75 }
+
+/* ---------------------------------------------------------------- the controls (step 6.5)
+   Every part here is lifted from sheet 4 section 2: the groove with a gem knob is the same shape at
+   three sizes, and nothing new was drawn. The buttons are big because he is hitting them with a raid
+   going on. */
+.frame{ grid-template-rows:var(--bar) 1fr auto auto }
+/* One column, never wider than the window (cleanup 2026-10-22): a long title made the column grow to the title's full
+   width and pushed the source chip and the keys out of the window. */
+.frame{ grid-template-columns:minmax(0,1fr) }
+
+.ctrl{ -webkit-app-region:no-drag; display:flex; align-items:center; gap:9px; padding:9px 10px;
+  background:linear-gradient(180deg,var(--panel2),var(--ink)); border-top:3px solid var(--outline) }
+
+.ico{ width:30px; height:30px; flex:0 0 auto; border-radius:7px; border:2.5px solid var(--outline); cursor:pointer;
+  display:grid; place-items:center; position:relative; top:0; transition:top .05s, box-shadow .05s;
+  background:linear-gradient(180deg,var(--plum),var(--plum-deep));
+  box-shadow:0 3px 0 var(--outline), inset 0 2px 0 rgba(150,110,200,.45) }
+.ico:active{ top:3px; box-shadow:0 0 0 var(--outline), inset 0 2px 0 rgba(150,110,200,.45) }
+/* Gold means "the main thing here", and play is the only gold button. */
+.ico.gold{ background:linear-gradient(180deg,var(--gold-lit),var(--gold-deep));
+  box-shadow:0 3px 0 var(--outline), inset 0 2px 0 rgba(255,255,255,.5) }
+.ico svg{ width:15px; height:15px; fill:#e8e0f5 }
+.ico.gold svg{ fill:#2a1c00 }
+/* A control the player will not answer is dimmed, never hidden: he should see it is there and why. */
+.ico[disabled]{ opacity:.35; cursor:default; pointer-events:none }
+
+/* The groove. Scrub, volume and see-through are this one shape at three sizes. */
+.track{ flex:1; min-width:0; height:10px; border-radius:5px; position:relative; cursor:pointer;
+  background:linear-gradient(180deg,rgba(0,0,0,.72) 0 4px,rgba(255,224,150,.2) 4px 7px,transparent 7px);
+  box-shadow:inset 0 2px 3px rgba(0,0,0,.6) }
+.track .fill{ position:absolute; left:0; top:0; height:7px; border-radius:4px; pointer-events:none;
+  background:linear-gradient(180deg,var(--gold-lit) 0 3px,var(--gold-deep) 3px 7px) }
+.track .knob{ position:absolute; top:-5px; width:15px; height:19px; border-radius:4px; margin-left:-7px; pointer-events:none;
+  background:linear-gradient(180deg,var(--gold-lit),var(--gold-deep));
+  border:2.5px solid var(--outline); box-shadow:inset 0 2px 0 rgba(255,255,255,.6), 0 2px 0 rgba(0,0,0,.5) }
+.track.short{ flex:0 0 78px; max-width:78px }
+/* A live stream has no place to scrub to: full and unmoving, as sheet 4 says. */
+.track.live{ cursor:default }
+.track.live .knob{ display:none }
+.track.live .fill{ width:100% }
+
+.tnum{ font:500 11.5px var(--body); color:#9a90b5; font-variant-numeric:tabular-nums; flex:0 0 auto }
+.tnum.live{ color:var(--red); font:700 12px var(--body); letter-spacing:.2px }
+
+/* See-through: the half-filled circle from the mockup, beside volume because they are the two things
+   he nudges without thinking. One for his ears, one for his eyes. */
+.halfmoon{ width:15px; height:15px; border-radius:50%; border:2px solid var(--gold-lit);
+  background:linear-gradient(90deg,var(--gold-lit) 0 50%,transparent 50%) }
+
+/* The controls get out of the way (sheet 4, section 2). Two seconds after the mouse stops, the wood and
+   the controls fade and the corners round off: just the picture, sitting over his game. Everything
+   comes back the moment the mouse crosses the window, with no click and no hunting for a hidden edge.
+   The picture itself never fades. */
+.frame .bar, .frame .ctrl{ transition:opacity .35s ease }
+.frame.faded .bar, .frame.faded .ctrl{ opacity:0; pointer-events:none }
+.frame.faded{ grid-template-rows:0 1fr 0 0 }
+/* A real fade: the bar and controls melt away first, and only then does the picture take their
+   room, in one step. Coming back, the room is made first and they fade in. Before, the bar snapped away at once and
+   the 0.35 s fade played on a strip nobody could see. */
+.frame{ transition:border-radius .35s ease, grid-template-rows 0s linear 0s }
+.frame.faded{ transition:border-radius .35s ease, grid-template-rows 0s linear .35s }
+.frame:not(.faded) .bar, .frame:not(.faded) .ctrl{ transition:opacity .25s ease }
+.frame.faded{ border-radius:14px }
+
+/* ---------------------------------------------------------------- the skip plaque (step 6.6)
+   Nothing is skipped silently. Every skip says what it did and offers to put it back, for three
+   seconds, in the carved plaque from sheet 1. It sits over the picture rather than in the controls,
+   because the controls may well be faded when a skip happens. */
+.skip{ position:absolute; left:12px; bottom:12px; z-index:6; display:flex; align-items:center; gap:10px;
+  padding:8px 10px; border-radius:8px; opacity:0; transform:translateY(6px); pointer-events:none;
+  background:linear-gradient(180deg,#56371F 0%,var(--wood1) 45%,var(--wood2) 100%);
+  border:3px solid var(--outline); box-shadow:0 4px 0 rgba(0,0,0,.55);
+  transition:opacity .18s ease, transform .18s ease }
+.skip.up{ opacity:1; transform:none; pointer-events:auto }
+.skip .said{ font:700 12.5px var(--body); letter-spacing:.2px; color:var(--gold-lit); text-shadow:1px 1px 0 rgba(0,0,0,.8) }
+.skip .undo{ font:700 12px var(--body); color:#2a1c00; padding:5px 10px; border-radius:6px; cursor:pointer;
+  border:2.5px solid var(--outline); background:linear-gradient(180deg,var(--gold-lit),var(--gold-deep));
+  box-shadow:0 2px 0 var(--outline), inset 0 2px 0 rgba(255,255,255,.5); position:relative; top:0 }
+.skip .undo:active{ top:2px; box-shadow:0 0 0 var(--outline) }
+
+/* ==== the browser's look (2026-10-11; board "The pop-out: before and after") ====
+   Same layout, the browser's materials: the pixel plank bar, dark grainy wood under the controls, one pixel grid
+   for every icon, a pixel gem knob and resize corner. Windows draws the rounded corners and the shadow now, so the
+   page no longer paints a black ring and rounded corners inside a square window. Light from the top-left. */
+html,body{ background:#24160D }
+.frame{ border:none; border-radius:0; background:#000 }
+.frame.faded{ border-radius:0 }
+.bar{ background:url(art/browser/band.png) repeat-x 0 0/128px 34px; image-rendering:pixelated; border-bottom:4px solid var(--outline); box-shadow:none }
+.grip{ display:block; width:10px; height:10px; padding:0; margin:0 2px; background:url(art/browser/grip.png) 0 0/10px 10px; image-rendering:pixelated }
+.what{ color:var(--gold-lit) }
+.key{ border-radius:4px; background:#4A2C6E;
+  box-shadow:inset 2px 2px 0 rgba(190,150,240,.35), inset -2px -2px 0 rgba(0,0,0,.4), 0 2px 0 var(--outline) }
+.key:active{ top:2px; box-shadow:inset 2px 2px 0 rgba(190,150,240,.35), inset -2px -2px 0 rgba(0,0,0,.4) }
+.key svg{ display:block }
+.ctrl{ background:url(art/browser/tray.png) 0 0/128px 256px; image-rendering:pixelated; border-top:4px solid var(--outline);
+  box-shadow:inset 0 2px 0 rgba(255,225,160,.12) }
+#ctrl2{ box-shadow:none }
+.ico{ border-radius:4px; border-width:2px; background:#4A2C6E;
+  box-shadow:inset 2px 2px 0 rgba(190,150,240,.35), inset -2px -2px 0 rgba(0,0,0,.4), 0 2px 0 var(--outline) }
+.ico:active{ top:2px; box-shadow:inset 2px 2px 0 rgba(190,150,240,.35), inset -2px -2px 0 rgba(0,0,0,.4) }
+.ico.gold{ background:#FFC43C; box-shadow:inset 2px 2px 0 rgba(255,245,200,.7), inset -2px -2px 0 rgba(120,80,10,.5), 0 2px 0 var(--outline) }
+.ico svg{ width:auto; height:auto }
+.ico.gold svg{ width:16px; height:16px }
+.track .knob{ top:-6px; width:14px; height:20px; margin-left:-7px; border:none; border-radius:0; box-shadow:none;
+  background:url(art/browser/knob.png) 0 0/14px 20px; image-rendering:pixelated }
+.grab{ right:3px; bottom:3px; width:14px; height:14px; opacity:.85; background:url(art/browser/grab.png) 0 0/14px 14px; image-rendering:pixelated }
+.skip{ background:url(art/browser/tray.png) 0 0/128px 256px; image-rendering:pixelated; border-radius:4px; border-width:2px;
+  box-shadow:inset 2px 2px 0 rgba(255,225,160,.15), 0 3px 0 rgba(0,0,0,.55) }
+.skip .undo{ border-radius:4px; border-width:2px; background:#FFC43C; box-shadow:inset 2px 2px 0 rgba(255,245,200,.7), inset -2px -2px 0 rgba(120,80,10,.5), 0 2px 0 var(--outline) }
+.frame.faded .bar, .frame.faded .ctrl{ overflow:hidden }
+
+/* The see-through slider's icon is a label, not a key (2026-10-14): flat, no raise, nothing to press. */
+.seeicon{display:inline-grid;place-items:center;width:18px;height:22px;flex:none;opacity:.9;pointer-events:none}
+
+/* Pinned (sheet 38, 2026-10-15): the pin lies on its side and turns gold, so pinned shows at a glance. Since the
+   clean-up (2026-10-22) this is the family's pin key (pinkey.css / pinkey.js), here at the controls' 30 px. */
+#ctrl2 button.pinkey{ width:30px; height:30px }
+
+/* F0 of the window family (2026-10-22,: the corners looked too sharp). Windows rounds the window itself (8 px,
+   DWM), but once the controls fade the picture filled the window and ran square into those round corners, so the round
+   only showed on the wood. Now the faded picture sits 4 px inside a wood rim with its own round (radius 6, close to
+   concentric with Windows' 8), the same curve the lent page is cut to (popout.ts setStage -> setBorderRadius). */
+.frame{ background:#24160D }
+.stage{ overflow:hidden }
+.frame.faded .stage{ margin:4px; border-radius:6px }

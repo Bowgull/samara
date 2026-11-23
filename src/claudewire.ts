@@ -1,0 +1,77 @@
+// C4, Claude in the cockpit (2026-10-21): the checks on what the bubble page may tell the companion about Claude sessions.
+//
+// An answer here can approve a tool running on the user's PC, so the page is treated as the least trusted side: every field is
+// rebuilt from scratch with its type, length and allowed values checked, and anything else is dropped whole. The brain
+// checks again (claudelink.ts answer()), this is the first of the two locks.
+
+/** A session id or a waiting item's id: Claude's UUIDs and tool-use ids, nothing that could be a path or a command. */
+const ID = /^[A-Za-z0-9._:-]{1,100}$/;
+/** The same model names the companion accepts (claudelink.ts MODEL_OK). */
+const MODEL = /^[A-Za-z0-9.\-_[\]]{1,60}$/;
+const DECISIONS = ['allow', 'always', 'deny', 'deny-message'] as const;
+
+const text = (v: unknown, max: number): string | null => (typeof v === 'string' && v.trim() && v.length <= max ? v : null);
+
+/** What the page sent, as the exact message the companion gets, or null when anything about it is wrong. */
+export function claudeMessage(raw: unknown): Record<string, unknown> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const m = raw as Record<string, unknown>;
+  switch (m.t) {
+    case 'claude.answer': {
+      if (typeof m.id !== 'string' || !ID.test(m.id)) return null;
+      if (m.answers !== undefined) {
+        // A question's answers: question text -> the label(s) picked or the typed words. At most 4 questions (the companion's cap).
+        if (m.decision !== undefined || !m.answers || typeof m.answers !== 'object' || Array.isArray(m.answers)) return null;
+        const entries = Object.entries(m.answers as Record<string, unknown>);
+        if (!entries.length || entries.length > 4) return null;
+        const answers: Record<string, string> = {};
+        for (const [q, v] of entries) { const a = text(v, 2000); if (!text(q, 500) || a === null) return null; answers[q] = a; }
+        return { t: 'claude.answer', id: m.id, answers };
+      }
+      if (!DECISIONS.includes(m.decision as typeof DECISIONS[number])) return null;
+      if (m.decision === 'deny-message') { const msg = text(m.message, 2000); return msg === null ? null : { t: 'claude.answer', id: m.id, decision: m.decision, message: msg }; }
+      if (m.message !== undefined) return null;
+      return { t: 'claude.answer', id: m.id, decision: m.decision };
+    }
+    case 'claude.send': {
+      const t = text(m.text, 4000);
+      if (typeof m.session !== 'string' || !ID.test(m.session) || t === null || (m.when !== 'now' && m.when !== 'after')) return null;
+      return { t: 'claude.send', session: m.session, text: t, when: m.when };
+    }
+    case 'claude.pause':
+      return typeof m.session === 'string' && ID.test(m.session) ? { t: 'claude.pause', session: m.session } : null;
+    case 'claude.play': {
+      if (typeof m.session !== 'string' || !ID.test(m.session)) return null;
+      if (m.text === undefined) return { t: 'claude.play', session: m.session };
+      const t = text(m.text, 4000);
+      return t === null ? null : { t: 'claude.play', session: m.session, text: t };
+    }
+    // 2026-10-22: a finished job is read (its done card X'd or opened, or Nice on its pop-out).
+    case 'claude.ackdone':
+      return typeof m.id === 'string' && ID.test(m.id) ? { t: 'claude.ackdone', id: m.id } : null;
+    case 'claude.model':
+      return typeof m.session === 'string' && ID.test(m.session) && typeof m.model === 'string' && MODEL.test(m.model)
+        ? { t: 'claude.model', session: m.session, model: m.model } : null;
+    default:
+      return null;
+  }
+}
+
+/**
+ * 2026-10-21 ("Open in Claude" must never do nothing): what an Open in Claude press may ask for. The exact
+ * session link (opened, then the Claude window brought to the front), 'front' for a job with no known app link (a
+ * terminal session: the Claude app comes forward at least), or 'mac' for a job on the MacBook (the Mac brings its
+ * Claude forward). Anything else is dropped.
+ */
+export type ClaudeOpen = { kind: 'link'; url: string } | { kind: 'front' } | { kind: 'mac' };
+export function claudeOpenTarget(raw: unknown): ClaudeOpen | null {
+  if (raw === 'front') return { kind: 'front' };
+  if (raw === 'mac') return { kind: 'mac' };
+  const url = claudeLink(raw);
+  return url ? { kind: 'link', url } : null;
+}
+
+/** A session's deep link, exactly claude://claude.ai/epitaxy/<id> (the app's ids are local_<uuid>, 2026-10-21), or null. Anything else is never handed to the shell. */
+export function claudeLink(raw: unknown): string | null {
+  return typeof raw === 'string' && /^claude:\/\/claude\.ai\/epitaxy\/(local_)?[A-Za-z0-9-]{8,100}$/.test(raw) ? raw : null;
+}

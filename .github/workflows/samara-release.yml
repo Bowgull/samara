@@ -1,0 +1,48 @@
+# Samara's update engine (2026-10-29). Claude ships a version by tagging a commit on main "samara-vX.Y.Z";
+# the tag's message is the "what's new" on his UPDATE key. The tests run on a Mac and on Windows first; then the
+# release is packed, sealed with his release key and published; both Samaras find it on their next daily check or start.
+name: Samara release
+on:
+  push:
+    tags: ['samara-v*']
+permissions:
+  contents: write
+jobs:
+  gate:
+    uses: ./.github/workflows/samara-tests.yml
+  release:
+    needs: gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Only from main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "A release is only made from a commit on main."; exit 1; }
+      - uses: actions/setup-node@v4
+        with: { node-version: '24' }
+      - name: Pack and seal
+        env:
+          SAMARA_RELEASE_KEY: ${{ secrets.SAMARA_RELEASE_KEY }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          git tag -l --format='%(contents)' "$TAG" > notes.txt
+          node tools/release/samara-release.mjs "${TAG#samara-v}" out notes.txt
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          NAME=$(node -e "console.log(require('./out/manifest.json').name)")
+          node -e "console.log(require('./out/manifest.json').notes.map((n) => '- ' + n).join('\\n'))" > notes.md
+          gh release create "$TAG" out/manifest.json out/manifest.sig out/samara-bundle.tgz --title "Samara ${TAG#samara-v}: $NAME" --notes-file notes.md --latest
+      # Every Samara from 1.28.1 on reads Bowgull/samara-releases (sealed files only), so this repo can go private.
+      # The copy above stays until both machines run 1.28.1 or later. RELEASES_TOKEN: his token for that repo only.
+      - name: Publish to samara-releases
+        id: publish
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          [ -n "$GH_TOKEN" ] || { echo "::notice::No RELEASES_TOKEN secret: the machine that shipped copies $TAG over (tools/release/ship.mjs)."; echo "copied=no" >> "$GITHUB_OUTPUT"; exit 0; }
+          NAME=$(node -e "console.log(require('./out/manifest.json').name)")
+          gh release create "$TAG" -R Bowgull/samara-releases out/manifest.json out/manifest.sig out/samara-bundle.tgz --title "Samara ${TAG#samara-v}: $NAME" --notes-file notes.md --latest

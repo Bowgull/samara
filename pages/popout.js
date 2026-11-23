@@ -1,0 +1,322 @@
+// The pop-out's page. It shows what the main process tells it to and nothing else: it holds no
+// connection, chooses no address, and cannot open a window.
+import { Player, clock, el } from './player.js';
+import { Skipper } from './skipper.js';
+import { paintPinKey } from './pinkey.js';
+
+const what = el('what');
+const src = el('src');
+const video = el('video');
+const empty = el('empty');
+const frame = el('frame');
+const player = new Player();
+const skipper = new Skipper(player, { plaque: el('skip'), said: el('skipsaid'), undo: el('skipundo') });
+
+// Segments for the video that is playing, worked out in the main process (it is the one that can
+// reach the network) and handed over here.
+window.samara.onPopoutSegments(list => skipper.reset(list));
+
+// ---------------------------------------------------------------- what is playing
+window.samara.onPopout(v => {
+  // A new video, so the last thing reported about the old one no longer applies. Without this, putting
+  // on a second episode while the first was already "playing" would report nothing at all.
+  told = null;
+  // No address means this page is only the bar: the video is a separate view underneath it, because
+  // paid services refuse to be shown in a frame (step 6.4). With an address, the page shows the video
+  // itself, which is how YouTube and Twitch work, since their embed addresses exist to be framed.
+  if (v.source === 'tab') {
+    // A tab taken from the browser: its live page is laid over the picture area by the main process.
+    video.hidden = true;
+    video.removeAttribute('src');
+    player.attach('tab', null, false);
+  } else if (v.url) {
+    // The address is built in the main process. The page never constructs one.
+    video.src = v.url;
+    video.hidden = false;
+    player.attach(v.source === 'youtube' ? 'youtube' : v.source === 'twitch' ? 'twitch' : 'elsewhere', video, v.live);
+  } else {
+    video.hidden = true;
+    video.removeAttribute('src');                 // put away (closed): nothing keeps playing out of sight
+    player.attach('elsewhere', null, v.live);
+  }
+  empty.hidden = v.source !== 'none';
+  what.textContent = v.title;
+  src.textContent = v.label;
+  srcIcon(v);
+  src.hidden = false;
+  // Gold for open video, purple for a paid service (sheet 4, section 1).
+  src.className = 'src' + (v.source === 'page' ? ' paid' : '');
+  document.title = 'Samara: ' + v.title;
+  // A new video knows nothing about the old one's openings.
+  skipper.reset([]);
+  paintControls();
+  // Arm the fade now that something is playing. Without this the timer was only ever set by a mouse
+  // move, so the wood never faded on its own: found by testing it, 2026-10-04.
+  showChrome();
+});
+
+el('hide').addEventListener('click', () => window.samara.popoutHide());
+el('close').addEventListener('click', () => window.samara.popoutClose());
+
+// ---------------------------------------------------------------- the grooves
+/** Where along a groove a click or drag landed, 0 to 1. */
+function along(track, e) {
+  const r = track.getBoundingClientRect();
+  return r.width ? Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) : 0;
+}
+
+/** Make a groove draggable. `onMove` is called while dragging, `onDone` when the user lets go. */
+function groove(track, onMove, onDone) {
+  let dragging = false;
+  const move = e => { if (dragging) onMove(along(track, e)); };
+  track.addEventListener('pointerdown', e => {
+    if (track.classList.contains('live') || track.dataset.off === 'yes') return;
+    dragging = true;
+    // Capture is a nicety: it keeps the drag alive if the pointer leaves the groove. It refuses for a
+    // pointer it does not know about, and letting that throw killed the whole handler, so the slider
+    // did nothing at all. Found by testing it, 2026-10-04.
+    try { track.setPointerCapture(e.pointerId); } catch { /* carry on without capture */ }
+    onMove(along(track, e));
+  });
+  track.addEventListener('pointermove', move);
+  track.addEventListener('pointerup', e => {
+    if (!dragging) return;
+    dragging = false;
+    try { track.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+    onDone?.(along(track, e));
+  });
+}
+
+const setGroove = (fillId, knobId, fraction) => {
+  const pct = Math.max(0, Math.min(1, fraction)) * 100;
+  el(fillId).style.width = pct + '%';
+  el(knobId).style.left = pct + '%';
+};
+
+// scrub
+groove(el('scrub'), f => player.seekTo(f));
+// volume
+groove(el('vol'), f => player.setVolume(f));
+// see-through: the window's own doing, so it works for everything, paid services included
+let seeThrough = 1;
+groove(el('see'), f => {
+  // Never fully invisible: a window the user cannot find is a window the user cannot close.
+  seeThrough = 0.2 + Math.max(0, Math.min(1, f)) * 0.8;
+  window.samara.popoutOpacity(seeThrough);
+  paintSeeThrough();
+});
+
+function paintSeeThrough() {
+  const shown = Math.round(((seeThrough - 0.2) / 0.8) * 100);
+  setGroove('seefill', 'seeknob', (seeThrough - 0.2) / 0.8);
+  el('seenum').textContent = Math.round(seeThrough * 100) + '%';
+  void shown;
+}
+
+el('play').addEventListener('click', () => player.playPause());
+el('mute').addEventListener('click', () => player.toggleMute());
+el('full').addEventListener('click', () => window.samara.popoutFullscreen());
+el('mac').addEventListener('click', () => window.samara.popoutToMac());
+if (window.samara?.platform === 'darwin') el('mac').title = 'Send this to your PC. It stops playing here.';
+el('pin').addEventListener('click', () => window.samara.popoutPin());
+const PIN_WORDS = { on: 'Pinned: clicks go through to your game. Ctrl+Alt+P unpins.', off: 'Pin: clicks go through to your game. Ctrl+Alt+P pins and unpins.' };
+paintPinKey(el('pin'), false, PIN_WORDS);
+// Pinned: clicks go through to the game and the controls stay away. The bar says so for two seconds.
+let pinned = false, pinSay = null;
+window.samara.onPopoutPinned?.((on) => {
+  pinned = on;
+  frame.classList.toggle('pinned', on);
+  paintPinKey(el('pin'), on, PIN_WORDS);
+  const what = el('what');
+  if (!what) return;
+  if (pinSay) clearTimeout(pinSay);
+  const was = what.dataset.was ?? what.textContent;
+  what.dataset.was = was;
+  what.textContent = on ? 'PINNED: CLICKS GO TO YOUR GAME. CTRL+ALT+P TO UNPIN' : 'UNPINNED';
+  frame.classList.remove('faded');
+  pinSay = setTimeout(() => { what.textContent = what.dataset.was ?? ''; delete what.dataset.was; if (pinned || player.state.playing) frame.classList.add('faded'); }, 2000);
+});
+// The family's see-through is shared (2026-10-22): moved on another pop-out or the family menu, this slider follows.
+window.samara?.onFamilyShared?.((s) => {
+  if (typeof s?.opacity === 'number' && Number.isFinite(s.opacity)) { seeThrough = Math.max(0.2, Math.min(1, s.opacity)); paintSeeThrough(); }
+});
+
+// The wooden bar is dragged by hand (the window family, F2, 2026-10-22). It used to be Windows' own drag
+// (-webkit-app-region), which holds every move Samara makes until the mouse comes up, so nothing could snap to it while
+// The user dragged. Now the page says how far since the press and the main process moves the window (and its whole group).
+{
+  const bar = document.querySelector('.bar');
+  bar.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.target.closest('.keys, button')) return;
+    const sx = e.screenX, sy = e.screenY;
+    let started = false;
+    try { bar.setPointerCapture(e.pointerId); } catch { /* fine */ }
+    bar.onpointermove = (ev) => {
+      const dx = ev.screenX - sx, dy = ev.screenY - sy;
+      if (!started) { if (Math.abs(dx) + Math.abs(dy) < 3) return; started = true; window.samara.popoutDrag?.({ phase: 'start' }); }
+      window.samara.popoutDrag?.({ phase: 'move', dx, dy });
+    };
+    const done = () => {
+      bar.onpointermove = bar.onpointerup = bar.onpointercancel = null;
+      if (started) window.samara.popoutDrag?.({ phase: 'end' });
+    };
+    bar.onpointerup = done;
+    bar.onpointercancel = done;
+  });
+}
+// The half-moon in front of the see-through slider is a flat label, not a key (2026-10-14).
+
+// ---------------------------------------------------------------- painting the state
+// Pixel shapes, on the same grid as every other icon of Samara's (the browser's look, 2026-10-11).
+const PLAY = 'M4 3h2v10H4zM6 4h2v8H6zM8 5h2v6H8zM10 6h2v4h-2zM12 7h1v2h-1z';
+const PAUSE = 'M4 3h3v10H4zM9 3h3v10H9z';
+
+let wasPlaying = null;
+
+function paintControls() {
+  const s = player.state;
+  // The fade depends on whether it is playing, so re-decide when that changes, and ONLY then: the
+  // player reports its position several times a second, and re-deciding on every one of those would
+  // reset the two-second timer forever and it would never fade at all.
+  //
+  // This is also what makes "stays put while paused" work. Clicking pause fires a pointer event first,
+  // which arms the timer while the player still thinks it is playing; the state change undoes that.
+  // Skipping rides on the player's own position reports, which arrive several times a second.
+  skipper.at(s.at);
+
+  if (wasPlaying !== s.playing) {
+    wasPlaying = s.playing;
+    queueMicrotask(showChrome);
+  }
+  el('playicon').firstElementChild.setAttribute('d', s.playing ? PAUSE : PLAY);
+
+  // A control the player will not answer is dimmed, not hidden and not faked.
+  for (const id of ['play', 'mute']) el(id).toggleAttribute('disabled', !player.canDrive);
+  el('vol').dataset.off = player.canDrive ? 'no' : 'yes';
+  el('scrub').classList.toggle('live', s.live || !player.canSeek);
+  el('scrub').dataset.off = player.canSeek ? 'no' : 'yes';
+
+  if (s.live) {
+    el('time').textContent = 'LIVE';
+    el('time').className = 'tnum live';
+  } else {
+    el('time').className = 'tnum';
+    el('time').textContent = player.canDrive
+      ? `${clock(s.at)} / ${clock(s.length)}`
+      : 'its own controls';          // a paid service: its player is right there in the picture
+  }
+
+  setGroove('scrubfill', 'scrubknob', s.length ? s.at / s.length : (s.live ? 1 : 0));
+  setGroove('volfill', 'volknob', s.muted ? 0 : s.volume);
+}
+// ---------------------------------------------------------------- telling the companion what is playing
+// Step 6.8. ONLY on a change, and the change is the point: a timer here would be a heartbeat, which
+// Simkl prohibits and which costs 45 to 135 times as much for the same answer. Their session expires
+// on its own, so starting and stopping is enough.
+let told = null;              // the last thing reported, so the same news is not sent twice
+function reportPlayback(st) {
+  // "Ended" has to be worked out, because neither player sends a clean finish through this path: a
+  // video that is not playing and is within a few seconds of its end has run out, rather than been
+  // paused there. A live stream has no end to reach.
+  const ended = !st.live && st.length > 0 && !st.playing && st.at >= st.length - 3;
+  const now = ended ? 'ended' : st.playing ? 'playing' : 'paused';
+  if (now === told) return;
+  told = now;
+  window.samara?.popoutPlayback?.({ playing: st.playing, at: st.at, length: st.length, ended });
+}
+
+player.onUpdate = st => { paintControls(st); reportPlayback(st); };
+
+// ---------------------------------------------------------------- the controls get out of the way
+// Sheet 4: two seconds after the mouse stops, the wood and the controls fade out and the corners round
+// off. Everything comes back the moment the mouse crosses the window, with no click. One exception on
+// purpose: while the video is paused they stay put, because if the user paused it the user is about to press
+// something.
+let fadeTimer = null;
+let fadingAllowed = true;
+// A tab from Samara (2026-11-02): the main process says when the mouse is over the window ('in'), gone ('out'), or the
+// window is fullscreen. While it is over, the wood stays, so the picture never resizes under their hand.
+let hovering = false, full = false;
+
+function showChrome() {
+  if (pinned || full) return;
+  frame.classList.remove('faded');
+  if (fadeTimer) clearTimeout(fadeTimer);
+  if (!fadingAllowed || !player.state.playing || hovering) return;
+  fadeTimer = setTimeout(() => frame.classList.add('faded'), 2000);
+}
+
+for (const ev of ['pointermove', 'pointerdown', 'wheel', 'keydown']) {
+  window.addEventListener(ev, showChrome, { passive: true });
+}
+window.addEventListener('pointerleave', () => { if (!hovering && fadingAllowed && player.state.playing) frame.classList.add('faded'); });
+
+window.samara.onPopoutSettings(s => {
+  fadingAllowed = s.fadeControls !== false;
+  if (!fadingAllowed) frame.classList.remove('faded');
+  showChrome();
+});
+
+/**
+ * Tell the main process how much of the window is Samara's chrome rather than picture, so it can keep
+ * the PICTURE 16 by 9 rather than the window. Measured rather than assumed: it changes every time a
+ * control is added, and a stale figure letterboxes the picture quietly.
+ */
+function reportChrome() {
+  const wasFaded = frame.classList.contains('faded');
+  if (wasFaded) frame.classList.remove('faded');
+  const stage = document.querySelector('.stage');
+  // The body, not the window: joined in the family the page may be padded by the window's borders (familywin.ts).
+  const px = document.body.clientHeight - stage.offsetHeight;
+  if (wasFaded) frame.classList.add('faded');
+  if (px > 0) window.samara.popoutChrome(px);
+}
+
+// Where the picture area is, so a tab taken from the browser can be laid exactly over it. Re-said whenever it
+// changes size (the controls fading out gives the picture the whole window).
+const stageEl = document.querySelector('.stage');
+// Only when it really changed (measured 2026-10-20: every mouse move over the pop-out resized the video for nothing).
+let stageWas = '';
+const sayStage = () => {
+  const r = stageEl.getBoundingClientRect(), k = [r.left, r.top, r.width, r.height, getComputedStyle(stageEl).borderTopLeftRadius].map((v) => typeof v === 'number' ? Math.round(v) : v).join(',');
+  if (k === stageWas) return;
+  stageWas = k;
+  window.samara?.popoutStage?.({ x: r.left, y: r.top, width: r.width, height: r.height, radius: parseFloat(getComputedStyle(stageEl).borderTopLeftRadius) || 0 });
+};
+new ResizeObserver(sayStage).observe(stageEl);
+frame.addEventListener('transitionend', sayStage);
+// The controls fading in or out changes the picture area at once: say so then, not only when a size is noticed.
+new MutationObserver(() => setTimeout(sayStage, 0)).observe(frame, { attributes: true, attributeFilter: ['class'] });
+// The lent page swallows the mouse, so the main process says when it is over the window.
+window.samara?.onPopoutWake?.((how) => {
+  full = how === 'full';
+  hovering = how === 'in';
+  if (full) { if (fadeTimer) clearTimeout(fadeTimer); frame.classList.add('faded'); return; }
+  if (how === 'out') { if (fadingAllowed && player.state.playing) frame.classList.add('faded'); return; }
+  showChrome();
+});
+
+paintControls();
+paintSeeThrough();
+showChrome();
+// After a frame, so the layout has actually happened.
+requestAnimationFrame(() => requestAnimationFrame(reportChrome));
+
+// ---------------------------------------------------------------- the source chip's icon (cleanup 2026-10-22)
+// The user's rule: a site carries its favicon. The one Samara already stored for the site (main passes it as v.icon, a data:
+// picture, never fetched for this); for YouTube with none stored yet, its play mark drawn here in pixels, 9 x 7 at 2x.
+const YT = ['.RRRRRRR.', 'RRRWRRRRR', 'RRRWWRRRR', 'RRRWWWRRR', 'RRRWWRRRR', 'RRRWRRRRR', '.SSSSSSS.'];
+function ytMark() {
+  const NS = 'http://www.w3.org/2000/svg', s = document.createElementNS(NS, 'svg');
+  s.setAttribute('viewBox', '0 0 9 7'); s.setAttribute('width', '18'); s.setAttribute('height', '14');
+  s.setAttribute('shape-rendering', 'crispEdges'); s.setAttribute('aria-hidden', 'true');
+  for (const [k, fill] of [['R', '#E0281E'], ['S', '#A31A12'], ['W', '#FFFFFF']]) {
+    let d = ''; YT.forEach((r, y) => [...r].forEach((c, x) => { if (c === k) d += `M${x} ${y}h1v1h-1z`; }));
+    const p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); p.setAttribute('fill', fill); s.append(p);
+  }
+  return s;
+}
+function srcIcon(v) {
+  if (typeof v.icon === 'string' && /^data:image\//.test(v.icon)) src.prepend(Object.assign(document.createElement('img'), { src: v.icon, alt: '' }));
+  else if (v.source === 'youtube') src.prepend(ytMark());
+}

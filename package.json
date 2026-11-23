@@ -1,0 +1,31 @@
+{
+  "name": "samara",
+  "productName": "Samara",
+  "private": true,
+  "version": "0.0.0",
+  "description": "A hand-drawn desktop browser for Windows and macOS, built on Electron.",
+  "type": "module",
+  "main": "src/pc.ts",
+  "scripts": {
+    "start": "electron src/pc.ts",
+    "start:mac": "electron src/mac.ts",
+    "check": "tsc -p .",
+    "test": "node --no-warnings --test --test-force-exit --test-timeout=30000 test/*.test.ts"
+  },
+  "dependencies": {
+    "@duckduckgo/autoconsent": "16.53.0",
+    "@ghostery/adblocker-electron": "^2.18.2",
+    "darkreader": "4.9.133",
+    "electron": "44.7.0",
+    "electron-drm": "github:castlabs/electron-releases#v44.5.1+wvcus",
+    "rcedit": "4.0.1",
+    "tldts-experimental": "^7.4.16",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@electron/fuses": "^1.8.0",
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.7.2"
+  }
+}

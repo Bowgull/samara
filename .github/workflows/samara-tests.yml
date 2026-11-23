@@ -1,0 +1,41 @@
+# Samara's ship gate: every change runs on a Mac and on Windows, and no push carries a secret.
+# A release is only made when all of these pass.
+name: Samara tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz | tar -xz gitleaks
+          ./gitleaks git . --config .gitleaks.toml --redact --no-banner
+  samara:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24' }
+      # The engine itself (castLabs) is not needed by these tests, so install scripts are skipped.
+      - name: Libraries
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Type check
+        run: npx tsc -p . --noEmit
+      - name: Unit tests
+        run: node --no-warnings --test --test-force-exit --test-timeout=30000 test/*.test.ts

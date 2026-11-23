@@ -1,0 +1,64 @@
+// Samara's taskbar right-click list (2026-10-21): only the five known tasks are ever acted on, from the lock's data or
+// one --samara-task=... on the command line; each item starts this same Shell with exactly that one argument.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { SAMARA_TASKS, jumpList, taskFromArgv, taskFromLockData } from '../src/jumplist.ts';
+
+test('the known tasks come through, from the command line and from the lock', () => {
+  for (const t of SAMARA_TASKS) {
+    assert.equal(taskFromArgv(['C:\\e\\electron.exe', 'C:\\s\\src\\main.ts', `--samara-task=${t}`]), t);
+    // Chromium may put its own switches round it: still found.
+    assert.equal(taskFromArgv(['electron.exe', '--allow-file-access-from-files', 'main.ts', `--samara-task=${t}`, '--original-process-start-time=1']), t);
+    assert.equal(taskFromLockData({ samaraTask: t }), t);
+  }
+});
+
+test('anything else does nothing', () => {
+  for (const argv of [[], ['main.ts'], ['--samara-task='], ['--samara-task=New-Tab'], ['--samara-task=new-tab '], ['--samara-task=new-tab;calc'],
+    ['--samara-task=open', 'x'], ['--samara-task', 'new-tab'], ['--samara-task=new-tab', '--samara-task=settings'], ['--SAMARA-TASK=new-tab'], 'new-tab', null, [5]]) {
+    assert.equal(taskFromArgv(argv), null, JSON.stringify(argv));
+  }
+  for (const d of [null, undefined, 'new-tab', {}, { samaraTask: 'url' }, { samaraTask: ['new-tab'] }, { samaraTask: 'settings\n' }]) assert.equal(taskFromLockData(d), null, JSON.stringify(d));
+});
+
+test('the list: one Tasks group, each item this Shell with one task', () => {
+  const l = jumpList({ exe: 'C:\\e\\electron.exe', main: 'C:\\s\\src\\main.ts', dir: 'C:\\s', icon: 'C:\\s\\samara-open.ico' });
+  assert.equal(l.length, 1);
+  assert.equal(l[0]!.type, 'tasks');
+  const items = l[0]!.items as Electron.JumpListItem[];
+  assert.deepEqual(items.map((i) => i.title), ['New tab', 'New window', 'Reopen closed tab', 'Mockups', 'Settings']);
+  for (const i of items) {
+    assert.equal(i.program, 'C:\\e\\electron.exe');
+    assert.equal(i.workingDirectory, 'C:\\s');
+    assert.match(i.args!, /^"C:\\s\\src\\main\.ts" --samara-task=[a-z-]+$/);
+    assert.equal(taskFromArgv(i.args!.split(' ')), i.args!.split('=')[1]);
+  }
+});
+
+test('phase 5: Quit Samara is last, and only where Samara is its own program', () => {
+  const base = { exe: 'C:\\e\\electron.exe', main: 'C:\\s\\src\\samara.ts', dir: 'C:\\s', icon: 'C:\\s\\samara-open.ico' };
+  const own = (jumpList({ ...base, quit: true })[0]!.items as Electron.JumpListItem[]);
+  assert.equal(own.at(-1)!.title, 'Quit Samara');
+  assert.equal(taskFromArgv(own.at(-1)!.args!.split(' ')), 'quit');
+  const items = (jumpList(base)[0]!.items as Electron.JumpListItem[]);
+  assert.ok(!items.some((i) => i.title === 'Quit Samara'));
+});
+
+test('sheet 66 A: a Pop-outs section above the Tasks; New note, Timer, Music only while the companion runs; removed items left out', () => {
+  const base = { exe: 'C:\\e\\electron.exe', main: 'C:\\s\\src\\main.ts', dir: 'C:\\s', icon: 'C:\\s\\samara-open.ico' };
+  const on = jumpList({ ...base, popouts: { companion: true, icons: { 'popouts-gather': 'C:\\a\\samara.ico' } } });
+  assert.equal(on.length, 2);
+  assert.equal(on[0]!.type, 'custom');
+  assert.equal(on[0]!.name, 'Pop-outs');
+  const items = on[0]!.items as Electron.JumpListItem[];
+  assert.deepEqual(items.map((i) => i.title), ['Show all pop-outs', 'Hide all pop-outs', 'Gather them', 'New note', 'Timer', 'Music player']);
+  assert.deepEqual(items.map((i) => i.iconPath), [base.icon, base.icon, 'C:\\a\\samara.ico', base.icon, base.icon, base.icon]);
+  for (const i of items) assert.ok(taskFromArgv(i.args!.split(' ')), i.args);
+  assert.equal(on[1]!.type, 'tasks');
+  const off = jumpList({ ...base, popouts: { companion: false, icons: {} } });
+  // (2026-11-07): New note, Timer and Music player stay in the list with the companion closed too
+  assert.deepEqual((off[0]!.items as Electron.JumpListItem[]).map((i) => i.title), ['Show all pop-outs', 'Hide all pop-outs', 'Gather them', 'New note', 'Timer', 'Music player']);
+  const gone = jumpList({ ...base, popouts: { companion: true, icons: {}, removed: (a) => a.endsWith('=timer') } });
+  assert.ok(!(gone[0]!.items as Electron.JumpListItem[]).some((i) => i.title === 'Timer'));
+  for (const t of ['popouts-show', 'popouts-hide', 'popouts-gather', 'new-note', 'timer', 'player']) assert.equal(taskFromLockData({ samaraTask: t }), t);
+});

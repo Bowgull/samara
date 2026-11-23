@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- 6.20: the browser's frame, sheet 3. The pages themselves are separate views placed in the page area;
+     this frame only ever shows the band, the drawer and its own plates. Favicons are the only outside
+     images (img-src https:), drawn by <img>, nothing else from the internet.
+     2026-10-11 look (research_notes/Browser UI UX polish/findings.md, DECIDED SET): real pixel-art
+     band, no gold caps, Windows' own buttons see-through on the wood, the page set into a carved recess, the
+     tabs in a drawer that slides over the page from a wood tab, bookmarks on velvet, an ink New tab key. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data: https: http://127.0.0.1:*;
+               font-src 'self'; style-src-attr 'unsafe-inline'; form-action 'none'; base-uri 'none'">
+<title>Samara</title>
+<script src="early.js"></script>
+<link rel="stylesheet" href="cockpit.css">
+<link rel="stylesheet" href="browser.css">
+<link rel="stylesheet" href="rune.css">
+<link rel="stylesheet" href="notefonts.css">
+<link rel="stylesheet" href="notecats.css">
+<link rel="stylesheet" href="sitenotes.css">
+<link rel="stylesheet" href="samaralook.css">
+</head>
+<body>
+<div class="bw">
+  <div class="band" id="band">
+    <img class="lantern" src="art/samara/samara-lantern-32.png" width="32" height="32" alt="" aria-hidden="true">
+    <button class="rnd" id="back" type="button" aria-label="Back"><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges" aria-hidden="true"><path d="M5 0h1v1H5zM4 0h1v1H4zM4 1h1v1H4zM3 1h1v1H3zM3 2h1v1H3zM2 2h1v1H2zM2 3h1v1H2zM1 3h1v1H1zM3 4h1v1H3zM2 4h1v1H2zM4 5h1v1H4zM3 5h1v1H3zM5 6h1v1H5zM4 6h1v1H4z" fill="#e8e0f5"/></svg></button>
+    <button class="rnd" id="fwd" type="button" aria-label="Forward"><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges" aria-hidden="true"><path d="M1 0h1v1H1zM2 0h1v1H2zM2 1h1v1H2zM3 1h1v1H3zM3 2h1v1H3zM4 2h1v1H4zM4 3h1v1H4zM5 3h1v1H5zM3 4h1v1H3zM4 4h1v1H4zM2 5h1v1H2zM3 5h1v1H3zM1 6h1v1H1zM2 6h1v1H2z" fill="#e8e0f5"/></svg></button>
+    <button class="rnd" id="reload" type="button" aria-label="Reload"><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges" aria-hidden="true"><path d="M2 0h3v1H2zM6 0h1v3H6zM1 1h1v1H1zM5 1h1v1H5zM4 2h2v1H4zM0 2h1v3H0zM6 4h1v1H6zM1 5h1v1H1zM5 5h1v1H5zM2 6h3v1H2z" fill="#e8e0f5"/></svg></button>
+    <div class="slot" id="slot">
+      <!-- Quiet on a normal site (a small shield: click it for this site's ad switch); red, in words, only when something is wrong. -->
+      <span class="lock" id="lock" title="This site"></span>
+      <span class="url" id="url"></span>
+      <!-- Sheet 77: four small lights while he types his PIN (never the numbers), and the bar saying what it wants. --><span class="pinlights" id="pinlights" hidden><i></i><i></i><i></i><i></i></span><button class="vkey" id="vkey" type="button" aria-label="Fill a login from Bitwarden" title="Fill a login from Bitwarden" hidden><!-- Sheet 78 A (2026-10-23): the key lying down; the 7x7 one was squashed. --><svg class="kg" viewBox="0 0 10 5" width="20" height="10" shape-rendering="crispEdges" aria-hidden="true"><path d="M1 0h2v1H1zM0 1h1v3H0zM3 1h1v1H3zM3 2h7v1H3zM3 3h1v1H3zM7 3h1v2H7zM9 3h1v2H9zM1 4h2v1H1z"/></svg><!-- Sheet 77: the same place shows a padlock while Bitwarden needs his PIN; the shackle lifts as it opens. --><svg class="lg" viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges" aria-hidden="true"><path class="shackle" d="M2 0h3v1H2zM1 1h1v2H1zM5 1h1v2H5z"/><path d="M0 3h7v4H0z"/><path class="hole" d="M3 4h1v2H3z"/></svg><span class="halo"></span></button><span class="savehint" id="savehint">Save this login</span><!-- Sheet 89: a small TV, lit while something of his plays on his TV; click it for what and where. --><button class="tvkey" id="tvkey" type="button" aria-label="On your TV" title="On your TV" hidden></button>
+      <button class="zoomhint" id="zoomhint" type="button" title="Zoom: click to go back to 100%" hidden></button>
+      <button class="star" id="star" type="button" aria-label="Bookmark this page" aria-pressed="false"><svg viewBox="0 0 9 8" width="18" height="16" shape-rendering="crispEdges" aria-hidden="true"><path d="M1 0h2v1H1zM6 0h2v1H6zM0 1h4v4H0zM5 1h4v4H5zM0 5h1v1H0zM8 5h1v1H8zM0 6h4v1H0zM5 6h4v1H5zM3 7h3v1H3z"/></svg></button>
+      <input class="edit" id="edit" type="text" spellcheck="false" autocomplete="off" aria-label="Search or type a web address" hidden>
+      <!-- Find on page (Ctrl+F): the slot becomes the find field, so nothing hangs down under the page. -->
+      <span class="findtag" id="findtag" hidden>FIND</span>
+      <input class="edit" id="find" type="text" spellcheck="false" autocomplete="off" aria-label="Find on this page" hidden>
+      <span class="findn" id="findn" hidden></span>
+      <!-- Shown only while the companion is the one driving (6.25); you driving is the normal case, so it says nothing. -->
+      <span class="who" id="who" hidden>COMPANION IS DRIVING</span>
+    </div>
+    <!-- The browser's settings, top right like any app's (2026-10-11). Organised by what they are about. -->
+    <!-- Downloads (2026-10-12): the key is only here while the tray has something; it pops in and pushes ⋯ over. -->
+    <!-- 6.28 the update key (sheet 18, 2026-10-13: the arrow and the word): only here once a newer engine is
+         downloaded, checked and tested. It pops in like the downloads key; it warms with age; he picks the moment. -->
+    <!-- C7 Claude's rune (2026-10-21, sheet 50): only here while a Claude job runs, waits on him, or is finished and not okayed. -->
+    <span id="runeslot" hidden></span>
+    <button class="rnd upkey word away" id="upkey" type="button" aria-label="Browser update ready" aria-expanded="false" tabindex="-1"><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges" aria-hidden="true"><path d="M3 0h1v1H3zM2 1h3v1H2zM1 2h5v1H1zM0 3h7v1H0zM2 4h3v3H2z"/></svg><span class="w">UPDATE</span></button>
+    <button class="rnd dlkey away" id="dlkey" type="button" aria-label="Downloads" aria-expanded="false" tabindex="-1"><svg viewBox="0 0 7 8" width="14" height="16" shape-rendering="crispEdges" aria-hidden="true"><path d="M2 0h3v2H2zM0 2h7v1H0zM1 3h5v1H1zM2 4h3v1H2zM3 5h1v1H3zM0 7h7v1H0z" fill="#e8e0f5"/></svg><i class="ring" id="dlring" hidden></i></button>
+    <button class="rnd menukey" id="menukey" type="button" aria-label="Browser settings" aria-expanded="false" aria-haspopup="true"><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges" aria-hidden="true"><path d="M0 3h1v1H0zM3 3h1v1H3zM6 3h1v1H6z" fill="#e8e0f5"/></svg></button>
+    <!-- His own window buttons (2026-10-12, B): bold gold pixel symbols on the wood. -->
+    <div class="winkeys">
+      <button class="wk" id="wmin" type="button" aria-label="Minimise"><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges" aria-hidden="true"><path d="M0 5h7v2H0z"/></svg></button>
+      <button class="wk" id="wmax" type="button" aria-label="Maximise"><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges" aria-hidden="true"><path class="g-max" d="M0 0h7v2H0zM0 2h1v5H0zM6 2h1v5H6zM1 6h5v1H1z"/><path class="g-rest" d="M2 0h5v1H2zM6 1h1v4H6zM0 2h5v1H0zM0 3h1v4H0zM4 3h1v4H4zM1 6h3v1H1z"/></svg></button>
+      <button class="wk close" id="wclose" type="button" aria-label="Close"><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges" aria-hidden="true"><path d="M0 0h2v1H0zM5 0h2v1H5zM0 1h3v1H0zM4 1h3v1H4zM1 2h5v1H1zM2 3h3v1H2zM1 4h5v1H1zM0 5h3v1H0zM4 5h3v1H4zM0 6h2v1H0zM5 6h2v1H5z"/></svg></button>
+    </div>
+    <!-- Address suggestions, hanging under the slot while he types. -->
+    <div class="menu" id="menu" role="menu" aria-label="Samara" tabindex="-1" hidden>
+      <div class="grp" role="group" aria-labelledby="mg1">
+        <div class="gh" id="mg1">THIS PAGE</div>
+        <div class="mrow zoom" role="group" aria-label="Zoom"><span aria-hidden="true">Zoom</span><span class="zk"><button type="button" role="menuitem" tabindex="-1" class="zb" id="zout" aria-label="Zoom out">&minus;</button><b id="zpct" aria-live="polite">100%</b><button type="button" role="menuitem" tabindex="-1" class="zb" id="zin" aria-label="Zoom in">+</button><button type="button" role="menuitem" tabindex="-1" class="zb wide" id="zreset" aria-label="Zoom back to 100%">Reset</button></span></div>
+        <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-find"><span>Find on this page</span><kbd class="wkbd">CTRL F</kbd></button>
+        <!-- Sheet 60 section 4: this site's notes, in a rail on the right, only when he asks. -->
+        <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-sitenotes"><span>Notes for this site</span></button>
+        <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-print"><span>Print</span><kbd class="wkbd">CTRL P</kbd></button>
+        <!-- Sheet 89: the page you're on, to your TV (it opens to its two choices) or to your other computer. -->
+        <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-tv" aria-haspopup="true" aria-expanded="false"><span>Send to TV</span><i aria-hidden="true">▸</i></button>
+        <div class="mtvbox" id="m-tvbox" role="group" aria-label="Send to TV" hidden><button type="button" role="menuitem" tabindex="-1" class="mrow sub" id="m-tvwin"><span>The whole window</span></button><button type="button" role="menuitem" tabindex="-1" class="mrow sub" id="m-tvvid"><span>Just the video</span></button></div>
+        <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-other"><span>Send to PC</span></button>
+      </div>
+      <div class="grp" role="group" aria-labelledby="mg2">
+        <div class="gh" id="mg2">TABS</div>
+        <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-newtab"><span>New tab</span><kbd class="wkbd">CTRL T</kbd></button>
+        <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-reopen"><span>Reopen closed tab</span><kbd class="wkbd">CTRL SHIFT T</kbd></button>
+        <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-split"><span>Side by side</span></button>
+        <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-tidy"><span>Trail clean up</span></button>
+      </div>
+      <div class="grp" role="group" aria-labelledby="mg3">
+        <div class="gh" id="mg3">YOUR THINGS</div>
+        <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-marks"><span>Bookmarks</span></button>
+        <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-history"><span>History</span><kbd class="wkbd">CTRL H</kbd></button>
+        <!-- Sheet 47: Claude's mockups, their trail and its history (only where the mockups are on). -->
+        <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-downloads"><span>Downloads</span><kbd class="wkbd">CTRL J</kbd></button>
+      </div>
+      <div class="grp" role="group" aria-label="Samara">
+        <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-updates"><span>Check for updates</span></button>
+        <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-settings"><span>Settings</span></button>
+        <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-quit" hidden><span>Quit Samara</span></button>
+      </div>
+    </div>
+    <!-- 6.22: a website's ask hangs from the band, joined to it, so it is plainly the browser's and not the page's. -->
+    <!-- 6.23: Bitwarden. The master password is typed HERE, in the companion's own frame, never into a website. -->
+    <!-- Sheet 77: a new login he just used. Exactly what Bitwarden will keep, so he can fix anything first. -->
+    <div class="bandchip vault afsave" id="afsavechip" hidden>
+      <div class="q">Keep this login in Bitwarden?</div>
+      <form id="afsaveform" autocomplete="off">
+        <label class="srow"><span>Site</span><input id="afsite" type="text" spellcheck="false" autocomplete="off" maxlength="253"></label>
+        <label class="srow"><span>Username</span><input id="afuser" type="text" spellcheck="false" autocomplete="off" maxlength="200"></label>
+        <label class="srow"><span>Password</span><input id="afpass" type="password" autocomplete="off" maxlength="500"></label>
+        <div class="keys">
+          <button class="key primary sm" type="submit">Save<span class="k">A</span></button>
+          <button class="key sm" id="afsaveno" type="button">Not now<span class="k">Z</span></button>
+        </div>
+      </form>
+    </div>
+    <div class="bandchip vault" id="vaultchip" hidden>
+      <div class="q" id="vaultq">Unlock Bitwarden</div>
+      <p class="m" id="vaultm"></p>
+      <form id="vaultform" autocomplete="off">
+        <input class="vpw" id="vaultpw" type="password" autocomplete="off" spellcheck="false" aria-label="Bitwarden master password" maxlength="1024">
+        <div class="keys">
+          <button class="key primary sm" id="vaultgo" type="submit">Unlock<span class="k">A</span></button>
+          <button class="key sm" id="vaultno" type="button">Cancel<span class="k">Z</span></button>
+        </div>
+      </form>
+      <div class="vlist" id="vaultlist" hidden></div>
+    </div>
+    <!-- Sheet 89: the TV ask, in sheet 86's family: the TV's colour, Samara's pixel screen, where it comes from and goes. -->
+    <div class="bandchip kind k-tv" id="tvchip" hidden>
+      <span class="tag" id="tvtag"><span id="tvtagw">Your TV</span></span>
+      <div class="q2"><span class="faces"><span class="face"><i class="bm-letter" id="tvfrom"></i></span><span class="to" id="tvto"></span><span class="face" id="tvface"></span></span><span id="tvq"></span></div>
+      <p class="m" id="tvm"></p>
+      <!-- Sheet 99: the code his TV shows, the very first Send to TV only (six letters and numbers). -->
+      <div class="tvcode" id="tvcode" hidden><input maxlength="1" aria-label="Code 1"><input maxlength="1" aria-label="Code 2"><input maxlength="1" aria-label="Code 3"><input maxlength="1" aria-label="Code 4"><input maxlength="1" aria-label="Code 5"><input maxlength="1" aria-label="Code 6"></div>
+      <div class="keys"><button class="key primary sm" id="tvyes" type="button"><span></span><span class="k">A</span></button><button class="key sm" id="tvno" type="button"><span></span><span class="k">Z</span></button></div>
+    </div>
+    <!-- 6.24: sharing the screen in a call. He picks one screen or one window, every time; the site never chooses. -->
+    <div class="bandchip share" id="sharechip" hidden>
+      <div class="q" id="shareq">Share your screen?</div>
+      <p class="m">Pick one. The site sees only what you pick, until you stop sharing.</p>
+      <div class="sgl" id="sharescreens-h">SCREENS</div>
+      <div class="sgrid" id="sharescreens"></div>
+      <div class="sgl" id="sharewins-h">WINDOWS</div>
+      <div class="sgrid" id="sharewins"></div>
+      <label class="ssound" id="sharesoundrow" hidden><input type="checkbox" id="sharesound"> Share my computer's sound too</label>
+      <div class="keys">
+        <button class="key primary sm" id="shareyes" type="button" disabled>Share<span class="k">A</span></button>
+        <button class="key sm" id="shareno" type="button">Cancel<span class="k">Z</span></button>
+      </div>
+    </div>
+    <!-- The star's own panel (2026-10-14): name the bookmark as it is saved, or take it off. -->
+    <div class="bandchip markpanel" id="markpanel" role="dialog" aria-labelledby="markhead" hidden>
+      <div class="q" id="markhead">Bookmark saved</div>
+      <input class="markname" id="markname" type="text" maxlength="200" spellcheck="false" autocomplete="off" aria-label="Bookmark name">
+      <div class="keys"><button class="key primary sm" id="markdone" type="button">Done</button><button class="key sm burnt" id="markremove" type="button">Remove</button></div>
+    </div>
+    <!-- The plaque's own little panel: the one place ads can be let through, one site at a time. -->
+    <div class="bandchip site" id="sitepanel" role="dialog" aria-label="This site" hidden>
+      <div class="q"><img id="sitefav" alt="" hidden><span id="sitehost"></span></div>
+      <div class="poprow" id="poprow" hidden>
+        <b>Popup blocked</b><small id="popurl"></small>
+        <div class="keys"><button class="key primary sm" id="popopen" type="button">Open it<span class="k">A</span></button>
+          <button class="key sm" id="popallow" type="button">Always allow here<span class="k">Z</span></button></div>
+      </div>
+      <!-- Sheet 37 (2026-10-14): every rule for this site, no helper text, just on or off; camera and mic
+           are Allow / Ask / Block in his key colours. Ads and popups are different things and stay separate. -->
+      <div class="srow"><span class="sic" data-pix="ads"></span><b>Block ads</b><button class="sw" id="adsw" type="button" role="switch" aria-checked="false" aria-label="Block ads"><i class="bed"><i class="nub"></i></i></button></div>
+      <div class="srow"><span class="sic" data-pix="popup"></span><b>Block popups</b><button class="sw" id="popsw" type="button" role="switch" aria-checked="false" aria-label="Block popups"><i class="bed"><i class="nub"></i></i></button></div>
+      <div class="srow"><span class="sic" data-pix="moon"></span><b>Dark mode</b><button class="sw" id="darksw" type="button" role="switch" aria-checked="false" aria-label="Dark mode"><i class="bed"><i class="nub"></i></i></button></div>
+      <div class="ssec">AI</div>
+      <div class="srow"><span class="sic" data-pix="ai"></span><b>Claude and companion</b><button class="sw" id="aisw" type="button" role="switch" aria-checked="false" aria-label="Claude and companion"><i class="bed"><i class="nub"></i></i></button></div>
+      <div class="srow"><span class="sic" data-pix="key"></span><b>Use my login</b><button class="sw" id="loginsw" type="button" role="switch" aria-checked="false" aria-label="Use my login"><i class="bed"><i class="nub"></i></i></button></div>
+      <div class="ssec">THIS SITE CAN USE</div>
+      <div class="srow"><span class="sic" data-pix="camera"></span><b>Camera</b><div class="seg tri" id="camk" role="radiogroup" aria-label="Camera"><button type="button" role="radio" data-v="allow">Allow</button><button type="button" role="radio" data-v="ask">Ask</button><button type="button" role="radio" data-v="block">Block</button></div></div>
+      <div class="srow"><span class="sic" data-pix="mic"></span><b>Microphone</b><div class="seg tri" id="mick" role="radiogroup" aria-label="Microphone"><button type="button" role="radio" data-v="allow">Allow</button><button type="button" role="radio" data-v="ask">Ask</button><button type="button" role="radio" data-v="block">Block</button></div></div>
+      <div id="devrows"></div>
+    </div>
+    <!-- The downloads tray: this run's newest 5. Drag a file out to use it anywhere. -->
+    <!-- The update tray (sheet 35, 2026-10-14): lantern header, the update itself as ticks on parchment (the
+         ones he can leave out are tick boxes), Restart now / Later, and a ... menu for the rest. Skipping asks twice. -->
+    <!-- Sheet 37 (2026-10-14): a Claude session's plan, dropped from the band in the update tray's own frame, when
+         there is no companion bubble to show it in (the Mac, for now). Sites as turquoise ticks, the steps, what it won't do,
+         a line to type a change. Go / Change / Not now. -->
+    <div class="dltray uptray upx plantray" id="plantray" role="dialog" aria-label="Claude's plan" hidden>
+      <div class="caps" aria-hidden="true"></div>
+      <div class="uphd"><img src="art/samara/samara-lantern-32.png" alt=""><div class="t"><small>CLAUDE WANTS TO</small><b id="plantask"></b></div></div>
+      <div class="uplist"><div class="grp">SITES</div><div id="plansites"></div><div class="grp">STEPS</div><div id="plansteps"></div></div>
+      <div class="planwont" id="planwont"><span data-pix="wont"></span><span id="planwonttext"></span></div>
+      <textarea class="plannote" id="plannote" rows="2" maxlength="500" placeholder="What should Claude change?" hidden></textarea>
+      <div class="upfoot"><button class="key primary sm" id="plango" type="button">Go</button><button class="key sm" id="planchange" type="button">Change</button><button class="key sm burnt" id="planno" type="button">Not now</button></div>
+    </div>
+    <div class="dltray uptray upx" id="uptray" role="dialog" aria-label="Update" hidden>
+      <div class="caps" aria-hidden="true"></div>
+      <div class="uphd"><img src="art/samara/samara-lantern-32.png" alt=""><div class="t"><small id="upkicker">UPDATE READY</small><b id="upname"></b></div><span class="when" id="upsince"></span></div>
+      <div id="upmain">
+        <div class="uplist" id="uplist"></div>
+        <p class="upwhy" id="upwhy" hidden></p>
+        <p class="upwhy" id="upnote" hidden></p>
+        <p class="upwhy upkc" id="upkc" hidden>After it restarts, your Mac asks about <b>Samara Safe Storage</b>. Type your Mac password and pick <b>Always Allow</b>, or your PIN and logins stay locked.</p>
+        <div class="upfoot"><button class="key primary sm" id="upgo" type="button">Restart now</button><button class="key sm" id="uplater" type="button">Later</button><span class="sp"></span>
+          <button class="upmore" id="upmore" type="button" aria-label="More" aria-expanded="false"><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges" aria-hidden="true"><path d="M0 3h1v1H0zM3 3h1v1H3zM6 3h1v1H6z" fill="#e8e0f5"/></svg></button></div>
+      </div>
+      <div class="upmenu" id="upmenu" hidden>
+        <button type="button" data-up="safe"><svg viewBox="0 0 9 9" width="16" height="16" shape-rendering="crispEdges" aria-hidden="true"><path d="M1 0h7v1H1zM0 1h1v4H0zM8 1h1v4H8zM1 5h1v1H1zM7 5h1v1H7zM2 6h1v1H2zM6 6h1v1H6zM3 7h3v1H3z" fill="#120A05"/><path d="M1 1h7v4H7v1H6v1H3V6H2V5H1z" fill="#6fbf6a"/><path d="M2 3h1v1H2zM3 4h1v1H3zM4 3h1v1H4zM5 2h1v1H5zM6 1h1v1H6z" fill="#fff"/></svg> Checked and safe</button>
+        <div class="detail" id="upsafe" hidden>From your own PC, every download matched its fingerprint, tested here. If it won't start, the old one comes back.</div>
+        <hr>
+        <button type="button" data-up="skip"><svg viewBox="0 0 9 9" width="16" height="16" shape-rendering="crispEdges" aria-hidden="true"><path d="M0 1h1v1H0zM1 2h1v1H1zM2 3h1v1H2zM3 4h1v1H3zM2 5h1v1H2zM1 6h1v1H1zM0 7h1v1H0zM4 1h1v1H4zM5 2h1v1H5zM6 3h1v1H6zM7 4h1v1H7zM6 5h1v1H6zM5 6h1v1H5zM4 7h1v1H4z" fill="#FFC43C"/></svg> Skip this version</button>
+        <button type="button" data-up="changelog"><svg viewBox="0 0 9 9" width="16" height="16" shape-rendering="crispEdges" aria-hidden="true"><path d="M1 0h6v1H1zM0 1h1v2H0zM8 1h1v6H8zM1 3h1v5H1zM2 8h6v1H2z" fill="#120A05"/><path d="M1 1h7v1H1zM2 2h6v6H2z" fill="#e9d3a6"/><path d="M1 2h1v1H1z" fill="#cdb78c"/><path d="M3 3h4v1H3zM3 5h4v1H3zM3 7h3v1H3z" fill="#8a3e1c"/></svg> Every version</button>
+        <button type="button" data-up="back" id="upback"><svg viewBox="0 0 9 9" width="16" height="16" shape-rendering="crispEdges" aria-hidden="true"><path d="M2 1h1v1H2zM1 2h1v1H1zM0 3h6v1H0zM1 4h1v1H1zM2 5h1v1H2zM6 4h1v1H6zM7 5h1v2H7zM6 7h1v1H6z" fill="#C8E8FF"/></svg> Go back to the last version</button>
+        <hr>
+        <button type="button" data-up="overnight" role="switch" aria-checked="false" id="upnightkey"><svg viewBox="0 0 9 9" width="16" height="16" shape-rendering="crispEdges" aria-hidden="true"><path d="M3 0h3v1H3zM2 1h1v1H2zM1 2h1v5H1zM2 7h1v1H2zM3 8h4v1H3zM7 7h1v1H7zM5 2h1v1H5zM4 3h1v3H4zM5 6h2v1H5z" fill="#FFE096"/><path d="M3 1h2v1H3zM2 2h3v1H2zM2 3h2v4H2zM3 7h4v1H3z" fill="#FFC43C"/></svg> Update by itself overnight <span class="sw" id="upnight" aria-hidden="true"><i class="bed"><i class="nub"></i></i></span></button>
+      </div>
+      <div class="upask" id="upskip1" hidden>
+        <div class="msg">This update has <b>security fixes</b>. Skipping it leaves known holes open until the next one.</div>
+        <div class="ch">
+          <div class="opt2"><button class="key primary sm" type="button" data-up="take">Never mind, take the update</button><small>Changed your mind? It installs now, the usual quick restart.</small></div>
+          <div class="opt2"><button class="key plum sm" type="button" data-up="file">Put it away</button><small>It stays on file. "Check for updates" in Samara's menu brings it back.</small></div>
+          <div class="opt2"><button class="key danger sm" type="button" data-up="skip2">Skip for good</button><small>It won't be offered again.</small></div>
+        </div>
+      </div>
+      <div class="upask" id="upskip2" hidden>
+        <div class="msg" id="upskip2msg"></div>
+        <div class="ch"><div class="row2"><button class="key primary sm" type="button" data-up="take">Never mind, take the update</button><button class="key danger sm" type="button" data-up="forever">Yes, skip it</button></div></div>
+      </div>
+      <div class="upvers" id="upvers" hidden><div class="uplog" id="uplog"></div><div class="upfoot"><button class="key sm" type="button" data-up="home">Back</button></div></div>
+    </div>
+    <!-- After an update put in overnight : once, the next time he opens Samara, hanging off the ... key. -->
+    <div class="dltray uptray upx updone" id="updone" role="dialog" aria-label="Updated" hidden>
+      <div class="caps" aria-hidden="true"></div>
+      <div class="uphd"><img src="art/samara/samara-lantern-32.png" alt=""><div class="t"><small>UPDATED WHILE YOU SLEPT</small><b id="updonename"></b></div></div>
+      <div class="uplist" id="updonelist"></div>
+      <div class="upfoot"><button class="key primary sm" id="updoneok" type="button">Got it</button><button class="key plum sm" id="updonevers" type="button">Every version</button></div>
+    </div>
+    <!-- Sheet 122 (2026-11-22): what "Check for updates" is doing, under the ... key -->
+    <div class="dltray uptray upx updone upcheck" id="upcheck" role="status" aria-live="polite" aria-label="Check for updates" hidden>
+      <div class="caps" aria-hidden="true"></div>
+      <div class="uphd"><img src="art/samara/samara-lantern-32.png" alt=""><div class="t"><small id="upckick">CHECKING FOR UPDATES</small><b id="upcname"></b></div></div>
+      <div class="uplist"><p class="upcline" id="upcline"></p><div class="upcbar" id="upcbar" hidden><i></i></div></div>
+      <div class="upfoot" id="upcfoot"><button class="key primary sm" id="upca" type="button"></button><button class="key plum sm" id="upcb" type="button"></button></div>
+    </div>
+    <div class="dltray" id="dltray" role="dialog" aria-label="Downloads" hidden>
+      <div class="gh">DOWNLOADS<span>Drag a file out to use it anywhere</span></div>
+      <div id="dlrows"></div>
+      <div class="dfoot"><button type="button" id="dlfolder">Open Downloads folder</button><button type="button" id="dlall">See all</button><button type="button" id="dlclear">Clear list</button></div>
+    </div>
+  </div>
+  <div class="loading" id="loading"><i></i></div>
+  <div class="body3">
+    <div class="well">
+      <div class="hnd"><button type="button" id="drawerkey" aria-label="Show the tabs" aria-expanded="false"></button><span class="newn" id="newn" hidden></span><b class="sndmark" id="sndmark" role="img" aria-label="A tab is playing sound" hidden><svg viewBox="0 0 8 8" width="16" height="16" shape-rendering="crispEdges" aria-hidden="true"><path d="M3 0h1v8H3zM2 1h1v6H2zM0 2h2v4H0zM6 1h1v1H6zM7 2h1v4H7zM6 6h1v1H6zM5 3h1v2H5z" fill="#2a1c00"/></svg></b></div>
+      <!-- Link preview: the real address of the link he points at, in the wood under the page. -->
+      <div class="linkpeek" id="linkpeek" hidden></div>
+      <div class="recess">
+        <div class="pg3" id="page">
+          <img class="frozen" id="frozen" alt="" hidden>
+          <!-- 6.25a: a live picture of one of the companion's pages, when he clicks it in the drawer. Only a picture: nothing is handed over. -->
+          <img class="frozen watchpic" id="watchpic" alt="" hidden>
+          <div class="plate" id="phishplate" hidden>
+            <span class="plq red">STOPPED &middot; FAKE SITE</span>
+            <h3 id="phishtitle">This site is on a list of fake sites</h3>
+            <p id="phishtext"></p>
+            <div class="lists" id="phishlists"></div>
+            <p>Lists are sometimes wrong, so you can still go in, but it takes the held lever.</p>
+            <div class="keys">
+              <button class="key primary sm" id="phishreal" type="button" hidden>Take me to the real one<span class="k">A</span></button>
+              <button class="key primary sm" id="phishback" type="button">Go back<span class="k">Z</span></button>
+            </div>
+            <div class="keys" style="margin-top:16px" id="phishlever"></div>
+          </div>
+          <!-- His bank (2026-10-14): never opened in Samara. One big button hands it to Chrome. -->
+          <div class="plate bankplate" id="bankplate" hidden>
+            <span class="plq gold">YOUR BANK</span>
+            <h3>Open your bank in Chrome</h3>
+            <p id="banktext"></p>
+            <div class="keys">
+              <button class="key primary" id="bankchrome" type="button">Open in Chrome<span class="k">A</span></button>
+              <button class="key sm" id="bankback" type="button">Go back<span class="k">Z</span></button>
+            </div>
+          </div>
+          <!-- Its page is playing in the popout over his game: this is where it was. -->
+          <!-- Sheet 40 B (2026-10-20): the show fills the tab, darkened like a game's pause screen, with a wood shelf of
+               keys along the bottom: bring it back, and pause (pin and close there were noise). -->
+          <div class="plate lentplate" id="lentplate" hidden>
+            <div class="lp-shot" id="lentshot"></div>
+            <div class="lp-dim"></div>
+            <div class="lp-live"><i></i>PLAYING IN THE POP-OUT</div>
+            <div class="lp-shelf">
+              <div><span class="plq site" id="lentsite"></span><h3 id="lenttitle"></h3></div>
+              <div class="keys">
+                <button class="key primary" id="reclaim" type="button">Bring it back<span class="k">A</span></button>
+                <button class="key" id="poppause" type="button">Pause</button>
+              </div>
+            </div>
+          </div>
+          <!-- The page did not load: no secure version, or no internet, a wrong address, a site that did not answer. -->
+          <div class="plate" id="failplate" hidden>
+            <!-- Sheet 91 v2: Jiji on the unplugged cord, for a page that did not load (not for the "not secure" warning). -->
+            <canvas class="failcat" id="failcat" width="640" height="320" hidden></canvas>
+            <span class="plq" id="failplq">NOT SECURE</span>
+            <h3 id="failtitle">This site isn't secure</h3>
+            <p id="failtext"></p>
+            <div class="keys">
+              <button class="key primary sm" id="failgo" type="button">Continue to the site<span class="k">A</span></button>
+              <button class="key primary sm" id="failretry" type="button">Try again<span class="k">A</span></button>
+              <button class="key sm" id="failback" type="button">Go back<span class="k">Z</span></button>
+            </div>
+          </div>
+          <!-- Sheet 121 (4): two pages side by side. A name strip over each page, the gold edge on the one in use, the wood
+               peg between them to share the space. The pages themselves are the Shell's views, placed under the strips. -->
+          <div class="sbs" id="sbs" hidden>
+            <div class="sbpane" id="sbl"><div class="ph"><img class="fav" alt=""><b></b><span class="pa"></span><button class="x" type="button" aria-label="Close this side"></button></div></div>
+            <div class="sbgut" id="sbgut"><button class="peg" id="sbpeg" type="button" role="separator" aria-orientation="vertical" aria-label="Share the space between the two pages" aria-valuemin="20" aria-valuemax="80" aria-valuenow="50"></button></div>
+            <div class="sbpane" id="sbr"><div class="ph"><img class="fav" alt=""><b></b><span class="pa"></span><button class="x" type="button" aria-label="Close this side"></button></div></div>
+          </div>
+          <div class="plate" id="crashplate" hidden>
+            <i class="cracks"></i>
+            <span class="plq red">THIS PAGE CRASHED</span>
+            <h3 id="crashtitle">This page stopped working</h3>
+            <p>The page broke, not your PC. Reload brings it back.</p>
+            <div class="keys">
+              <button class="key primary sm" id="crashreload" type="button">Reload<span class="k">A</span></button>
+              <button class="key sm" id="crashclose" type="button">Close the tab<span class="k">Z</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- The tab drawer: sheet 3's rail, in the tray's own wood, sliding over the page. -->
+    <i class="railhandle" aria-hidden="true"></i>
+    <nav class="drawer" id="rail" aria-label="Tabs" aria-hidden="true">
+      <!-- Sheet 43d (2026-10-20): one game menu, two framed panels with the same gold corners. Each panel grows
+           and shrinks with what is in it; the drawer scrolls, never a box inside it. -->
+      <div class="shelf-bk">
+        <p class="ptitle">BOOKMARKS</p>
+        <div class="row" id="marks"></div>
+      </div>
+      <div class="tabpanel">
+        <p class="ptitle">TABS</p>
+        <button class="key sm newtab ink" id="newtab" type="button">+ New tab<span class="k">Ctrl T</span></button>
+        <div id="tabs"></div>
+      </div>
+      <div class="stash" id="stash" hidden>
+        <button class="chest" id="chest" type="button" aria-label="Open the Stash"></button>
+        <div><div class="s1">Stash</div><div class="s2" id="stashn"></div></div>
+      </div>
+      <div class="stashlist" id="stashlist" hidden></div>
+      <!-- Sheet 107 (2026-10-30; at the bottom of the tray, a size smaller: the same day): the one way to Mockups, the sealed scroll on FFX blue with gold trim. -->
+      <!-- 2026-11-03 : the way to the Hyrule map, Mockups' own shape in Hyrule green, a folded map with a pin. -->
+      <button type="button" class="mq hy" id="hykey" aria-label="Hyrule" hidden><span class="pic"><canvas width="16" height="14"></canvas></span><span class="nm">Hyrule</span></button>
+      <button type="button" class="mq plum" id="mqkey" aria-label="Mockups" hidden><span class="pic"><canvas width="16" height="14"></canvas></span><span class="nm">Mockups</span><span class="gem" hidden></span></button>
+      <!-- Trail clean up: the panel and the broom live together at the bottom of the drawer (2026-10-12). -->
+      <div class="tidyfoot">
+        <div class="tidypanel" id="tidypanel" hidden><i class="caps"></i>
+          <div class="cap-title" id="tidytitle">TIDYING</div>
+          <div class="cap-line" id="tidyline"></div>
+          <div class="prog" id="tidyprog"><i></i></div>
+          <div class="ffxw" id="tidykeys" hidden><button class="on" type="button" id="tidykeep">Keep</button><button type="button" id="tidyundo">Undo</button></div>
+          <div class="cap-dim" id="tidydim"></div>
+        </div>
+        <div class="tidyrow"><span class="cap-dim" id="tabcount"></span><button class="broom" id="broom" type="button" title="Tidy my tabs" aria-label="Tidy my tabs"></button></div>
+      </div>
+    </nav>
+  </div>
+</div>
+<script src="browser.js" type="module"></script>
+</body>
+</html>

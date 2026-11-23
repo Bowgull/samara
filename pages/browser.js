@@ -1,0 +1,2719 @@
+import { pixIcon } from './pixicons.js';
+import { catScene } from './catscene.js';
+import { projectIcon, topicIcon } from './mockicons.js';
+import { startRune } from './rune.js';
+import { openRail, railTabs } from './sitenotes.js';
+// 6.20: the browser's frame. Draws the rail and the address slot from the tab list the Shell sends, and
+// tells the Shell where the page area is (6.19). Everything is built with textContent: titles and
+// addresses are the websites' own words.
+// "Send to" names the OTHER machine: the MacBook from the PC, the PC from the Mac (M6, 2026-10-13).
+const OTHER = window.samara?.platform === 'darwin'
+  ? { label: 'Send to PC', title: 'Send to your PC. It stops playing here.', open: 'Open on PC' }
+  : { label: 'Send to Mac', title: 'Send to the MacBook. It stops playing here.', open: 'Open on Mac' };
+const el = (id) => document.getElementById(id);
+/** Sheet 91 v2: the cat on the "page did not load" plate (catscene.js). */
+const failCat = catScene(el('failcat'));
+// The tab list floats in its own see-through layer above the live page (2026-10-13: Twitch froze under the
+// old drawer, which showed a picture of the page). This same page, opened with ?tray, is that layer: only the list.
+const SOLO = new URLSearchParams(location.search).has('tray');
+if (SOLO) document.documentElement.classList.add('solo');
+// Sheet 120 A (2026-11-20): the band's menus and panels float over the LIVE page in their own see-through layer, which is
+// this same page opened with ?float. There only the open panel shows; the band's keys hand their clicks to it.
+const FLOAT = new URLSearchParams(location.search).has('float');
+if (FLOAT) document.documentElement.classList.add('float');
+/** The band (not a layer): its panels live in the floating layer once that layer has loaded. */
+let floated = false;
+const tabsBox = el('tabs'), urlEl = el('url'), lock = el('lock'), edit = el('edit'), loading = el('loading');
+let state = { active: null, tabs: [], canBack: false, canForward: false };
+/** 2026-10-22: a name carries its icon. The last row added to a menu (Send to companion) gets the companion's face in front. */
+function samaraFaceOn(m) {
+  const b = m.lastElementChild; if (!b) return;
+  b.classList.add('tocompanion');
+  b.prepend(Object.assign(document.createElement('img'), { src: 'art/samara/samara-lantern-64.png', alt: '', className: 'aface' }));
+}
+
+// ---- 6.19: where the page area is. Measured, then the Shell keeps it in place on every resize itself.
+const page = el('page');
+function report() {
+  if (SOLO || FLOAT) return;                // the tray and panel layers have no page area of its own
+  // A page is a native view drawn ON TOP of this frame, so anything hanging below the band (a site's ask,
+  // the ads panel, a download note) would sit hidden behind it. While one shows, the page moves down past it. Sheet 89
+  // (: the page's whole recess moves with it, so the ask hangs over the band's wood and the page
+  // keeps its rounded corners just below, instead of the page sliding down inside a cream box.
+  const r0 = page.getBoundingClientRect();
+  if (!pushed) baseMargin = parseFloat(getComputedStyle(page).marginTop) || 0;
+  const natural = r0.top - pushed;
+  let need = 0;
+  for (const id of ['sharechip', 'vaultchip', 'tvchip']) { const x = el(id); if (x && !x.hidden) need = Math.max(need, Math.ceil(x.getBoundingClientRect().bottom + 8 - natural)); }
+  if (need !== pushed) { pushed = need; page.style.marginTop = need ? (baseMargin + need) + 'px' : ''; }
+  const r = page.getBoundingClientRect();
+  // All four sides now: the page sits inside the carved recess, with wood on every side of it.
+  const ins = { left: r.left, top: r.top, right: window.innerWidth - r.right, bottom: window.innerHeight - r.bottom };
+  // Only when the page area really moved (measured 2026-10-20): every toggle anywhere used to move the page's view,
+  // 2 moves for every link he pointed at.
+  const key = [ins.left, ins.top, ins.right, ins.bottom].map((v) => Math.round(v)).join(',');
+  if (key === lastInsets) return;
+  lastInsets = key;
+  window.samara?.browserInsets?.(ins);
+}
+let lastInsets = '', reportQueued = false, pushed = 0, baseMargin = 0;
+const reportSoon = () => { if (reportQueued) return; reportQueued = true; requestAnimationFrame(() => { reportQueued = false; report(); }); };
+new ResizeObserver(report).observe(page);
+// The link preview floats over the page and never moves it.
+new MutationObserver((recs) => { if (recs.every((m) => m.target.id === 'linkpeek')) return; reportSoon(); })
+  .observe(document.body, { subtree: true, attributes: true, attributeFilter: ['hidden'] });
+window.addEventListener('load', report);
+
+// ---- the band
+el('back').addEventListener('click', () => window.samara?.browserAct?.('back'));
+el('fwd').addEventListener('click', () => window.samara?.browserAct?.('forward'));
+const RELOADGLYPH = el('reload').innerHTML;
+const STOPGLYPH = '<svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges" aria-hidden="true"><path d="M0 0h2v1H0zM5 0h2v1H5zM1 1h2v1H1zM4 1h2v1H4zM2 2h3v1H2zM3 3h1v1H3zM2 4h3v1H2zM1 5h2v1H1zM4 5h2v1H4zM0 6h2v1H0zM5 6h2v1H5z" fill="#e8e0f5"/></svg>';
+el('reload').addEventListener('click', () => window.samara?.browserAct?.(el('reload').dataset.mode === 'stop' ? 'stop' : 'reload'));
+el('zoomhint').addEventListener('click', (e) => { e.stopPropagation(); window.samara?.browserAct?.('zoomreset'); });
+// ---- link preview: shows the real address while he points at a link
+window.samara?.onBrowserHover?.((u) => {
+  const p = el('linkpeek');
+  if (!u) { p.hidden = true; return; }
+  p.textContent = String(u);
+  p.hidden = false;
+});
+el('newtab').addEventListener('click', () => { tap(); window.samara?.browserAct?.('newtab'); });
+
+// ---- the tab drawer (2026-10-11): click the wood tab and sheet 3's rail slides out OVER the page. The live page
+// cannot be covered by anything in this frame, so while the drawer is open it is shown as a still picture of
+// itself; the picture arrives first, then the drawer slides, so nothing ever slides under the real page.
+const frozen = el('frozen');
+let drawerOpen = false, drawerWait = 0;
+// The drawer and the ⋯ menu both lie over the page, so the page is pictured while EITHER is open.
+const over = new Set();
+// In the panel layer a panel opening shows the layer and the last one closing puts it away; the band itself then never
+// freezes the page (its own copies of the panels are not drawn). Before the layer has loaded the band works as before.
+function freeze(who) {
+  const was = over.size; over.add(who);
+  if (FLOAT) { window.samara?.browserFloat?.({ open: true, over: [...over] }); return; }
+  if (floated) return;
+  if (!was) window.samara?.browserAct?.('drawer-open');
+}
+function unfreeze(who, after = 0) {
+  over.delete(who);
+  setTimeout(() => {
+    if (FLOAT) { window.samara?.browserFloat?.({ open: over.size > 0, over: [...over] }); return; }
+    if (!over.size) window.samara?.browserAct?.('drawer-close');
+  }, after);
+}
+// The band: its keys open their panels in the layer (a click, Enter or Space on them; a click the band makes itself too).
+const FLOAT_KEYS = '#menukey, #star, #lock, #dlkey, #upkey';
+if (!SOLO && !FLOAT) {
+  document.addEventListener('click', (e) => {
+    if (!floated) return;
+    const k = e.target instanceof Element ? e.target.closest(FLOAT_KEYS) : null;
+    if (!k) return;
+    e.stopPropagation(); e.preventDefault();
+    window.samara?.browserFloat?.({ click: k.id, kb: e.detail === 0 });
+  }, true);
+  window.samara?.onBrowserFloat?.((f) => {
+    if (!f) return;
+    if (typeof f.ready === 'boolean') { floated = f.ready; document.documentElement.classList.toggle('floated', f.ready); }
+    // What is open in the layer, on the band's keys (pressed in, and what a screen reader hears).
+    if (Array.isArray(f.over)) {
+      el('menukey').setAttribute('aria-expanded', String(f.over.includes('menu')));
+      el('dlkey').setAttribute('aria-expanded', String(f.over.includes('dl')));
+      el('upkey').setAttribute('aria-expanded', String(f.over.includes('up')));
+      lock.classList.toggle('open', f.over.includes('site'));
+    }
+    // A menu line that works on the band itself: find on the page, this site's notes, the tab list.
+    if (f.do === 'find') setTimeout(openFind, 0);
+    if (f.do === 'sitenotes') openRail();
+    if (f.do === 'drawer') openDrawer();
+  });
+}
+if (FLOAT) {
+  window.samara?.onBrowserFloat?.((f) => {
+    if (!f || typeof f.click !== 'string' || !/^(menukey|star|lock|dlkey|upkey)$/.test(f.click)) return;
+    el(f.click).click();
+    if (f.kb && f.click === 'menukey' && menuOpen) menuFocus(0);
+    // A key that opened nothing (the shield on a page with no site): the layer goes again at once.
+    setTimeout(() => { if (!over.size) window.samara?.browserFloat?.({ open: false, over: [] }); }, 80);
+  });
+  // Esc closes whatever is open; the layer goes with the last one.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    closeMenu(); closeDl();
+    if (!el('sitepanel').hidden) { el('sitepanel').hidden = true; lock.classList.remove('open'); }
+  });
+}
+/** A menu line meant for the band (the layer has no visible band): the band does it. */
+function onBand(what, here) { if (FLOAT) window.samara?.browserFloat?.({ frame: what }); else here(); }
+// The list itself is drawn by the tray layer; here the handle only asks for it, and says where it goes.
+function trayRect() {
+  const k = el('drawerkey').getBoundingClientRect(), b = document.querySelector('.body3').getBoundingClientRect();
+  // From the handle's own left edge: the rail slides out from under it, carrying it (2026-10-20).
+  return { x: Math.round(k.left), y: Math.round(b.top), hy: Math.round(k.top - b.top), h: Math.round(window.innerHeight - b.top) };
+}
+function openDrawer() {
+  if (drawerOpen || SOLO) return;
+  closeMenu(); closeDl();
+  breathe(false);
+  drawerOpen = true;
+  el('drawerkey').setAttribute('aria-expanded', 'true');
+  document.body.classList.add('tray-open');
+  window.samara?.browserTray?.({ open: true, ...trayRect() });
+}
+// His rule (2026-10-14): "the left tray should never close ever unless I move my mouse out of it - no clicks or
+// anything". So every other call is a no-op; only the tray's own mouse-out passes `byMouseOut`.
+function closeDrawer(byMouseOut = false) {
+  if (!byMouseOut) return;
+  if (SOLO) { window.samara?.browserTray?.({ open: false }); return; }
+  if (!drawerOpen) return;
+  trayShut();
+  window.samara?.browserTray?.({ open: false });
+}
+function trayShut() {
+  drawerOpen = false;
+  el('drawerkey').setAttribute('aria-expanded', 'false');
+  document.body.classList.remove('tray-open');
+}
+// The tray closed by itself (Esc in it, a click on the page, a tab picked): the handle follows.
+window.samara?.onBrowserTray?.((s) => {
+  if (!s) return;
+  // Sheet 71: the size comes with the list's own messages, so a change lands before the next slide.
+  if (s.size === 's' || s.size === 'm' || s.size === 'l') {
+    const html = document.documentElement;
+    if (!html.classList.contains('tsize-' + s.size)) { html.classList.remove('tsize-s', 'tsize-m', 'tsize-l'); html.classList.add('tsize-' + s.size); }
+    if (s.open === undefined && s.warm === undefined) return;
+  }
+  if (SOLO) {
+    // Drawn once out of sight before the first real open (the Shell shows this layer for a moment): out, at almost no
+    // opacity and with no slide, then folded away again without a slide.
+    if (s.warm === true) {
+      const html = document.documentElement;
+      html.classList.add('warm'); document.body.classList.add('out');
+      // Folded back while still see-through; see-through ends only after the Shell has hidden the layer (300 ms).
+      setTimeout(() => { document.body.classList.remove('out'); }, 240);
+      setTimeout(() => { html.classList.remove('warm'); }, 500);
+      return;
+    }
+    // Shown folded, then slid out on the next frames; told to close, it slides back and the Shell hides it after.
+    if (s.open === true) {
+      if (Number.isFinite(s.hy)) document.querySelector('.railhandle').style.top = s.hy + 'px';
+      document.body.classList.remove('out');
+      // Next frame; a short timer too, so a window that is not drawing right now still ends up with the rail out.
+      let gone = false;
+      const go = () => { if (gone) return; gone = true; void document.body.offsetWidth; document.body.classList.add('out'); };
+      requestAnimationFrame(() => requestAnimationFrame(go));
+      setTimeout(go, 40);
+    } else document.body.classList.remove('out');
+    return;
+  }
+  // The + key in the floating list: the star's own box opens here, on the band, where he can see it.
+  if (s.mark) setTimeout(() => el('star').click(), 60);
+  document.body.classList.toggle('rail-out', s.open === true);
+  if (s.open === false && drawerOpen) trayShut();
+});
+if (SOLO) {
+  // The list goes a moment after the mouse leaves it (not while a menu of its own or a rename is open). His pick
+  // (2026-10-25, "it goes away a little too fast, I can't really work inside it"): just over half a second, so slipping
+  // out past its edge and back in never loses it.
+  let leaveT = 0;
+  document.documentElement.addEventListener('mouseleave', () => { clearTimeout(leaveT); leaveT = setTimeout(() => { if (!dragging && !document.querySelector('.th input, .bm-key input') && !document.getElementById('tabmenu')) closeDrawer(true); }, 650); });
+  document.documentElement.addEventListener('mouseenter', () => clearTimeout(leaveT));
+  drawerOpen = true;
+  document.body.classList.add('drawer-open');
+  el('rail').setAttribute('aria-hidden', 'false');
+}
+
+// ---- Sheet 121 (4), 2026-11-20: two pages side by side. The Shell places the two pages; the band draws a name
+// strip over each (a click picks that page, its × ends the pair and both tabs stay), the gold edge on the page in use, and
+// the wood peg between them (drag it, or arrow keys on it, to share the space).
+if (!SOLO && !FLOAT) {
+  const SB_MIN = 0.2, sbClamp = (r) => (Number.isFinite(r) ? Math.min(1 - SB_MIN, Math.max(SB_MIN, r)) : 0.5);
+  const sbs = el('sbs'), peg = el('sbpeg');
+  let sb = null;
+  const side = (box, t, on) => {
+    box.classList.toggle('on', on);
+    const img = box.querySelector('.fav');
+    if (t.favicon) { img.src = t.favicon; img.hidden = false; img.onerror = () => { img.hidden = true; }; } else img.hidden = true;
+    box.querySelector('b').textContent = t.host || t.title || '';
+    box.querySelector('.pa').textContent = t.rest || '';
+    box.querySelector('.ph').title = t.title || '';
+    box.querySelector('.x').setAttribute('aria-label', 'Close ' + (t.host || 'this side'));
+  };
+  const paintSb = () => {
+    sbs.hidden = !sb;
+    page.classList.toggle('sbon', Boolean(sb));
+    if (!sb) return;
+    const W = page.clientWidth, gap = sb.gap || 22, lw = Math.max(0, Math.round((W - gap) * sbClamp(sb.ratio)));
+    el('sbl').style.cssText = 'left:0;width:' + lw + 'px';
+    el('sbgut').style.cssText = 'left:' + lw + 'px;width:' + gap + 'px';
+    el('sbr').style.cssText = 'left:' + (lw + gap) + 'px;width:' + Math.max(0, W - lw - gap) + 'px';
+    for (const b of sbs.querySelectorAll('.ph')) b.style.height = (sb.head || 34) + 'px';
+    side(el('sbl'), sb.left, sb.on === 'left'); side(el('sbr'), sb.right, sb.on === 'right');
+    peg.setAttribute('aria-valuenow', String(Math.round(sbClamp(sb.ratio) * 100)));
+  };
+  window.samara?.onBrowserSplit?.((s) => { sb = s && typeof s === 'object' && s.left && s.right ? s : null; paintSb(); });
+  new ResizeObserver(paintSb).observe(page);
+  for (const [box, k] of [[el('sbl'), 'left'], [el('sbr'), 'right']]) {
+    box.querySelector('.ph').addEventListener('click', (e) => { if (!sb) return; const id = sb[k].id; window.samara?.browserSplit?.({ act: e.target.closest('.x') ? 'close' : 'focus', id }); });
+  }
+  // The peg: pressed and dragged (the pages follow as it moves), or Left and Right on it; a double-click halves it again.
+  let moveRaf = 0;
+  const share = (x) => { const r = page.getBoundingClientRect(), gap = sb?.gap || 22; return sbClamp((x - r.left - gap / 2) / Math.max(1, r.width - gap)); };
+  const send = (done) => { cancelAnimationFrame(moveRaf); moveRaf = 0; if (sb) window.samara?.browserSplit?.({ ratio: sb.ratio, done }); };
+  peg.addEventListener('pointerdown', (e) => {
+    if (!sb || e.button !== 0) return;
+    e.preventDefault();
+    peg.setPointerCapture(e.pointerId);
+    document.documentElement.classList.add('sbdrag');
+    const move = (m) => { sb.ratio = share(m.clientX); paintSb(); if (!moveRaf) moveRaf = requestAnimationFrame(() => { moveRaf = 0; send(false); }); };
+    const end = () => { peg.removeEventListener('pointermove', move); peg.removeEventListener('pointerup', end); peg.removeEventListener('pointercancel', end); document.documentElement.classList.remove('sbdrag'); send(true); };
+    peg.addEventListener('pointermove', move); peg.addEventListener('pointerup', end); peg.addEventListener('pointercancel', end);
+  });
+  peg.addEventListener('keydown', (e) => {
+    if (!sb) return;
+    const d = e.key === 'ArrowLeft' ? -0.05 : e.key === 'ArrowRight' ? 0.05 : e.key === 'Home' ? -1 : e.key === 'End' ? 1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    sb.ratio = sbClamp(sb.ratio + d); paintSb(); send(true);
+  });
+  peg.addEventListener('dblclick', () => { if (sb) { sb.ratio = 0.5; paintSb(); send(true); } });
+}
+
+// ---- Sheet 121 (3), 2026-11-20: hover a tab to see it. Resting on a row for 0.4 s shows a picture of the page
+// BESIDE the list (the Shell's own small layer); moving on to another row shows that one at once. Only listening here:
+// nothing about the list, its rows or its timing changes.
+if (SOLO) {
+  let peekT = 0, peekId = null;
+  const peekOff = () => { clearTimeout(peekT); if (peekId !== null) { peekId = null; window.samara?.browserTabPeek?.(null); } };
+  tabsBox.addEventListener('pointerover', (e) => {
+    const row = e.target instanceof Element ? e.target.closest('.tp[data-tab]') : null;
+    if (!row || dragging || e.buttons) return;
+    const id = Number(row.dataset.tab);
+    if (!Number.isInteger(id) || id === peekId) return;
+    clearTimeout(peekT);
+    peekT = setTimeout(() => {
+      if (!row.isConnected) return;
+      const r = row.getBoundingClientRect();
+      peekId = id;
+      window.samara?.browserTabPeek?.({ id, top: Math.round(r.top), bottom: Math.round(r.bottom) });
+    }, peekId !== null ? 0 : 400);
+  });
+  tabsBox.addEventListener('pointerout', (e) => { const to = e.relatedTarget instanceof Element ? e.relatedTarget.closest('.tp[data-tab]') : null; if (!to) peekOff(); });
+  for (const ev of ['pointerdown', 'wheel', 'dragstart', 'contextmenu']) tabsBox.addEventListener(ev, peekOff, true);
+  document.querySelector('.drawer')?.addEventListener('scroll', peekOff, { passive: true });
+  document.documentElement.addEventListener('mouseleave', peekOff);
+}
+
+// ---- the ⋯ menu: the browser's settings, grouped. Its switches are real: ads, popups, sounds.
+const menu = el('menu'), menukey = el('menukey');
+let menuOpen = false;
+function openMenu() {
+  if (menuOpen) return;
+  closeDrawer();
+  menuOpen = true;
+  closeDl();
+  menukey.setAttribute('aria-expanded', 'true');
+  paintMenu();
+  menu.hidden = false;
+  // The keyboard goes to the menu itself, so Up and Down work at once (Enter or Space on the ⋯ key lands on its first line).
+  if (FLOAT) menu.focus({ preventScroll: true });
+  freeze('menu');
+}
+function closeMenu() {
+  if (!menuOpen) return;
+  menuOpen = false;
+  menukey.setAttribute('aria-expanded', 'false');
+  menu.hidden = true;
+  unfreeze('menu');
+}
+function paintMenu() {
+  el('zpct').textContent = (state.zoomPct ?? 100) + '%';
+  // Sheet 89: Send to the other computer names it.
+  el('m-other').firstElementChild.textContent = OTHER.label;
+  // Phase 5: only where Samara is its own program (samara.ts sets it).
+  el('m-quit').hidden = state.canQuit !== true;
+  el('m-tvbox').hidden = true; el('m-tv').classList.remove('open');
+  // Sheet 121 (4): the same line opens two pages side by side, or puts them back to one.
+  el('m-split').firstElementChild.textContent = state.split ? 'Close side by side' : 'Side by side';
+}
+menukey.addEventListener('click', (e) => { e.stopPropagation(); menuOpen ? closeMenu() : openMenu(); });
+menu.addEventListener('click', (e) => e.stopPropagation());
+
+el('zin').addEventListener('click', () => window.samara?.browserAct?.('zoomin'));
+el('zout').addEventListener('click', () => window.samara?.browserAct?.('zoomout'));
+el('zreset').addEventListener('click', () => window.samara?.browserAct?.('zoomreset'));
+el('m-newtab').addEventListener('click', () => { closeMenu(); tap(); window.samara?.browserAct?.('newtab'); });
+el('m-reopen').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('reopen'); });
+el('m-find').addEventListener('click', () => { closeMenu(); onBand('find', () => setTimeout(openFind, 0)); });
+// Sheet 60 section 4: this site's notes, in the rail on the right (sitenotes.js).
+el('m-sitenotes').addEventListener('click', () => { closeMenu(); onBand('sitenotes', openRail); });
+el('m-print').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('print'); });
+el('m-tv').addEventListener('click', () => { const box = el('m-tvbox'); box.hidden = !box.hidden; el('m-tv').classList.toggle('open', !box.hidden); el('m-tv').setAttribute('aria-expanded', String(!box.hidden)); });
+// ---- the ⋯ menu by keyboard (sheet 120 A): its lines are menu items. Up and Down move, Home and End jump, Right opens
+// Send to TV and Left folds it, Esc or Tab closes the menu.
+function menuItems() { return [...menu.querySelectorAll('[role="menuitem"]')].filter((b) => !b.disabled && b.offsetParent !== null); }
+function menuFocus(i) {
+  const l = menuItems();
+  if (!l.length) return;
+  const k = ((i % l.length) + l.length) % l.length;
+  l.forEach((b, j) => { b.tabIndex = j === k ? 0 : -1; });
+  l[k].focus();
+}
+menu.addEventListener('keydown', (e) => {
+  const l = menuItems(), at = l.indexOf(document.activeElement);
+  const tv = el('m-tv'), box = el('m-tvbox');
+  if (e.key === 'ArrowDown') menuFocus(at + 1);
+  else if (e.key === 'ArrowUp') menuFocus(at < 0 ? -1 : at - 1);
+  else if (e.key === 'Home') menuFocus(0);
+  else if (e.key === 'End') menuFocus(-1);
+  else if (e.key === 'ArrowRight' && document.activeElement === tv && box.hidden) { tv.click(); menuFocus(menuItems().indexOf(el('m-tvwin'))); }
+  else if (e.key === 'ArrowLeft' && box.contains(document.activeElement)) { tv.click(); menuFocus(menuItems().indexOf(tv)); }
+  else if (e.key === 'Escape' || e.key === 'Tab') closeMenu();
+  else return;
+  e.preventDefault(); e.stopPropagation();
+});
+el('m-tvwin').addEventListener('click', () => { closeMenu(); if (state.active != null) window.samara?.browserTab?.({ id: state.active, act: 'tvwindow' }); });
+el('m-tvvid').addEventListener('click', () => { closeMenu(); if (state.active != null) window.samara?.browserTab?.({ id: state.active, act: 'tvvideo' }); });
+el('m-other').addEventListener('click', () => { closeMenu(); if (state.active != null) window.samara?.browserToMac?.(state.active); });
+el('m-split').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('split'); });
+el('m-tidy').addEventListener('click', () => { closeMenu(); onBand('drawer', openDrawer); window.samara?.browserAct?.('tidy'); });
+el('m-marks').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('bookmarks'); });
+el('m-settings').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('settings'); });
+el('m-quit').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('quit'); });
+el('m-history').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('history'); });
+// Sheet 107 (2026-10-30: "I only need the one"): the one way to Mockups, its plaque at the top of the tray.
+el('mqkey').addEventListener('click', () => window.samara?.browserMockup?.({ act: 'log' }));
+el('hykey').addEventListener('click', () => window.samara?.browserGo?.('samara:hyrule'));
+el('m-downloads').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('downloads'); });
+// ---- Trail clean up: the broom at the bottom of the drawer, the panel just above it
+el('broom').addEventListener('click', () => window.samara?.browserAct?.('tidy'));
+el('tidykeep').addEventListener('click', () => window.samara?.browserAct?.('tidykeep'));
+el('tidyundo').addEventListener('click', () => window.samara?.browserAct?.('tidyundo'));
+el('tidypanel').addEventListener('click', (e) => { if (state.tidy?.phase === 'working' && !e.target.closest('button')) window.samara?.browserAct?.('tidyundo'); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.tidy?.phase === 'working') window.samara?.browserAct?.('tidyundo'); });
+let tidyTick = null;
+function paintTidy() {
+  const td = state.tidy;
+  el('tidypanel').hidden = !td;
+  el('broom').disabled = Boolean(td);
+  const live = state.tabs.filter((t) => !t.done && !String(t.url).startsWith('samara:')).length;
+  el('tabcount').textContent = `${live} TAB${live === 1 ? '' : 'S'}`;
+  document.getElementById('tabs').classList.toggle('tidying', td?.phase === 'working');
+  clearInterval(tidyTick);
+  if (!td) return;
+  const working = td.phase === 'working';
+  el('tidytitle').textContent = working ? 'TIDYING' : 'TIDIED';
+  el('tidyprog').hidden = !working;
+  el('tidykeys').hidden = working;
+  if (working) {
+    el('tidyline').textContent = (td.text || 'Sorting your tabs.') + ' Keep browsing: nothing closes until you keep it.';
+    el('tidydim').textContent = td.waiting ? 'WAITING FOR WOW TO CLOSE' : 'ESC OR CLICK HERE TO STOP';
+  } else {
+    const parts = [];
+    if (td.created) parts.push(`${td.created} trail${td.created === 1 ? '' : 's'} made`);
+    if (td.doubles) parts.push(`${td.doubles} double${td.doubles === 1 ? '' : 's'} closing`);
+    if (td.stashed) parts.push(`${td.stashed} old trail${td.stashed === 1 ? '' : 's'} put in the Stash`);
+    el('tidyline').textContent = (parts.length ? parts.join(', ') + '.' : 'Already tidy: nothing to change.') + (td.text ? ' ' + td.text : '');
+    const tick = () => { const s = Math.max(0, Math.ceil((td.keepAt - Date.now()) / 1000)); el('tidydim').textContent = `KEEPS ITSELF IN ${s} SECOND${s === 1 ? '' : 'S'}`; };
+    tick(); tidyTick = setInterval(tick, 500);
+  }
+}
+// ---- the Stash: the chest at the bottom of the list; click it to see the trails put away
+el('chest').addEventListener('click', () => { el('stashlist').hidden = !el('stashlist').hidden; paintStash(); });
+function paintStash() {
+  const st = Array.isArray(state.stash) ? state.stash : [];
+  el('stash').hidden = !st.length;
+  el('stashn').textContent = `${st.length} trail${st.length === 1 ? '' : 's'} put away. Click to bring one back.`;
+  if (!st.length) el('stashlist').hidden = true;
+  if (el('stashlist').hidden) return;
+  el('stashlist').replaceChildren(...st.map((s) => {
+    const row = document.createElement('div'); row.className = 'srow';
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'sback', textContent: `${s.name} (${s.count} tab${s.count === 1 ? '' : 's'})`, title: 'Bring it back' });
+    b.addEventListener('click', () => window.samara?.browserTrail?.({ act: 'stash', id: s.id, what: 'restore' }));
+    const x = Object.assign(document.createElement('button'), { type: 'button', className: 'sx', textContent: 'x', title: 'Let it go for good' });
+    x.addEventListener('click', () => window.samara?.browserTrail?.({ act: 'stash', id: s.id, what: 'forget' }));
+    row.append(b, x);
+    return row;
+  }));
+}
+/** What on the band is not its wood: its keys, the address, its menus and asks. */
+const BAND_KEYS = 'button, input, .slot, .menu, .suggest, .bandchip, .dltray, .rnd';
+// His own window buttons. Double-clicking the band still maximises (Windows does that for the drag area).
+el('wmin').addEventListener('click', () => window.samara?.browserAct?.('winmin'));
+el('wmax').addEventListener('click', () => window.samara?.browserAct?.('winmax'));
+// Right-click on the square key: fill, left or right half, his other screen, full screen (what the Mac's green button offers).
+el('wmax').addEventListener('contextmenu', (e) => { e.preventDefault(); window.samara?.browserAct?.('winmenu'); });
+// Option + drag anywhere on the frame moves the window, the address bar included (2026-10-23: the wood is thin).
+if (window.samara?.platform === 'darwin') document.addEventListener('pointerdown', (e) => {
+  if (!e.altKey || e.button !== 0) return;
+  e.preventDefault(); e.stopPropagation();
+  const t = e.target instanceof Element ? e.target : document.body;
+  try { t.setPointerCapture(e.pointerId); } catch { /* still follows while over the frame */ }
+  document.documentElement.classList.add('windrag');
+  window.samara?.browserWinDrag?.({ phase: 'start', x: e.screenX, y: e.screenY });
+  const move = (m) => window.samara?.browserWinDrag?.({ phase: 'move', x: m.screenX, y: m.screenY });
+  const end = (m) => { window.samara?.browserWinDrag?.({ phase: 'end', x: m.screenX, y: m.screenY }); document.documentElement.classList.remove('windrag');
+    t.removeEventListener('pointermove', move); t.removeEventListener('pointerup', end); t.removeEventListener('pointercancel', end); };
+  t.addEventListener('pointermove', move); t.addEventListener('pointerup', end); t.addEventListener('pointercancel', end);
+}, true);
+el('wclose').addEventListener('click', () => window.samara?.browserAct?.('winclose'));
+// On the Mac a double-click on the wood (anywhere on the band but its keys and the address) does what the Mac is set to;
+// Windows already does it for the drag area by itself.
+el('band').addEventListener('dblclick', (e) => {
+  if (window.samara?.platform !== 'darwin' || e.target.closest(BAND_KEYS)) return;
+  window.samara?.browserAct?.('titledbl');
+});
+// 2026-10-25 (: on the Mac the band's wood was the system's drag area, which keeps every click
+// for itself, so the double-click above never arrived. The wood is Samara's own now (browser.css html.mac): pressed and
+// moved more than a few pixels it carries the window, the same way as Option + drag; a double-click toggles the size.
+if (window.samara?.platform === 'darwin') {
+  document.documentElement.classList.add('mac');
+  el('band').addEventListener('pointerdown', (e) => {
+    if (e.altKey || e.button !== 0 || e.detail > 1 || e.target.closest(BAND_KEYS)) return;
+    const t = e.target instanceof Element ? e.target : el('band'), x0 = e.screenX, y0 = e.screenY;
+    try { t.setPointerCapture(e.pointerId); } catch { /* still follows while over the band */ }
+    let moving = false;
+    const move = (m) => {
+      if (!moving && Math.hypot(m.screenX - x0, m.screenY - y0) < 4) return;
+      if (!moving) { moving = true; document.documentElement.classList.add('windrag'); window.samara?.browserWinDrag?.({ phase: 'start', x: x0, y: y0 }); }
+      window.samara?.browserWinDrag?.({ phase: 'move', x: m.screenX, y: m.screenY });
+    };
+    const end = (m) => {
+      if (moving) { window.samara?.browserWinDrag?.({ phase: 'end', x: m.screenX, y: m.screenY }); document.documentElement.classList.remove('windrag'); }
+      t.removeEventListener('pointermove', move); t.removeEventListener('pointerup', end); t.removeEventListener('pointercancel', end);
+    };
+    t.addEventListener('pointermove', move); t.addEventListener('pointerup', end); t.addEventListener('pointercancel', end);
+  });
+}
+el('vkey').addEventListener('click', (e) => { e.stopPropagation(); window.samara?.browserAct?.(afMode === 'save' ? 'afsaveask' : 'vault'); });
+// ---- Sheet 77, autofill in the address bar: the padlock while Bitwarden needs his PIN, four lights as he types it (the
+// keys go to Samara, never to the page), the bloom into the key when it opens, the glow when a new login waits.
+let afMode = 'idle';
+window.samara?.onBrowserAf?.((a) => {
+  if (!a) return;
+  const vk = el('vkey'), lights = el('pinlights'), slot = el('slot'), was = afMode;
+  afMode = a.mode;
+  const pin = a.mode === 'pin';
+  slot.classList.toggle('afpin', pin);
+  slot.classList.toggle('afsave', a.mode === 'save');
+  lights.hidden = !pin;
+  lights.querySelectorAll('i').forEach((d, k) => d.classList.toggle('f', pin && k < a.n));
+  vk.classList.toggle('locked', pin);
+  vk.classList.toggle('lit', (pin && a.n > 0) || a.mode === 'save');
+  vk.style.setProperty('--o', pin ? String(a.n / a.of * 0.55) : a.mode === 'save' ? '.6' : '0');
+  vk.style.setProperty('--s', pin ? String(0.8 + a.n / a.of * 0.3) : '1');
+  if (pin || a.mode === 'save') vk.hidden = false;
+  if (a.beat === 'call') { vk.classList.remove('call'); void vk.offsetWidth; vk.classList.add('call'); }
+  if (a.beat === 'wrong') { lights.hidden = false; lights.classList.remove('shake'); void lights.offsetWidth; lights.classList.add('shake'); }
+  if (a.beat === 'open') {
+    // The shackle lifts (160 ms), it blooms (300 ms) and settles into the glowing key.
+    vk.classList.add('locked', 'lit', 'open'); lights.hidden = false; lights.querySelectorAll('i').forEach((d) => d.classList.add('f'));
+    setTimeout(() => vk.classList.add('bloom'), 140);
+    setTimeout(() => { vk.classList.remove('locked', 'open'); lights.hidden = true; slot.classList.remove('afpin'); }, 300);
+    setTimeout(() => { vk.classList.remove('bloom'); if (afMode === 'idle') { vk.classList.remove('lit'); vk.style.setProperty('--o', '0'); } }, 900);
+  }
+  if (was === 'save' && a.mode !== 'save') el('afsavechip').hidden = true;
+});
+window.samara?.onBrowserAfSave?.((m) => {
+  if (!m) return;
+  el('afsite').value = m.site || ''; el('afuser').value = m.user || ''; el('afpass').value = m.pass || '';
+  el('afsavechip').hidden = false;
+});
+el('afsaveform').addEventListener('submit', (e) => {
+  e.preventDefault();
+  window.samara?.browserAfSaveGo?.({ site: el('afsite').value, user: el('afuser').value, pass: el('afpass').value });
+  el('afpass').value = ''; el('afsavechip').hidden = true;
+});
+el('afsaveno').addEventListener('click', () => { el('afpass').value = ''; el('afsavechip').hidden = true; window.samara?.browserAct?.('afsavecancel'); });
+// Autofill's three sounds (sheet 77), made here, soft, never sharp: the call, the unlock, the fill (and a wrong PIN).
+let afAudio = null;
+function afTone(f, t, d, v, type = 'sine', glide = 0) {
+  try {
+    afAudio ??= new AudioContext();
+    const a = afAudio, o = a.createOscillator(), g = a.createGain(), lp = a.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 2600; o.type = type;
+    o.frequency.setValueAtTime(f, a.currentTime + t); if (glide) o.frequency.exponentialRampToValueAtTime(f * glide, a.currentTime + t + d * 0.6);
+    g.gain.setValueAtTime(0, a.currentTime + t); g.gain.linearRampToValueAtTime(v, a.currentTime + t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + t + d);
+    o.connect(lp).connect(g).connect(a.destination); o.start(a.currentTime + t); o.stop(a.currentTime + t + d + 0.05);
+  } catch { /* no sound, no harm */ }
+}
+const AF_SOUND = {
+  call: () => { afTone(880, 0, 0.22, 0.05, 'triangle', 1.06); afTone(1318.5, 0.13, 0.32, 0.045, 'triangle', 1.02); },
+  unlock: () => { afTone(261.6, 0, 0.55, 0.06); afTone(392, 0.05, 0.6, 0.045); [1046.5, 1318.5, 1568].forEach((f, i) => afTone(f, 0.12 + i * 0.05, 0.4, 0.012)); },
+  fill: () => afTone(1046.5, 0, 0.12, 0.025, 'sine', 1.25),
+  wrong: () => { afTone(330, 0, 0.25, 0.04, 'triangle'); afTone(294, 0.1, 0.32, 0.04, 'triangle'); },
+};
+window.samara?.onBrowserAfSound?.((n) => AF_SOUND[n]?.());
+// The vault's chip: the master password box (unlock) or the account list (pick). The password goes to the Shell
+// and the box is emptied at once; nothing here keeps it.
+const vaultpw = el('vaultpw');
+window.samara?.onBrowserVault?.((v) => {
+  const chip = el('vaultchip');
+  vaultpw.value = '';
+  if (!v) { chip.hidden = true; return; }
+  const unlock = v.mode === 'unlock';
+  el('vaultq').textContent = unlock ? (v.wrong ? 'That password did not open it' : 'Unlock Bitwarden') : 'Which login?';
+  el('vaultm').textContent = unlock ? `Your Bitwarden master password, to fill a login on ${v.host}. It stays open 30 minutes.` : `You have more than one login for ${v.host}.`;
+  el('vaultform').hidden = !unlock;
+  const list = el('vaultlist');
+  list.hidden = unlock;
+  list.replaceChildren();
+  if (!unlock && Array.isArray(v.logins)) for (const l of v.logins) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'vrow';
+    b.append(Object.assign(document.createElement('b'), { textContent: l.username || '(no username)' }), Object.assign(document.createElement('small'), { textContent: l.name }));
+    b.addEventListener('click', () => window.samara?.browserVaultPick?.(l.id));
+    list.append(b);
+  }
+  if (!unlock) { const c = document.createElement('button'); c.type = 'button'; c.className = 'key sm'; c.textContent = 'Cancel'; c.addEventListener('click', () => window.samara?.browserAct?.('vaultcancel')); list.append(c); }
+  chip.hidden = false;
+  if (unlock) setTimeout(() => vaultpw.focus(), 0);
+});
+el('vaultform').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const pw = vaultpw.value;
+  vaultpw.value = '';
+  if (pw) window.samara?.browserVaultUnlock?.(pw);
+});
+el('vaultno').addEventListener('click', () => { vaultpw.value = ''; window.samara?.browserAct?.('vaultcancel'); });
+vaultpw.addEventListener('keydown', (e) => { if (e.key === 'Escape') { vaultpw.value = ''; window.samara?.browserAct?.('vaultcancel'); } });
+// The star (2026-10-14: "edit the name it saves as"): saves the page, and its panel opens with the name ready to
+// type over. On a saved page it opens the same panel to rename or remove it.
+el('star').addEventListener('click', (e) => {
+  e.stopPropagation(); tap(1.2);
+  const fresh = !state.starred;
+  if (fresh) window.samara?.browserAct?.('star');
+  const t = state.tabs.find((x) => x.id === state.active);
+  el('markhead').textContent = fresh ? 'Bookmark saved' : 'Bookmark';
+  el('markname').value = (fresh ? t?.title : state.markTitle) || t?.title || '';
+  const band = el('band').getBoundingClientRect(), r = el('star').getBoundingClientRect();
+  el('markpanel').style.left = Math.max(8, Math.round(r.left + r.width / 2 - band.left - 33)) + 'px';
+  el('markpanel').hidden = false;
+  el('markname').focus(); el('markname').select();
+});
+const markClose = (save) => { if (el('markpanel').hidden) return; if (save) window.samara?.browserMark?.('rename', el('markname').value); el('markpanel').hidden = true; };
+el('markdone').addEventListener('click', () => markClose(true));
+el('markremove').addEventListener('click', () => { window.samara?.browserMark?.('remove'); el('markpanel').hidden = true; });
+el('markname').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); markClose(true); } else if (e.key === 'Escape') { e.preventDefault(); markClose(true); } });
+// Clicking anywhere else keeps the name as typed, the way Chrome does.
+document.addEventListener('mousedown', (e) => { if (!el('markpanel').hidden && !el('markpanel').contains(e.target) && !el('star').contains(e.target)) markClose(true); });
+let markOver = false;
+new MutationObserver(() => { const open = !el('markpanel').hidden; if (open === markOver) return; markOver = open; if (open) freeze('mark'); else unfreeze('mark'); }).observe(el('markpanel'), { attributes: true, attributeFilter: ['hidden'] });
+document.addEventListener('click', () => closeMenu());
+window.samara?.onBrowserFrozen?.((src) => {
+  if (typeof src === 'string' && src.startsWith('data:image/')) {
+    // Tell the Shell only once the picture is really on screen, so the live page never vanishes into a gap.
+    frozen.src = src; frozen.hidden = false;
+    frozen.decode().catch(() => {}).then(() => requestAnimationFrame(() => requestAnimationFrame(() => window.samara?.browserAct?.('frozen-ready'))));
+  }
+  else if (src === null) { frozen.hidden = true; frozen.removeAttribute('src'); }
+  if (drawerOpen) { clearTimeout(drawerWait); document.body.classList.add('drawer-open'); }
+  if (over.size === 0) { frozen.hidden = true; }
+});
+el('drawerkey').addEventListener('click', () => (drawerOpen ? closeDrawer() : openDrawer()));
+
+let newSeen = 0;
+// Sheet 121 (6), 2026-11-20: a gold speaker on the folded tab handle while any tab here plays sound. Only the
+// mark: the handle itself does not change.
+function paintSoundMark() {
+  if (SOLO || FLOAT) return;
+  const on = state.tabs.some((t) => t.audible && !t.muted);
+  el('sndmark').hidden = !on;
+}
+function newTabsArrived(n) {
+  if (SOLO) return;
+  const tag = el('newn');
+  if (n > newSeen && !drawerOpen) breathe(true);
+  newSeen = n;
+  tag.hidden = n < 1;
+  tag.textContent = '+' + n;
+}
+function breathe(on) {
+  const k = el('drawerkey');
+  if (!on) { k.classList.remove('breathe'); return; }
+  k.classList.remove('breathe'); void k.offsetWidth; k.classList.add('breathe');
+}
+// The breaths end by themselves (the reduced-motion dot stays until the drawer opens).
+el('drawerkey').addEventListener('animationend', (e) => { if (e.animationName === 'hbreathe') breathe(false); });
+// His ask (2026-10-12): resting the mouse on the handle opens the drawer, as other apps do. A short wait, so
+// passing over it on the way somewhere does nothing; dragging a tab onto it opens it too.
+let hoverOpen = 0;
+const handle = el('drawerkey');
+handle.addEventListener('pointerenter', () => { window.samara?.browserAct?.('peek'); clearTimeout(hoverOpen); if (!drawerOpen) hoverOpen = setTimeout(openDrawer, 250); });   // 0.25 s (2026-10-20; was 0.4)
+handle.addEventListener('pointerleave', () => clearTimeout(hoverOpen));
+handle.addEventListener('pointerdown', () => clearTimeout(hoverOpen));
+handle.addEventListener('dragenter', () => { if (!drawerOpen) openDrawer(); });
+// Anything that will cover the page: take its picture while the mouse is on the way, so the click is instant.
+// Not the address slot (measured 2026-10-20): the mouse crosses it all the time, and each pass took a picture of the
+// page for nothing. A click on it takes the picture then.
+for (const id of ['menukey', 'dlkey']) el(id)?.addEventListener('pointerenter', () => { if (!floated) window.samara?.browserAct?.('peek'); });
+// A click on the page (its picture) puts the drawer away, as clicking outside any drawer does.
+page.addEventListener('pointerdown', () => { closeDrawer(); closeMenu(); });
+// A new tab from the list keeps the list open (2026-10-13); it goes when the mouse leaves it.
+el('newtab').addEventListener('click', () => { if (!SOLO) closeDrawer(); });
+
+// ---- the little wood sounds: off until he turns them on in Settings. Made here, no sound files.
+let audio = null;
+function tap(pitch = 1) {
+  if (!state.sounds || FLOAT) return;       // the band makes the sounds; the panel layer never doubles them
+  try {
+    audio ??= new AudioContext();
+    const now = audio.currentTime, len = Math.floor(audio.sampleRate * 0.05);
+    const buf = audio.createBuffer(1, len, audio.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 6);
+    const src = audio.createBufferSource(); src.buffer = buf;
+    const f = audio.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900 * pitch; f.Q.value = 6;
+    const g = audio.createGain(); g.gain.setValueAtTime(0.35, now);
+    src.connect(f).connect(g).connect(audio.destination);
+    src.start(now);
+  } catch { /* no sound, no harm */ }
+}
+el('crashreload').addEventListener('click', () => window.samara?.browserAct?.('reload'));
+el('crashclose').addEventListener('click', () => window.samara?.browserAct?.('close'));
+
+// ---- the address slot: shows the address; click it and it becomes a field. Enter searches or goes.
+// Sheet 102 : where the bar starts and where its slide out ends, measured once as he clicks in, so the list
+// opens at the bar's final width and widens with it instead of being measured mid-slide.
+let slotFrom = 0, slotTo = null, zeroAt = '';
+function editSlot(keepList = false) {
+  // The menu hides the page under it; typing an address means he wants the page, so it goes. The tab list floats over a
+  // LIVE page now, so a new tab (or Ctrl+L) leaves it open: it closes when his mouse leaves it (2026-10-13).
+  if (!keepList) closeDrawer();
+  closeMenu();
+  const t = state.tabs.find((x) => x.id === state.active);
+  urlEl.hidden = true; edit.hidden = false;
+  const slot = el('slot');
+  if (!slot.classList.contains('editing')) {
+    slotFrom = slot.getBoundingClientRect().width;
+    slot.style.transition = 'none'; slot.classList.add('editing'); slotTo = slot.getBoundingClientRect();
+    slot.classList.remove('editing'); void slot.offsetWidth; slot.style.transition = '';
+  }
+  slot.classList.add('editing');                 // sheet 88 B: out wider while he types (sheet 102: to 1280)
+  edit.value = t?.url ?? '';
+  edit.focus(); edit.select();
+  window.samara?.browserSlot?.(true);              // Samara keeps the keyboard here while tabs come back
+  // What he typed while Samara was still opening (early.js) goes in now (2026-11-20).
+  const early = window.__early; window.__early = null;
+  if (early?.keys) {
+    edit.value = early.keys; edit.dispatchEvent(new Event('input'));
+    if (early.enter && early.keys.trim()) { window.samara?.browserGo?.(early.keys.trim()); hideSuggest(); closeSlot(); }
+    return;
+  }
+  zeroSuggest();
+}
+function closeSlot() { if (!edit.hidden) window.samara?.browserSlot?.(false); edit.placeholder = ''; edit.hidden = true; urlEl.hidden = false; el('slot').classList.remove('editing'); slotTo = null; }
+addEventListener('resize', () => { slotTo = null; if (sugg.length) paintSuggest(); });
+el('slot').addEventListener('click', (e) => { if (finding || lock.contains(e.target)) return; if (edit.hidden) editSlot(); });
+// ---- address suggestions (6.22b item 6; sheet 88; sheet 102). The list is drawn on its own layer over the live page
+// (suggest.html); this keeps what he typed, the lines and which one he is on. The first line is what he typed, so Enter
+// does what he typed unless he arrows to something else. Then his past searches, tabs, bookmarks, history and recently
+// closed, then his engine's guesses, which arrive a moment later and always go under his own things.
+let sugg = [], pick = 0, suggSeq = 0, sugFirst = true;
+let own = '', mine = [], guesses = [];
+// Sheet 102: guesses are asked for 50 ms after the last letter (Firefox's wait), and an answer for an earlier letter
+// still counts while it fits what he has typed since: the list keeps its lines instead of emptying on every letter.
+let guessTimer = 0, guessSeq = 0, guessShown = 0;
+function hideSuggest() {
+  if (!sugFirst) { window.samara?.browserSuggestShow?.(null); el('slot').classList.remove('open'); }
+  sugg = []; sugFirst = true; guesses = []; guessShown = guessSeq;
+}
+function paintSuggest() {
+  if (!sugg.length) { hideSuggest(); return; }
+  const r = slotTo ?? el('slot').getBoundingClientRect();
+  window.samara?.browserSuggestShow?.({
+    rows: sugg.map((s) => ({ kind: s.kind, title: String(s.title ?? ''), url: String(s.url ?? ''), favicon: typeof s.favicon === 'string' ? s.favicon : '' })),
+    pick, typed: own.trim(), first: sugFirst, from: sugFirst ? slotFrom : 0,
+    // Sheet 102: his engine's guesses are still coming for what he typed: the list keeps room for 4 of them.
+    expect: own.trim() && !guesses.length && !/^[a-z][a-z0-9+.-]*:\/\//i.test(own.trim()) ? 4 : 0,
+    rect: { x: Math.round(r.left), y: Math.round(r.bottom), width: Math.round(r.width) },
+  });
+  if (sugFirst) { sugFirst = false; el('slot').classList.add('open'); }
+}
+function choose(i) {
+  const s = sugg[i];
+  if (!s) return;
+  // 2026-11-03: Samara's own pages (samara:hyrule) go straight to Samara, never through a suggestion (the top one for
+  // "samara:hyrule" was a search, so typing it searched the web)
+  if (/^samara:[a-z]+$/i.test(edit.value.trim())) { window.samara?.browserGo?.(edit.value.trim()); hideSuggest(); closeSlot(); return; }
+  if (s.kind === 'tab' && Number.isInteger(s.id)) window.samara?.browserTab?.({ id: s.id, act: 'show' });
+  else if (s.kind === 'search' || s.kind === 'go') window.samara?.browserGo?.(edit.value.trim());
+  else if (s.kind === 'guess' || s.kind === 'past') window.samara?.browserGo?.(String(s.title));
+  else window.samara?.browserGo?.(s.url);
+  hideSuggest(); closeSlot();
+}
+// The layer says which line his mouse is on (the bar remembers it for Enter) or which one he clicked.
+window.samara?.onBrowserSuggestAct?.((a) => {
+  if (edit.hidden || !a || !Number.isInteger(a.i) || !sugg[a.i]) return;
+  if (a.act === 'pick') choose(a.i); else pick = a.i;
+});
+/** His own things first, then at most 4 of his engine's guesses, none repeating a line already there. */
+function mergeSuggest() {
+  const have = new Set(mine.map((x) => String(x.title).toLowerCase()));
+  sugg = [...mine, ...guesses.filter((g) => !have.has(g.toLowerCase())).slice(0, 4).map((g) => ({ kind: 'guess', title: g, url: '' }))];
+  if (pick >= sugg.length) pick = sugg.length ? 0 : -1;
+  paintSuggest();
+}
+/** Sheet 102 : a click in the bar, before a letter, shows his last searches, then the sites he uses most. Nothing is picked, so Enter still goes where the bar says. */
+function zeroSuggest() {
+  const seq = ++suggSeq;
+  own = ''; mine = []; guesses = []; pick = -1; zeroAt = edit.value;
+  window.samara?.browserSuggest?.('').then((list) => {
+    if (seq !== suggSeq || edit.hidden || edit.value !== zeroAt) return;
+    mine = Array.isArray(list) ? list : [];
+    pick = -1;
+    if (mine.length) mergeSuggest();
+  });
+}
+/**
+ * Sheet 88 : a site he has been to is finished as he types it: "red" becomes reddit.com, the rest selected, so
+ * Enter goes there and the next letter he types replaces it. Only his own tabs, bookmarks and history, never a guess.
+ */
+function finishSite(text) {
+  const t = text.trim().toLowerCase();
+  if (!t || /\s/.test(t) || edit.selectionStart !== edit.value.length) return;
+  for (const s of mine) {
+    if (s.kind !== 'tab' && s.kind !== 'mark' && s.kind !== 'history') continue;
+    let host = '';
+    try { host = new URL(s.url).hostname.replace(/^www\./, ''); } catch { continue; }
+    if (host.length <= t.length || !host.startsWith(t)) continue;
+    edit.value = text + host.slice(t.length);
+    edit.setSelectionRange(text.length, edit.value.length);
+    if (mine[0] && (mine[0].kind === 'search' || mine[0].kind === 'go')) mine[0] = { kind: 'go', title: host, url: 'https://' + host + '/' };
+    return;
+  }
+}
+edit.addEventListener('input', (e) => {
+  const seq = ++suggSeq;
+  const text = edit.value;
+  own = text; pick = 0;
+  const low = text.trim().toLowerCase();
+  // The guesses from the letter before stay while they still fit (sheet 102): no emptying, no jump.
+  guesses = guesses.filter((g) => g.toLowerCase().startsWith(low));
+  if (!low) { zeroSuggest(); return; }
+  const adding = String(e.inputType ?? '').startsWith('insert');
+  window.samara?.browserSuggest?.(text).then((list) => {
+    if (seq !== suggSeq || edit.hidden) return;
+    mine = Array.isArray(list) ? list : [];
+    if (adding && edit.value === text) finishSite(text);
+    mergeSuggest();
+  });
+  clearTimeout(guessTimer);
+  guessTimer = setTimeout(() => {
+    const gs = ++guessSeq;
+    window.samara?.browserGuesses?.(text).then((list) => {
+      if (edit.hidden || !Array.isArray(list) || gs < guessShown) return;
+      const now = own.trim().toLowerCase();
+      if (!now.startsWith(low)) return;                    // he went another way since
+      guessShown = gs;
+      const fresh = list.filter((g) => typeof g === 'string');
+      // The newest answer is taken whole; an older one only for the lines that still fit what he has typed.
+      guesses = gs === guessSeq ? fresh : fresh.filter((g) => g.toLowerCase().startsWith(now));
+      mergeSuggest();
+    }, () => {});
+  }, 50);
+});
+/** Sheet 88 : the arrow keys put the line he is on into the bar; back on his own line, his own typing. */
+function showPick() {
+  const s = sugg[pick];
+  if (!s) { edit.value = own || zeroAt; paintSuggest(); return; }
+  edit.value = s.kind === 'guess' || s.kind === 'past' ? String(s.title) : s.kind === 'search' ? own : s.kind === 'go' ? String(s.title || own) : String(s.url || s.title);
+  paintSuggest();
+}
+edit.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown' && sugg.length) { pick = (pick + 1) % sugg.length; showPick(); e.preventDefault(); return; }
+  if (e.key === 'ArrowUp' && sugg.length) { pick = pick <= 0 ? sugg.length - 1 : pick - 1; showPick(); e.preventDefault(); return; }
+  // Sheet 102 (Chrome's key): Shift+Delete on one of his past searches or pages forgets it.
+  const s = sugg[pick];
+  if ((e.key === 'Delete' || e.key === 'Backspace') && e.shiftKey && s && (s.kind === 'past' || s.kind === 'history') && (pick > 0 || !own)) {
+    window.samara?.browserSuggestForget?.({ kind: s.kind, url: s.url });
+    mine = mine.filter((x) => x !== s);
+    sugg = sugg.filter((x) => x !== s);
+    if (pick >= sugg.length) pick = sugg.length - 1;
+    showPick();
+    e.preventDefault();
+    return;
+  }
+  if (e.key === 'Enter' && edit.value.trim()) { if (sugg.length && pick > 0) choose(pick); else if (!own && pick === 0 && sugg[0]) choose(0); else { window.samara?.browserGo?.(edit.value.trim()); hideSuggest(); closeSlot(); } }
+  // Esc brings back what he typed first; a second Esc closes the bar.
+  if (e.key === 'Escape') { if (sugg.length && edit.value !== (own || zeroAt)) { edit.value = own || zeroAt; pick = own ? 0 : -1; paintSuggest(); e.preventDefault(); return; } hideSuggest(); closeSlot(); }
+});
+edit.addEventListener('blur', () => setTimeout(hideSuggest, 120));
+// The bar closes when he goes elsewhere, not when Samara hands it the keyboard straight back (2026-11-20: a tab loading
+// at startup took it for a moment, and the bar shut under him).
+edit.addEventListener('blur', () => setTimeout(() => { if (document.hasFocus() && document.activeElement === edit) return; closeSlot(); }, 120));
+// Ctrl+L, a new tab, and Samara opening (2026-11-20) put the cursor in the bar. Opening, he may already be typing in it:
+// what he typed stays.
+window.samara?.onBrowserFocusSlot?.((m) => {
+  if (!m?.start) { editSlot(true); return; }
+  // Samara opening (2026-11-20: "why is it always selected?"): an empty bar, the page's address shown faintly
+  // in it, as Chrome and Firefox open a new window. Already in the bar: what he typed stays.
+  if (!edit.hidden) { edit.focus(); return; }
+  editSlot(true);
+  const url = state.tabs.find((x) => x.id === state.active)?.url ?? '';
+  if (edit.value === url) { edit.placeholder = url; edit.value = ''; }
+});
+// He clicked the bar or typed before this code had loaded (early.js kept it): the bar opens with it now.
+if (window.__early && (window.__early.keys || window.__early.click)) editSlot(true);
+
+// ---- find on page (Ctrl+F). Typing searches as he types; Enter is the next match, Shift+Enter the one before;
+// Esc, or clicking away, puts the slot back as it was.
+const findBox = el('find'), findTag = el('findtag'), findN = el('findn');
+let finding = false;
+function openFind() {
+  closeSlot(); closeMenu(); closeDrawer();
+  finding = true;
+  urlEl.hidden = true; lock.hidden = true; delete lock.dataset.u;
+  findTag.hidden = false; findBox.hidden = false; findN.hidden = false;
+  findN.textContent = ''; findN.classList.remove('none');
+  findBox.focus(); findBox.select();
+  if (findBox.value) window.samara?.browserFind?.({ text: findBox.value });
+}
+function closeFind() {
+  if (!finding) return;
+  finding = false;
+  findTag.hidden = true; findBox.hidden = true; findN.hidden = true;
+  urlEl.hidden = false;
+  window.samara?.browserFindStop?.();
+  const t = state.tabs.find((x) => x.id === state.active);
+  paintUrl(t?.url ?? '');
+}
+findBox.addEventListener('input', () => window.samara?.browserFind?.({ text: findBox.value }));
+findBox.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); window.samara?.browserFind?.({ text: findBox.value, next: true, back: e.shiftKey }); }
+  if (e.key === 'Escape') { e.preventDefault(); closeFind(); }
+});
+findBox.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== findBox) closeFind(); }, 150));
+window.samara?.onBrowserFindOpen?.(() => openFind());
+window.samara?.onBrowserFound?.((r) => {
+  if (!finding || !r) return;
+  const none = findBox.value && r.of === 0;
+  findN.classList.toggle('none', Boolean(none));
+  findN.textContent = !findBox.value ? '' : none ? 'NONE' : `${r.at} OF ${r.of}`;
+});
+
+// The browser's keys work here too, when the frame has the keyboard.
+window.addEventListener('keydown', (e) => {
+  const c = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+  const send = (a) => { e.preventDefault(); window.samara?.browserAct?.(a); };
+  if (k === 'escape' && dlOpen) { e.preventDefault(); closeDl(); return; }
+  // Esc only stops WATCHING; stopping a job is the STOP key, confirmed (2026-10-14: a job was stopped he never meant to).
+  if (k === 'escape' && state.watching) { e.preventDefault(); window.samara?.browserDriver?.({ act: 'unwatch', id: 0 }); return; }
+  if (k === 'escape' && menuOpen) { e.preventDefault(); closeMenu(); return; }
+  if (k === 'escape' && drawerOpen) { e.preventDefault(); closeDrawer(); return; }
+  if (c && e.shiftKey && k === 't') send('reopen');
+  else if (c && k === 't') { tap(); send('newtab'); }
+  else if (c && k === 'w') { tap(0.7); send('close'); }
+  else if (c && k === 'l') { e.preventDefault(); editSlot(); }
+  else if (c && k === 'f') { e.preventDefault(); openFind(); }
+  else if ((c && k === 'r') || k === 'f5') send('reload');
+  else if (c && !e.shiftKey && k === 'h') send('history');
+  else if (c && !e.shiftKey && k === 'j') send('downloads');
+});
+
+/** A mockup's name in the address bar, with Claude's mark where the shield goes (2026-10-25). */
+function paintMock(title) {
+  if (lock.dataset.u === 'mock:' + title) return;
+  lock.dataset.u = 'mock:' + title;
+  urlEl.replaceChildren(Object.assign(document.createElement('b'), { textContent: title }));
+  lock.hidden = false; lock.classList.remove('bad');
+  lock.replaceChildren(Object.assign(document.createElement('img'), { src: 'art/claude-icon.png', width: 18, height: 18, alt: '', className: 'mockmark' }));
+  lock.setAttribute('aria-label', 'A mockup from Claude');
+}
+/** The address as sheet 3 draws it: the real domain bright, the rest dimmed. */
+function paintUrl(u) {
+  // Only when the address really changed (measured 2026-10-20): repainting it, and resetting the shield's three
+  // pictures, on every tab-list message was a large part of the band's work during a page load. Anything else that
+  // writes the shield clears lock.dataset.u, so the next call paints for real.
+  if (lock.dataset.u === String(u)) return;
+  lock.dataset.u = String(u);
+  urlEl.replaceChildren();
+  // The browser's own pages (Settings) say their name, with no shield: they are not websites.
+  if (String(u).startsWith('samara:')) { urlEl.append(Object.assign(document.createElement('b'), { textContent: String(u) === 'samara:things' ? 'Your things' : String(u) === 'samara:mockups' ? 'Mockups' : String(u) === 'samara:hyrule' ? 'Hyrule' : 'Settings' })); lock.hidden = true; return; }
+  let parsed = null;
+  try { parsed = new URL(u); } catch { /* not a URL */ }
+  if (!parsed) { urlEl.textContent = u; lock.hidden = true; return; }
+  lock.hidden = false;
+  // This PC's own pages (mockups, the companion's pages) never leave the machine, so nothing can read them on the way:
+  // "NOT SECURE" there was a false alarm (2026-10-21). Only the loopback names count.
+  const ownPc = parsed.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname);
+  const secure = parsed.protocol === 'https:' || ownPc;
+  // Quiet when all is well (the research: praising the normal case teaches nothing, and fake sites have
+  // padlocks too); red words only when something is wrong.
+  if (secure) { lock.innerHTML = SHIELD; lock.setAttribute('aria-label', 'This site: ad blocking and permissions'); }
+  else { lock.textContent = 'NOT SECURE'; lock.removeAttribute('aria-label'); }
+  lock.classList.toggle('bad', !secure);
+  const host = parsed.hostname;
+  const parts = host.split('.');
+  const domain = parts.slice(-2).join('.');
+  const sub = host.slice(0, host.length - domain.length);
+  const b = document.createElement('b'); b.textContent = domain;
+  // Sheet 88 B : at rest just the site's name; the whole address shows when he clicks into the bar.
+  urlEl.append(sub.replace(/^www\./, ''), b);
+  urlEl.title = u;
+}
+
+const VIDEO_SITE = /(^|\.)(youtube\.com|youtu\.be|twitch\.tv|crunchyroll\.com|netflix\.com|primevideo\.com|amazon\.(com|ca)|disneyplus\.com|vimeo\.com|kick\.com|max\.com|crave\.ca)$/i;
+const hostOf = (u) => { try { return new URL(u).hostname; } catch { return ''; } };
+// The site shield (2026-10-12): hand-built pixel art, mirror-perfect, the companion's arrow on a gold-rimmed shield.
+// Shown at its exact pixel size, never scaled. tools/pixelart/shield/bar_arrow.py makes it.
+// Option C (2026-10-12, from how every browser does it): one quiet colour at rest; the full-colour shield
+// while he points at it or its panel is open; solid blue when it caught a popup; red when something is wrong.
+const SHIELD = '<span class="shieldbox"><img class="s-rest" src="art/browser/shield_rest.png" width="20" height="24" alt="">'
+  + '<img class="s-hover" src="art/browser/shield_hover.png" width="20" height="24" alt="">'
+  + '<img class="s-popup" src="art/browser/shield_popup.png" width="20" height="24" alt=""></span>';
+const SPEAKER = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6h3l4-3v10l-4-3H2z" fill="#2a1c00"/><path d="M11 5c1.5 1.5 1.5 4.5 0 6" stroke="#2a1c00" stroke-width="1.8" fill="none"/></svg>';
+// Rows are kept and only redrawn when something about that tab changed, so a title or a spinner on one
+// tab never rebuilds the whole rail (that rebuild was the flicker, and it dropped the hover under the mouse).
+const rows = new Map();
+const heads = new Map();
+/**
+ * The drawer's list, sheet 3 section 3: loose tabs first, then each trail under its carved heading, then the
+ * DONE shelf. Rows are kept and only rebuilt when something about that tab changed (the flicker fix).
+ */
+function paintTabs() {
+  // Just after a drop, where every row was, so the rows can glide to their new places (dragging, 2026-10-21).
+  const flipWas = performance.now() < flipUntil ? rowSpots() : null;
+  const open = new Set(state.tabs.map((t) => t.id));
+  const trails = Array.isArray(state.trails) ? state.trails : [];
+  // Sheet 107 v5 : Mockups is the plaque, never a row in the tab list. Hyrule the same (2026-11-03):
+  // its key is the only way in, never a tab.
+  // Sheet 111: a tab a Claude job has is in Claude's group below, not here (it comes back when the job lets go of it).
+  const live = state.tabs.filter((t) => !t.done && !t.mocklog && !t.hyrule && t.claudeJob == null);
+  const groups = [{ id: null, tabs: live.filter((t) => t.trail == null) }];
+  for (const tr of trails) { const tabs = live.filter((t) => t.trail === tr.id); if (tabs.length && !tr.mock) groups.push({ id: tr.id, trail: tr, tabs }); }
+  const done = state.tabs.filter((t) => t.done);
+  const rowFor = (t, kid) => {
+    const dup = Boolean(state.tidy?.dup?.includes(t.id));
+    const sig = JSON.stringify([t.id === state.active, t.crashed, t.asleep, t.loading, t.phase, t.favicon, t.title, t.url, t.audible, t.muted, kid, t.done, t.lent, dup, t.mock?.v ?? null, t.mock?.stage ?? null, t.mock?.unseen === true]);
+    let r = rows.get(t.id);
+    if (!r || r.sig !== sig) {
+      const fresh = buildRow(t, kid);
+      if (dup) { fresh.classList.add('dup'); fresh.append(Object.assign(document.createElement('span'), { className: 'dupchip', textContent: 'X2 CLOSING' })); }
+      fresh.dataset.tab = String(t.id);
+      if (r) r.el.replaceWith(fresh); r = { sig, el: fresh }; rows.set(t.id, r);
+    }
+    // Where it sits, for dragging (2026-10-21): written every time, since a move changes these without a rebuild.
+    r.el.dataset.trail = t.trail == null ? '' : String(t.trail);
+    r.el.dataset.depth = kid ? '1' : '0';
+    r.el.dataset.parent = kid && !t.mock && t.opener != null ? String(t.opener) : '';
+    return r.el;
+  };
+  const want = [];
+  for (const g of groups) {
+    if (g.id !== null) want.push(headFor(g.trail, g.tabs.length));
+    const inGroup = new Set(g.tabs.map((t) => t.id));
+    // Only inside a trail does a tab sit under the one it came from; loose tabs are a flat list.
+    if (g.trail?.collapsed) continue;
+    for (const t of g.tabs) want.push(rowFor(t, g.id !== null && Boolean(t.opener && inGroup.has(t.opener))));
+  }
+  let shelf = document.getElementById('doneshelf');
+  if (done.length) {
+    if (!shelf) { shelf = document.createElement('div'); shelf.id = 'doneshelf'; shelf.className = 'shelf'; }
+    const lab = document.createElement('div'); lab.className = 'lab';
+    lab.append(Object.assign(document.createElement('span'), { textContent: 'DONE' }), Object.assign(document.createElement('span'), { textContent: String(done.length) }));
+    shelf.replaceChildren(lab, ...done.map((t) => rowFor(t, false)));
+    want.push(shelf);
+  }
+  for (const [id, r] of rows) if (!open.has(id)) { r.el.remove(); rows.delete(id); }
+  for (const [id, h] of heads) if (!groups.some((g) => g.id === id)) { h.remove(); heads.delete(id); }
+  if (!done.length && shelf) shelf.remove();
+  want.push(...driverNodes());
+  want.forEach((node, i) => { if (tabsBox.children[i] !== node) tabsBox.insertBefore(node, tabsBox.children[i] ?? null); });
+  while (tabsBox.children.length > want.length) tabsBox.lastElementChild.remove();
+  afterPaint(flipWas);
+}
+/** A trail's carved heading. Click the name to rename it; his name is kept for good (Qwen never renames it). */
+function headFor(tr, n) {
+  let h = heads.get(tr.id);
+  if (!h) { h = document.createElement('div'); h.className = 'th'; heads.set(tr.id, h); }
+  if (h.querySelector('input')) return h;               // he is typing its name: leave it be
+  const nm = Object.assign(document.createElement('span'), { className: 'nm', textContent: tr.name, title: 'Click to rename' });
+  nm.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const box = Object.assign(document.createElement('input'), { value: tr.name, maxLength: 24, spellcheck: false });
+    box.setAttribute('aria-label', 'Trail name');
+    const done = (save) => { if (save && box.value.trim()) window.samara?.browserTrail?.({ act: 'rename', id: tr.id, name: box.value }); box.replaceWith(nm); };
+    box.addEventListener('keydown', (k) => { if (k.key === 'Enter') done(true); if (k.key === 'Escape') { k.stopPropagation(); done(false); } });
+    box.addEventListener('blur', () => done(true));
+    nm.replaceWith(box); box.focus(); box.select();
+  });
+  const grip = Object.assign(document.createElement('i'), { className: 'grip', title: 'Drag to move this trail' });
+  const more = Object.assign(document.createElement('button'), { type: 'button', className: 'thm', textContent: '\u00b7\u00b7\u00b7', title: 'Trail options' });
+  more.addEventListener('click', (e) => { e.stopPropagation(); trailMenu(tr, e.clientX, e.clientY); });
+  h.classList.toggle('fresh', tr.fresh === true);
+  h.classList.toggle('shut', tr.collapsed === true);
+  h.dataset.trail = String(tr.id);
+  h.replaceChildren(grip, nm, Object.assign(document.createElement('span'), { className: 'n', textContent: `${n} TAB${n === 1 ? '' : 'S'}` }), more);
+  return h;
+}
+
+// ---- the tab's own menu (right-click), sheet 3 section 7
+function closeTabMenu() { document.getElementById('tabmenu')?.remove(); }
+/** A bookmark's own menu (2026-10-20): the same wood menu as a tab's. */
+function markMenu(b, name, key, x, y, i, n) {
+  closeTabMenu();
+  const m = document.createElement('div'); m.id = 'tabmenu'; m.className = 'tabmenu'; m.setAttribute('role', 'menu');
+  const op = (act, title) => window.samara?.browserMarkOp?.({ act, url: b.url, ...(title !== undefined ? { title } : {}) });
+  const item = (label, go, off = false) => {
+    const btn = document.createElement('button'); btn.type = 'button'; btn.setAttribute('role', 'menuitem'); btn.append(label); btn.disabled = off;
+    btn.addEventListener('click', () => { closeTabMenu(); go(); });
+    m.append(btn);
+  };
+  const sep = () => m.append(Object.assign(document.createElement('div'), { className: 'sep' }));
+  item('Open in new tab', () => op('newtab'));
+  if (VIDEO_SITE.test(hostOf(b.url))) item('Play in the pop-out', () => op('pop'));
+  item('Copy link', () => op('copy'));
+  sep();
+  item('Rename', () => renameMark(b, name, key));
+  item('Move left', () => op('left'), i === 0);
+  item('Move right', () => op('right'), i >= n - 1);
+  sep();
+  item('Remove', () => { tap(0.7); op('remove'); });
+  document.body.append(m);
+  const r = m.getBoundingClientRect();
+  m.style.left = Math.max(4, Math.min(x, innerWidth - r.width - 4)) + 'px';
+  m.style.top = Math.max(4, Math.min(y, innerHeight - r.height - 4)) + 'px';
+  setTimeout(() => document.addEventListener('pointerdown', (e) => { if (!m.contains(e.target)) closeTabMenu(); }, { once: true }), 0);
+}
+/** Rename right on the key's banner: type, Enter keeps it, Esc leaves it as it was. */
+function renameMark(b, name, key) {
+  const banner = key.querySelector('.bm-banner');
+  if (!banner) return;
+  const box = Object.assign(document.createElement('input'), { value: name, maxLength: 60, spellcheck: false });
+  box.className = 'bm-rename'; box.setAttribute('aria-label', 'Bookmark name');
+  key.classList.add('naming');
+  const done = (save) => {
+    key.classList.remove('naming');
+    if (save && box.value.trim() && box.value.trim() !== name) window.samara?.browserMarkOp?.({ act: 'rename', url: b.url, title: box.value });
+    box.remove(); banner.hidden = false;
+  };
+  box.addEventListener('keydown', (k) => { k.stopPropagation(); if (k.key === 'Enter') done(true); if (k.key === 'Escape') done(false); });
+  box.addEventListener('blur', () => done(true));
+  banner.hidden = true; key.append(box); box.focus(); box.select();
+}
+
+function tabMenu(t, x, y) {
+  closeTabMenu();
+  const m = document.createElement('div'); m.id = 'tabmenu'; m.className = 'tabmenu'; m.setAttribute('role', 'menu');
+  const item = (label, go, opts = {}) => {
+    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'menuitem');
+    if (opts.sub) b.className = 'sub';
+    b.append(label);
+    if (opts.soon) { b.disabled = true; b.append(Object.assign(document.createElement('i'), { textContent: 'SOON' })); }
+    else b.addEventListener('click', () => { closeTabMenu(); go(); });
+    m.append(b);
+  };
+  const sep = () => m.append(Object.assign(document.createElement('div'), { className: 'sep' }));
+  // Sheet 89 (2026-10-25: "we need to have some organising going on in this right click"): labelled groups,
+  // like the ⋯ menu's, and Close on its own at the bottom.
+  const gh = (text) => m.append(Object.assign(document.createElement('div'), { className: 'gh', textContent: text }));
+  gh('THIS TAB');
+  item('Reload', () => window.samara?.browserTab?.({ id: t.id, act: 'reload' }));
+  item(t.muted ? 'Unmute' : 'Mute', () => window.samara?.browserTab?.({ id: t.id, act: 'mute' }));
+  sep();
+  const trails = (Array.isArray(state.trails) ? state.trails : []).filter((tr) => !tr.mock);
+  if (t.mock) {
+    // Sheet 47: a mockup stays in MOCKUPS. Its versions, and where it sits in the tree (2026-10-21).
+    // Sheet 81: mark the version this tab shows (each one comes off the same way). Parked, it goes to History.
+    if (t.mock.vid != null) {
+      const stg = (to) => window.samara?.browserMockup?.({ act: 'stage', id: t.mock.vid, to });
+      const ok = t.mock.stage === 'ok' || t.mock.stage === 'chat';
+      if (t.mock.stage !== 'built') item(ok ? 'Take back the approval' : 'Approve this version', () => stg(ok ? '' : 'ok'));
+      item(t.mock.stage === 'fix' ? 'Take off the fix' : 'Needs a fix…', () => { if (t.mock.stage === 'fix') stg(''); else fixNote(t.mock.vid, rows.get(t.id)?.el); });
+      item('Park it (to History)', () => stg('park'));
+      sep();
+    }
+    const vs = expander(m, 'Versions');
+    for (const v of t.mock.versions ?? []) vs(versionLabel(v), () => window.samara?.browserMockup?.({ act: 'show', id: v.id }), v.now ? 'NOW' : '');
+    const bs = expander(m, 'Move to branch');
+    for (const b of state.mockups?.branches ?? []) if (b.id !== t.mock.branch || t.mock.parent) bs(b.name, () => window.samara?.browserMockup?.({ act: 'branch', sheet: t.mock.sheet, to: b.id }));
+    bs('New branch...', () => window.samara?.browserMockup?.({ act: 'branchnew', sheet: t.mock.sheet }));
+    if (t.mock.branch != null || t.mock.parent) item('Make it top level', () => window.samara?.browserMockup?.({ act: 'top', sheet: t.mock.sheet }));
+    // Send to companion (2026-10-21): only while the companion is running, like the words item on a page.
+    if (state.mockups?.toCompanion) { item('Send to companion', () => window.samara?.browserMockup?.({ act: 'sendtab', id: t.id })); samaraFaceOn(m); }
+  } else {
+    gh('TRAIL');
+    const move = expander(m, 'Move to a trail');
+    for (const tr of trails) if (tr.id !== t.trail) move(tr.name.toLowerCase().replace(/^./, (c) => c.toUpperCase()), () => window.samara?.browserTrail?.({ act: 'move', tab: t.id, to: tr.id }));
+    move('A new trail', () => window.samara?.browserTrail?.({ act: 'move', tab: t.id, to: 'new' }));
+    if (t.trail != null) move('Out of the trail', () => window.samara?.browserTrail?.({ act: 'move', tab: t.id, to: null }));
+  }
+  sep();
+  gh('SEND');
+  item('Pop out', () => window.samara?.browserPopout?.(t.id));
+  // The same as dragging it out of the window (2026-10-13).
+  item('Open in new window', () => window.samara?.browserTab?.({ id: t.id, act: 'newwindow' }));
+  // Sheet 89: his TV, the whole window (AirPlay) or just the video (Chromecast).
+  const tv = expander(m, 'Send to TV');
+  tv('The whole window', () => window.samara?.browserTab?.({ id: t.id, act: 'tvwindow' }));
+  tv('Just the video', () => window.samara?.browserTab?.({ id: t.id, act: 'tvvideo' }));
+  item(OTHER.label, () => window.samara?.browserToMac?.(t.id));
+  // His ask (2026-10-13): the page as a full tab in Samara on the other machine, brought to the front there.
+  item(OTHER.open, () => window.samara?.browserOpenOther?.(t.id));
+  sep();
+  item('Close', () => { tap(0.7); window.samara?.browserTab?.({ id: t.id, act: 'close' }); });
+  document.body.append(m);
+  const r = m.getBoundingClientRect();
+  m.style.left = Math.max(4, Math.min(x, innerWidth - r.width - 4)) + 'px';
+  m.style.top = Math.max(4, Math.min(y, innerHeight - r.height - 4)) + 'px';
+  setTimeout(() => document.addEventListener('pointerdown', (e) => { if (!m.contains(e.target)) closeTabMenu(); }, { once: true }), 0);
+}
+/** "QUEST COMPLETE" over the tab for a moment, then it drops to the DONE shelf with a quiet tick (sheet 3). */
+function turnIn(id) {
+  const r = rows.get(id)?.el;
+  if (r) r.append(Object.assign(document.createElement('span'), { className: 'quest', textContent: 'QUEST COMPLETE' }));
+  setTimeout(() => { tap(1.25); window.samara?.browserTab?.({ id, act: 'done' }); }, 850);
+}
+
+
+/** A tab's icon slot when the site has no icon: its first letter. */
+function tileFor(t) {
+  const s = document.createElement('span'); s.className = 'fi letter';
+  s.textContent = (String(t.title || hostOf(t.url) || '?').match(/[a-z0-9]/i)?.[0] ?? '?').toUpperCase();
+  return s;
+}
+
+function buildRow(t, kid) {
+  {
+    const row = document.createElement('div');
+    const asleep = t.asleep && t.id !== state.active;
+    row.className = 'tp' + (t.id === state.active ? ' on' : '') + (t.crashed ? ' crash' : '') + (asleep ? ' sleep' : '') + (kid ? ' kid' : '') + (t.done ? ' done' : '');
+    row.title = t.url;
+    row.tabIndex = 0;
+    const ph = t.phase ?? (t.loading ? 'loading' : 'idle');
+    if (ph !== 'idle' && !t.crashed) row.append(Object.assign(document.createElement('i'), { className: 'arc' + (ph === 'waiting' ? ' wait' : '') }));
+    else {
+    // The ring's last flash as the page lands, then the icon (2026-10-25: the flash had taken the icon's place for good,
+    // so a tab that finished loading as its row was drawn showed no icon at all).
+    const burst = ringWas.get(t.id) && ringWas.get(t.id) !== 'idle' && !t.crashed;
+    // His pick (2026-10-21): every mockup comes from Claude, so it wears Claude's icon, the same one as the trail's head.
+    if (t.mock) row.append(Object.assign(document.createElement('img'), { className: 'fi claude', alt: '', src: 'art/claude-icon.png' }));
+    // His ask (2026-10-23): Samara's own pages (Settings, Things) wear Samara's lit lantern, its hand-drawn 24 px art at
+    // exactly 24 px (the 16 px one was "miniature" beside the sites' icons).
+    else if (t.internal) row.append(Object.assign(document.createElement('img'), { className: 'fi samara', alt: '', src: 'art/samara/samara-lit-24.png' }));
+    else if (t.favicon) { const i = document.createElement('img'); i.className = 'fi'; i.alt = ''; i.src = t.favicon; i.referrerPolicy = 'no-referrer'; i.onerror = () => i.replaceWith(tileFor(t)); row.append(i); }
+    // Sheet 43d: every tab has its icon slot; a site with no icon gets its first letter, carved, never an empty gap.
+    else row.append(tileFor(t));
+    // The flash stands in the icon's slot for its 0.4 s, then the icon is back in the same place.
+    if (burst) { const icon = row.lastElementChild, b = Object.assign(document.createElement('i'), { className: 'arc burst' }); icon.replaceWith(b); setTimeout(() => b.replaceWith(icon), 400); }
+    }
+    const title = document.createElement('span'); title.className = 't'; title.textContent = t.title || t.url;
+    row.append(title);
+    if (t.crashed) { const c = document.createElement('span'); c.className = 'cr'; c.textContent = 'CRASHED'; row.append(c); }
+    // Sheet 3: asleep is sunk flush into the wood, colour drained. Click and it wakes where it was.
+    // Sheet 43d (2026-10-20): a small pixel moon instead of the word, which was too small to read.
+    if (asleep && !t.lent) { const z = document.createElement('span'); z.className = 'zz moon'; z.title = 'Asleep: click to wake it'; z.setAttribute('aria-label', 'Asleep'); const m = pixIcon('moon', 1); if (m) z.append(m); else z.textContent = 'ASLEEP'; row.append(z); }
+    if (t.lent) { const z = document.createElement('span'); z.className = 'zz lent'; z.textContent = 'IN POPOUT'; row.append(z); }
+    // The pop-out keycap, only on video tabs: a video site, or anything playing sound right now.
+    if (!t.done && !t.lent && (t.audible || VIDEO_SITE.test(hostOf(t.url)))) {
+      const p = document.createElement('button'); p.type = 'button'; p.className = 'pip';
+      p.title = 'Pops this page into its own window'; p.setAttribute('aria-label', 'Popout');
+      p.addEventListener('click', (e) => { e.stopPropagation(); window.samara?.browserPopout?.(t.id); });
+      // Send to the other computer is in the tab's right-click and the ⋯ menu now (sheet 89).
+      row.append(p);
+    }
+    if (t.audible || t.muted) {
+      // Sheet 3: a real button. Press it to mute; pressed in, with a red slash, when muted.
+      const s = document.createElement('button'); s.type = 'button'; s.className = 'spk' + (t.muted ? ' muted' : '');
+      s.setAttribute('aria-label', t.muted ? 'Unmute this tab' : 'Mute this tab');
+      s.innerHTML = SPEAKER;
+      s.addEventListener('click', (e) => { e.stopPropagation(); window.samara?.browserTab?.({ id: t.id, act: 'mute' }); });
+      row.append(s);
+    }
+    // Sheet 47: a mockup wears its version (V3); a click lists the sheet's other versions.
+    if (t.mock && t.mock.v) {
+      // Sheet 81: the V chip wears the version's stage (gold approved, green with a tick built, orange fix).
+      const st = { ok: 'ok', chat: 'ok', built: 'built', fix: 'fix' }[t.mock.stage] ?? '';
+      const v = Object.assign(document.createElement('button'), { type: 'button', className: 'ver' + (st ? ' st-' + st : ''), textContent: 'V' + t.mock.v,
+        title: t.mock.stage === 'built' ? 'Built' : st === 'ok' ? 'Approved' + (t.mock.said ? `: "${t.mock.said}"` : '') : st === 'fix' ? 'Needs a fix' : 'Versions of this mockup' });
+      v.addEventListener('click', (e) => { e.stopPropagation(); versionsMenu(t, e.clientX, e.clientY); });
+      row.append(v);
+    }
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '×'; x.setAttribute('aria-label', 'Close tab');
+    x.addEventListener('click', (e) => { e.stopPropagation(); tap(0.7); window.samara?.browserTab?.({ id: t.id, act: 'close' }); });
+    row.append(x);
+    // A tab switches on the press, not the release, the way Chrome does; its buttons keep their own clicks.
+    // His ask (2026-10-13): picking a tab shows it and the list stays, so he can look through tabs; it goes when the mouse leaves it.
+    row.addEventListener('pointerdown', (e) => { if (e.button === 0 && !e.target.closest('button')) window.samara?.browserTab?.({ id: t.id, act: 'show' }); });
+    row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.samara?.browserTab?.({ id: t.id, act: 'show' }); } });
+    row.addEventListener('auxclick', (e) => { if (e.button === 1) { tap(0.7); window.samara?.browserTab?.({ id: t.id, act: 'close' }); } });
+    row.addEventListener('contextmenu', (e) => { e.preventDefault(); tabMenu(t, e.clientX, e.clientY); });
+    return row;
+  }
+}
+
+// ---- bookmarks on the velvet shelf: logo and name, a click opens it. Empty until the import (6.23).
+/**
+ * A bookmark's short name (sheet 43, 2026-10-20): page titles are often "Feed | LinkedIn" or "Inbox (3) - Gmail". When the
+ * title names the site and the rest is a generic page word, the site's name is the bookmark's name; otherwise the
+ * title's first part. His own rename (the star's panel) is a title like any other and is kept as he typed it.
+ */
+const GENERIC = /^(home|feed|inbox|browse|watch|start|welcome|dashboard|log ?in|sign ?in|main|new tab|\(\d+\)|inbox \(\d+\))$/i;
+function shortName(title, url) {
+  const t = String(title || '').replace(/\s+/g, ' ').trim();
+  let site = '';
+  try { site = new URL(url).hostname.replace(/^(www|m|mail|web)\./, '').split('.').slice(-2, -1)[0] || ''; } catch { /* none */ }
+  const parts = t.split(/\s+[|–—\-·:]\s+/).map((x) => x.trim()).filter(Boolean);
+  if (parts.length > 1) {
+    const named = parts.find((x) => site && x.toLowerCase().replace(/[^a-z0-9]/g, '').includes(site.toLowerCase()));
+    const rest = parts.filter((x) => x !== named);
+    if (named && rest.every((x) => GENERIC.test(x) || /@/.test(x))) return named;
+    return parts[0];
+  }
+  return t || site || url;
+}
+
+/**
+ * Bookmarks (sheet 43b, his pick 3 without numbers, 2026-10-20): raised wooden keys on the velvet, four to a row, an icon
+ * on each and no words under it. The name rides on a parchment banner over the key he is pointing at (under it on the top
+ * row, so the drawer's edge never cuts it). The last slot adds the page he is on, the same as the star.
+ */
+function paintMarks(list) {
+  const box = el('marks');
+  // Only when the bookmarks changed (measured 2026-10-20): rebuilding all 24 on every tab-list message was the
+  // biggest single piece of the band's work during a page load.
+  const sig = JSON.stringify(Array.isArray(list) ? list.slice(0, 24) : null);
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  box.replaceChildren();
+  box.className = 'row bm-slots';
+  const marks = (Array.isArray(list) ? list : []).filter((b) => b && typeof b.url === 'string').slice(0, 24);
+  marks.forEach((b, i) => {
+    const m = document.createElement('button');
+    // c0..c3: which column, so the edge columns' banners line up with the shelf instead of running off it.
+    m.type = 'button'; m.className = 'bm-key c' + (i % 4) + (i < 4 ? ' low' : '');
+    // Never cut mid-word: up to 70 letters, and past that the last whole word with an ellipsis.
+    const full = shortName(b.title, b.url), name = full.length <= 70 ? full : full.slice(0, 70).replace(/\s+\S*$/, '') + '…';
+    m.setAttribute('aria-label', name); m.title = '';
+    if (b.favicon) { const img = document.createElement('img'); img.alt = ''; img.src = b.favicon; img.referrerPolicy = 'no-referrer'; img.onerror = () => { img.remove(); m.prepend(letter(name)); }; m.append(img); }
+    else m.append(letter(name));
+    const banner = document.createElement('span'); banner.className = 'bm-banner'; banner.textContent = name; m.append(banner);
+    m.addEventListener('click', (e) => { if (e.target.closest('input')) return; window.samara?.browserGo?.(b.url); });
+    m.addEventListener('contextmenu', (e) => { e.preventDefault(); markMenu(b, name, m, e.clientX, e.clientY, i, marks.length); });
+    box.append(m);
+  });
+  const add = document.createElement('button');
+  add.type = 'button'; add.className = 'bm-key bm-add c' + (marks.length % 4) + (marks.length < 4 ? ' low' : ''); add.textContent = '+';
+  add.setAttribute('aria-label', 'Bookmark this page');
+  const ab = document.createElement('span'); ab.className = 'bm-banner'; ab.textContent = marks.length ? 'Add this page' : 'Bookmark this page'; add.append(ab);
+  // In the floating list the star's box would open out of sight (2026-10-20): the Shell asks the band.
+  add.addEventListener('click', () => { if (SOLO) window.samara?.browserAct?.('markadd'); else el('star').click(); });
+  box.append(add);
+}
+/** A site with no icon: its first letter, carved, so a key is never blank. */
+function letter(name) { const s = document.createElement('i'); s.className = 'bm-letter'; s.textContent = (String(name).match(/[a-z0-9]/i)?.[0] ?? '?').toUpperCase(); return s; }
+
+// 6.22's website asks (camera, another app, a risky download) and sheet 69's device ask are notices now (sheet 106 v7),
+// on Samara's notice layer: notice.js.
+
+// ---- 6.24: the screen-share picker. He picks one screen or one window; nothing is shared until he clicks Share.
+let shareId = null, sharePick = null;
+window.samara?.onBrowserShare?.((a) => {
+  if (!a || !Number.isInteger(a.id)) return;
+  if (a.gone) { if (shareId === a.id) { shareId = null; el('sharechip').hidden = true; } return; }
+  shareId = a.id; sharePick = null;
+  el('shareq').textContent = `Share your screen with ${a.host || 'this site'}?`;
+  const fill = (box, kind) => {
+    box.replaceChildren();
+    for (const s of (Array.isArray(a.sources) ? a.sources : []).filter((x) => x.kind === kind)) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'stile'; b.setAttribute('aria-pressed', 'false');
+      const img = document.createElement('img');
+      img.className = 'th'; img.alt = '';
+      if (typeof s.thumb === 'string' && s.thumb.startsWith('data:image/')) img.src = s.thumb;
+      b.append(img, Object.assign(document.createElement('span'), { textContent: String(s.name ?? ''), title: String(s.name ?? '') }));
+      b.addEventListener('click', () => {
+        sharePick = String(s.id);
+        el('sharechip').querySelectorAll('.stile').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        el('shareyes').disabled = false;
+      });
+      b.addEventListener('dblclick', () => { sharePick = String(s.id); answerShare(true); });
+      box.append(b);
+    }
+    return box.childElementCount;
+  };
+  el('sharescreens-h').hidden = !fill(el('sharescreens'), 'screen');
+  el('sharewins-h').hidden = !fill(el('sharewins'), 'window');
+  el('sharesound').checked = false;
+  el('sharesoundrow').hidden = a.audio !== true;
+  el('shareyes').disabled = true;
+  el('sharechip').hidden = false;
+});
+const answerShare = (yes) => {
+  if (shareId === null) return;
+  window.samara?.browserShareReply?.({ id: shareId, source: yes ? sharePick : null, sound: el('sharesound').checked });
+  shareId = null; sharePick = null; el('sharechip').hidden = true;
+};
+el('shareyes').addEventListener('click', () => answerShare(true));
+el('shareno').addEventListener('click', () => answerShare(false));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareId !== null) { answerShare(false); e.preventDefault(); } });
+
+
+// ---- the SECURE plaque's panel: let ads through on one site, or block them again
+lock.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const t = state.tabs.find((x) => x.id === state.active);
+  let host = '';
+  try { host = new URL(t?.url ?? '').hostname.replace(/^www\./, ''); } catch { /* none */ }
+  if (!host) return;
+  el('sitehost').textContent = host;
+  const fav = state.tabs.find((x) => x.id === state.active)?.favicon;
+  el('sitefav').hidden = !fav; el('sitefav').onerror = () => { el('sitefav').hidden = true; }; if (fav) el('sitefav').src = fav;
+  paintSite();
+  el('sitepanel').hidden = !el('sitepanel').hidden;
+  lock.classList.toggle('open', !el('sitepanel').hidden);
+  // Hung from the shield itself (2026-10-14: it sat off to the side): its pointer (24px in, 18 wide) under the
+  // shield's middle, measured each time, since the address bar moves with the window and the band.
+  if (!el('sitepanel').hidden) {
+    const band = el('band').getBoundingClientRect(), r = lock.getBoundingClientRect();
+    el('sitepanel').style.left = Math.max(8, Math.round(r.left + r.width / 2 - band.left - 33)) + 'px';
+  }
+});
+// Sheet 37: the shield's panel, every rule for this site. The Shell sends them in state.site.
+for (const s of document.querySelectorAll('#sitepanel [data-pix]')) { const svg = pixIcon(s.dataset.pix, 2); if (svg) s.append(svg); }
+function setSw(id, on, disabled = false) { el(id).classList.toggle('on', on); el(id).setAttribute('aria-checked', String(on)); el(id).disabled = disabled; }
+// Camera and microphone: Allow / Ask / Block as one segmented row (sheet 120 A: one control for a choice of a few).
+function setTri(id, v) {
+  const now = ['allow', 'ask', 'block'].includes(v) ? v : 'ask';
+  el(id).dataset.v = now;
+  for (const b of el(id).querySelectorAll('[role="radio"]')) { const on = b.dataset.v === now; b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1; }
+}
+/** A segmented row: a click picks; Left and Right (or Up and Down) move and pick, as a radio group does. */
+function segRow(box, pick) {
+  box.addEventListener('click', (e) => { const b = e.target.closest('[role="radio"]'); if (b && box.contains(b)) pick(b.dataset.v); });
+  box.addEventListener('keydown', (e) => {
+    const l = [...box.querySelectorAll('[role="radio"]')], at = l.findIndex((b) => b.getAttribute('aria-checked') === 'true');
+    const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    const n = l[(at + d + l.length) % l.length];
+    n.focus(); pick(n.dataset.v);
+  });
+}
+function paintSite() {
+  const st = state.site;
+  setSw('adsw', state.adsOn && !state.adsPaused, !state.adsOn);
+  setSw('darksw', state.darkHere === true, state.darkAll === false);
+  if (!st) return;
+  setSw('popsw', st.popupBlock, state.prefs?.popups === false);
+  setSw('aisw', st.ai); setSw('loginsw', st.login && st.ai, !st.ai);
+  setTri('camk', st.camera); setTri('mick', st.mic);
+  // Sheet 69: each keyboard or mouse this site may use, with Forget.
+  const rows = el('devrows');
+  rows.replaceChildren();
+  for (const d of Array.isArray(st.devices) ? st.devices : []) {
+    const r = document.createElement('div'); r.className = 'srow';
+    const ic = Object.assign(document.createElement('span'), { className: 'sic' }); const svg = pixIcon('keyboard', 2); if (svg) ic.append(svg);
+    const f = Object.assign(document.createElement('button'), { type: 'button', className: 'key sm burnt', textContent: 'Forget' });
+    f.addEventListener('click', () => window.samara?.browserDevForget?.(String(d.key)));
+    r.append(ic, Object.assign(document.createElement('b'), { textContent: String(d.name ?? '') }), f);
+    rows.append(r);
+  }
+}
+function paintAdSwitch() { paintSite(); }
+function paintDarkSwitch() { paintSite(); }
+const rule = (key, value) => window.samara?.browserSiteRule?.(key, value);
+el('adsw').addEventListener('click', (e) => { e.preventDefault(); if (state.adsOn) rule('ads', !!state.adsPaused); });
+el('darksw').addEventListener('click', (e) => { e.preventDefault(); if (state.darkAll !== false) rule('dark', !state.darkHere); });
+el('popsw').addEventListener('click', (e) => { e.preventDefault(); if (state.site) rule('popups', !state.site.popupBlock); });
+el('aisw').addEventListener('click', (e) => { e.preventDefault(); if (state.site) rule('ai', !state.site.ai); });
+el('loginsw').addEventListener('click', (e) => { e.preventDefault(); if (state.site?.ai) rule('login', !state.site.login); });
+segRow(el('camk'), (v) => { setTri('camk', v); rule('camera', v); });
+segRow(el('mick'), (v) => { setTri('mick', v); rule('mic', v); });
+document.addEventListener('click', (e) => { if (!el('sitepanel').contains(e.target) && !lock.contains(e.target)) { el('sitepanel').hidden = true; lock.classList.remove('open'); } });
+// The shield's panel sits OVER the page, like the ... menu, on a still picture of it (2026-10-14: pushing the live
+// page down to make room left a big white bar above it). However it closes, the live page comes back.
+// Only on a real change: every click anywhere sets hidden again, and a stray "unfreeze" put the live page back over the open
+// tab list (2026-10-14).
+let siteOver = false;
+new MutationObserver(() => { const open = !el('sitepanel').hidden; if (open === siteOver) return; siteOver = open; if (open) freeze('site'); else unfreeze('site'); }).observe(el('sitepanel'), { attributes: true, attributeFilter: ['hidden'] });
+el('popopen').addEventListener('click', () => { window.samara?.browserAct?.('popupopen'); el('sitepanel').hidden = true; lock.classList.remove('open'); });
+el('popallow').addEventListener('click', () => { window.samara?.browserAct?.('popupallow'); el('sitepanel').hidden = true; lock.classList.remove('open'); });
+
+// ---- a finished download: the little wood tap (the notice itself is on Samara's notice layer, sheet 106)
+window.samara?.onBrowserDownload?.((d) => { if (d?.state === 'completed') tap(1.4); });
+// ---- Sheet 106 v7: a notice drops from under what caused it. Samara asks where that key is; it pulses gold twice.
+const NOTICE_KEY = { dl: 'dlkey', shield: 'lock', menu: 'menukey', slot: 'slot', tabs: 'drawerkey', rune: 'runeslot' };
+window.samara?.onBrowserNoticeFrom?.(async (m) => {
+  if (!m || !Number.isInteger(m.seq)) return;
+  let k = el(NOTICE_KEY[m.from] ?? 'menukey');
+  // A key still popping in (the download key, as its first download starts): measured where it lands, 0.3 s at most.
+  const moving = k ? k.getAnimations().map((a) => a.finished.catch(() => null)) : [];
+  if (moving.length) await Promise.race([Promise.all(moving), new Promise((r) => setTimeout(r, 300))]);
+  let r = k?.getBoundingClientRect();
+  if (!k || k.hidden || !r || r.width < 4) { k = el('menukey'); r = k.getBoundingClientRect(); }
+  // under the band, or under a chip hanging from it (the PIN, a share, the TV playing)
+  let bottom = el('band').getBoundingClientRect().bottom;
+  for (const id of ['sharechip', 'vaultchip', 'tvchip', 'afsavechip']) { const x = el(id); if (x && !x.hidden) bottom = Math.max(bottom, x.getBoundingClientRect().bottom + 4); }
+  window.samara?.browserNoticeAt?.({ seq: m.seq, left: r.left, right: r.right, bottom });
+  const lit = m.from === 'slot' ? el('slot') : k;
+  lit.classList.remove('ntsrc'); void lit.offsetWidth; lit.classList.add('ntsrc');
+  setTimeout(() => lit.classList.remove('ntsrc'), 1900);
+});
+
+// ---- the red plate's lever: held, never one click (sheet 3 section 6)
+function redLever() {
+  const box = el('phishlever');
+  box.replaceChildren();
+  const l = document.createElement('div');
+  l.className = 'lever red'; l.tabIndex = 0;
+  l.append(Object.assign(document.createElement('i'), { className: 'fillbar' }), Object.assign(document.createElement('i'), { className: 'knob' }),
+    Object.assign(document.createElement('span'), { className: 'txt', textContent: 'Open it anyway' }), Object.assign(document.createElement('span'), { className: 'hold', textContent: 'HOLD' }));
+  let from = 0, raf = 0;
+  const stop = () => { cancelAnimationFrame(raf); raf = 0; l.style.setProperty('--fill', '0%'); };
+  const paint = () => { const k = Math.min(1, (performance.now() - from) / 800); l.style.setProperty('--fill', (k * 100).toFixed(1) + '%'); if (k >= 1) { stop(); window.samara?.browserAct?.('phishopen'); return; } raf = requestAnimationFrame(paint); };
+  l.addEventListener('pointerdown', (e) => { l.setPointerCapture?.(e.pointerId); if (!raf) { from = performance.now(); raf = requestAnimationFrame(paint); } });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) l.addEventListener(ev, stop);
+  box.append(l);
+}
+el('phishback').addEventListener('click', () => window.samara?.browserAct?.('phishback'));
+el('bankchrome').addEventListener('click', () => window.samara?.browserAct?.('bankchrome'));
+el('bankback').addEventListener('click', () => window.samara?.browserAct?.('phishback'));
+el('reclaim').addEventListener('click', () => window.samara?.browserAct?.('reclaim'));
+// Sheet 40 B: the pop-out's own keys. The words follow each press (the pop-out keeps the real state).
+el('poppause').addEventListener('click', () => { window.samara?.browserAct?.('poppause'); el('poppause').textContent = el('poppause').textContent === 'Pause' ? 'Play' : 'Pause'; });
+el('phishreal').addEventListener('click', () => window.samara?.browserAct?.('phishreal'));
+el('failgo').addEventListener('click', () => window.samara?.browserAct?.('httpok'));
+el('failretry').addEventListener('click', () => window.samara?.browserAct?.('failretry'));
+el('failback').addEventListener('click', () => window.samara?.browserAct?.('failback'));
+
+window.samara?.onBrowserTabs?.((s) => {
+  if (!s || !Array.isArray(s.tabs)) return;
+  state = s;
+  window.paintTv?.(s.tv);
+  // Sheet 71: the tab list's size (this machine's pick in Settings).
+  const size = s.tabSize === 's' || s.tabSize === 'm' ? s.tabSize : 'l';
+  if (!document.documentElement.classList.contains('tsize-' + size)) { document.documentElement.classList.remove('tsize-s', 'tsize-m', 'tsize-l'); document.documentElement.classList.add('tsize-' + size); }
+  railTabs(s);
+  paintSoundMark();
+  paintMarks(s.marks);
+  paintMockKey(s.mockups);
+  paintHyruleKey(s);
+  el('m-sitenotes').hidden = s.notes === false;
+  paintTidy();
+  paintStash();
+  // The key: only where Bitwarden has a login here; gold with one soft pulse when it first shows.
+  const vk = el('vkey');
+  const showKey = s.hasLogin === true;
+  if (showKey && vk.hidden) { vk.classList.remove('pulse'); void vk.offsetWidth; if (s.loginKnown) vk.classList.add('pulse'); }
+  vk.hidden = !showKey && afMode === 'idle';   // the PIN's padlock and a waiting login keep it showing (sheet 77)
+  vk.classList.toggle('known', s.loginKnown === true);
+  document.body.classList.toggle('maxed', s.maximized === true);
+  el('wmax').setAttribute('aria-label', s.maximized ? 'Restore' : 'Maximise');
+  el('star').classList.toggle('on', s.starred === true);
+  el('star').setAttribute('aria-pressed', String(s.starred === true));
+  el('star').setAttribute('aria-label', s.starred ? 'Take this page off your bookmarks' : 'Bookmark this page');
+  el('star').title = s.starred ? 'Bookmarked. Click to take it off.' : 'Bookmark this page';
+  if (menuOpen) paintMenu();
+  const t = s.tabs.find((x) => x.id === s.active);
+  paintTabs();
+  // New tabs opened from links while the list was closed: the arrow breathes and a small +1 sits under it .
+  newTabsArrived(Number(s.newTabs) || 0);
+  // Where he asked to go shows at once, dimmed, until the page arrives (only for his own typed or opened addresses).
+  // Watching one of the companion's pages: the slot shows his page's address, and who is driving.
+  // A mockup says what it is (its name in the trail), not the number address of the page server it comes from.
+  if (edit.hidden && !finding) { if (t?.mock?.title && !s.watching) paintMock(t.mock.title); else paintUrl(s.watching ? s.watching.url : (t?.pending || t?.url || '')); }
+  paintWho();
+  el('slot').classList.toggle('pending', Boolean(t?.pending));
+  el('back').classList.toggle('dim', !s.canBack);
+  el('fwd').classList.toggle('dim', !s.canForward);
+  barFor(t);
+  for (const x of s.tabs) ringWas.set(x.id, x.phase ?? (x.loading ? 'loading' : 'idle'));
+  // Reload becomes Stop the moment a page starts (6.22b item 9). Two guards, as in Chrome: a double-click cannot
+  // stop the load it just started, and Stop waits to turn back while the mouse rests on it.
+  const busy = Boolean(t && (t.phase ? t.phase !== 'idle' : t.loading));
+  reloadWant(busy);
+  // The zoom hint (6.22b item 10): only when the page is not at 100%; a click puts it back.
+  const z = Number(s.zoomPct ?? 100);
+  el('zoomhint').hidden = z === 100 || !t || String(t.url).startsWith('samara:');
+  el('zoomhint').textContent = z + '%';
+  const crashed = Boolean(t?.crashed);
+  el('crashplate').hidden = !crashed;
+  el('lentplate').hidden = !t?.lent;
+  // Sheet 40 B: what is playing, its site, and the still taken as it went to the pop-out (sent once).
+  if (typeof s.lentShot === 'string') el('lentshot').style.backgroundImage = `url("${s.lentShot}")`;
+  if (t?.lent) {
+    el('lenttitle').textContent = t.title || '';
+    const h = hostOf(t.url).replace(/^www\./, '');
+    const NAMES = { 'primevideo.com': 'PRIME VIDEO', 'netflix.com': 'NETFLIX', 'youtube.com': 'YOUTUBE', 'twitch.tv': 'TWITCH', 'crunchyroll.com': 'CRUNCHYROLL', 'disneyplus.com': 'DISNEY+', 'crave.ca': 'CRAVE', 'max.com': 'MAX' };
+    el('lentsite').textContent = NAMES[Object.keys(NAMES).find((k) => h === k || h.endsWith('.' + k)) ?? ''] ?? h.toUpperCase();
+  } else el('poppause').textContent = 'Pause';
+  // A listed site: the red plate where the page would be, and the plaque turns red.
+  const b = t?.blocked;
+  el('phishplate').hidden = !b || Boolean(b?.bank);
+  el('bankplate').hidden = !b?.bank;
+  if (b?.bank) {
+    let host = b.url;
+    try { host = new URL(b.url).hostname.replace(/^www\./, ''); } catch { /* keep the text */ }
+    el('banktext').replaceChildren(Object.assign(document.createElement('b'), { textContent: host }), ' is a bank site. Chrome gets safety fixes sooner, so your money is safer there.');
+    el('phishlever').replaceChildren();
+    delete lock.dataset.u; lock.hidden = false; lock.textContent = 'YOUR BANK'; lock.classList.remove('bad');
+  } else if (b) {
+    let host = b.url;
+    try { host = new URL(b.url).hostname; } catch { /* keep the text */ }
+    el('phishreal').hidden = !b.real;
+    if (b.real) {
+      // A look-alike: on no list yet, but wearing the name of a site he really uses.
+      el('phishtitle').textContent = `This is not ${b.real}`;
+      el('phishtext').replaceChildren(Object.assign(document.createElement('b'), { textContent: host }), ` is dressed up to look like ${b.real}, a site you use. It was stopped before anything loaded. The real one is one press away.`);
+    } else {
+      el('phishtitle').textContent = 'This site is on a list of fake or harmful sites';
+      el('phishtext').replaceChildren(Object.assign(document.createElement('b'), { textContent: host }), ` is named by ${b.lists.length === 1 ? 'one list' : b.lists.length + ' lists'} of known fake login pages and harmful downloads. It was stopped before anything loaded.`);
+    }
+    el('phishlists').replaceChildren(...b.lists.map((n) => Object.assign(document.createElement('span'), { textContent: n })));
+    if (!el('phishlever').childElementCount) redLever();
+    delete lock.dataset.u; lock.hidden = false; lock.textContent = 'BLOCKED'; lock.classList.add('bad');
+  } else el('phishlever').replaceChildren();
+  // The page did not load: the wood plate, in plain words.
+  const f = t?.failed;
+  el('failplate').hidden = !f;
+  if (f) {
+    let host = f.url;
+    try { host = new URL(f.url).hostname; } catch { /* keep the text */ }
+    const insecure = f.kind === 'insecure';
+    el('failplq').textContent = insecure ? 'NOT SECURE' : 'DID NOT LOAD';
+    el('failplq').classList.toggle('gold', !insecure);
+    el('failtitle').textContent = f.title;
+    if (insecure) el('failtext').replaceChildren(Object.assign(document.createElement('b'), { textContent: host }), " has no secure version, so what you send it could be read along the way. Fine for reading. Don't type a password here.");
+    else el('failtext').textContent = f.text;
+    el('failgo').hidden = !insecure;
+    el('failretry').hidden = insecure || !f.retry;
+  }
+  // Sheet 91 v2: the cat only for a page that did not load, and it moves only while it shows.
+  const cat = Boolean(f) && f.kind !== 'insecure';
+  el('failplate').classList.toggle('cat', cat);
+  el('failcat').hidden = !cat;
+  if (cat) failCat.start(); else failCat.stop();
+  // A popup this page opened by itself was blocked: the shield glows blue, and its panel says what it was.
+  const pop = t?.popup ?? null;
+  lock.classList.toggle('popup', Boolean(pop) && !t?.blocked);
+  if (pop && !t?.blocked) lock.title = 'A popup was blocked. Click to see it.';
+  el('poprow').hidden = !pop;
+  if (pop) el('popurl').textContent = pop;
+  if (!el('sitepanel').hidden) { paintAdSwitch(); paintDarkSwitch(); }
+  if (crashed) el('crashtitle').textContent = `${(t.title || 'This page').slice(0, 60)} stopped working`;
+});
+
+
+// ---- the trail menu (the ··· on a trail's name): wood, like the tab's menu, the glove on what you point at
+function trailMenu(tr, x, y) {
+  closeTabMenu();
+  const m = document.createElement('div'); m.id = 'tabmenu'; m.className = 'tabmenu'; m.setAttribute('role', 'menu');
+  const item = (label, go, cls = '') => {
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: cls, textContent: label });
+    b.setAttribute('role', 'menuitem');
+    b.addEventListener('click', () => { closeTabMenu(); go(); });
+    m.append(b);
+  };
+  const sep = () => m.append(Object.assign(document.createElement('div'), { className: 'sep' }));
+  const n = state.tabs.filter((t) => t.trail === tr.id).length;
+  // Sheet 47: the MOCKUPS trail folds or closes; its history is kept either way.
+  if (tr.mock) {
+    item(tr.collapsed ? 'Open it up' : 'Collapse', () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'collapse' }));
+    sep();
+    item(`Close the mockups (${n} tab${n === 1 ? '' : 's'})`, () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'close' }), 'danger');
+    placeMenu(m, x, y);
+    return;
+  }
+  item('Rename', () => heads.get(tr.id)?.querySelector('.nm')?.click());
+  item(tr.collapsed ? 'Open it up' : 'Collapse', () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'collapse' }));
+  item('Move to the Stash', () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'stash' }));
+  item('Ungroup (keep the tabs)', () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'ungroup' }));
+  sep();
+  item(`Close the trail and its ${n} tab${n === 1 ? '' : 's'}`, () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'close' }), 'danger');
+  document.body.append(m);
+  const r = m.getBoundingClientRect();
+  m.style.left = Math.max(4, Math.min(x, innerWidth - r.width - 4)) + 'px';
+  m.style.top = Math.max(4, Math.min(y, innerHeight - r.height - 4)) + 'px';
+  setTimeout(() => document.addEventListener('pointerdown', (e) => { if (!m.contains(e.target)) closeTabMenu(); }, { once: true }), 0);
+}
+
+// ---- Sheet 47 (2026-10-21): the MOCKUPS trail. Claude's icon and FROM CLAUDE on its head; each mockup wears
+// its version; the family tree (branch > mockup > children, all his to move); HISTORY at the bottom with every version,
+// closed ones too, and the broom that clears exact duplicates only when he presses it.
+function placeMenu(m, x, y) {
+  document.body.append(m);
+  const r = m.getBoundingClientRect();
+  m.style.left = Math.max(4, Math.min(x, innerWidth - r.width - 4)) + 'px';
+  m.style.top = Math.max(4, Math.min(y, innerHeight - r.height - 4)) + 'px';
+  setTimeout(() => document.addEventListener('pointerdown', (e) => { if (!m.contains(e.target)) closeTabMenu(); }, { once: true }), 0);
+}
+/** "12:41" today, "Yesterday 9:02", else "Oct 19 9:02". */
+function mockWhen(at) {
+  const d = new Date(at), now = new Date();
+  const hm = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s?[AP]M$/i, '');
+  const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const back = Math.round((day(now) - day(d)) / 86_400_000);
+  if (back === 0) return hm;
+  if (back === 1) return 'Yesterday ' + hm;
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + hm;
+}
+const versionLabel = (v) => `V${v.v} · ${mockWhen(v.at)}`;
+/**
+ * A menu item that opens its own list underneath it (the floating list is narrow, so the list opens in place instead of
+ * out to the side). Returns a function that adds one line to it.
+ */
+function expander(m, label) {
+  const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.className = 'exp';
+  b.append(label, Object.assign(document.createElement('i'), { textContent: '▸' }));
+  const box = Object.assign(document.createElement('div'), { className: 'expbox', hidden: true });
+  b.addEventListener('click', () => { box.hidden = !box.hidden; b.classList.toggle('open', !box.hidden); });
+  m.append(b, box);
+  return (text, go, tag = '') => {
+    const x = document.createElement('button'); x.type = 'button'; x.setAttribute('role', 'menuitem'); x.className = 'sub';
+    x.append(text);
+    if (tag) x.append(Object.assign(document.createElement('i'), { textContent: tag }));
+    x.addEventListener('click', () => { closeTabMenu(); go(); });
+    box.append(x);
+  };
+}
+/** The V tag's own list: the sheet's versions; picking one shows it in this tab. */
+function versionsMenu(t, x, y) {
+  closeTabMenu();
+  const m = document.createElement('div'); m.id = 'tabmenu'; m.className = 'tabmenu'; m.setAttribute('role', 'menu');
+  for (const v of t.mock?.versions ?? []) {
+    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'menuitem');
+    b.append(versionLabel(v));
+    if (v.now) b.append(Object.assign(document.createElement('i'), { textContent: 'NOW' }));
+    b.addEventListener('click', () => { closeTabMenu(); window.samara?.browserMockup?.({ act: 'show', id: v.id }); });
+    m.append(b);
+  }
+  placeMenu(m, x, y);
+}
+/** A history line's own menu: open that version, or send exactly that version to the companion. */
+/** Sheet 79: what to fix, typed in place under the version: Enter keeps it, Esc leaves it. */
+function fixNote(id, at) {
+  const row = at;
+  if (!row) { window.samara?.browserMockup?.({ act: 'stage', id, to: 'fix' }); return; }
+  const box = Object.assign(document.createElement('input'), { type: 'text', className: 'mvnote', maxLength: 300, placeholder: 'What to fix' });
+  row.after(box);
+  box.focus();
+  const done = (keep) => { if (keep) window.samara?.browserMockup?.({ act: 'stage', id, to: 'fix', name: box.value.trim() }); box.remove(); };
+  box.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); });
+  box.addEventListener('blur', () => done(box.value.trim() !== ''));
+}
+/**
+ * Sheet 107 (2026-10-30): the one Mockups entry, the sealed scroll on FFX blue with gold trim; its gold gem
+ * says how many sheets Claude sent that he has not opened yet. The scroll is drawn for it, pixel by pixel, at 3x.
+ */
+/** 2026-11-03: the Hyrule key, above Mockups, where the map is on this machine: a folded map in 16 x 14 hand-placed
+ *  pixels (parchment, green land, a river, a red pin), lit like a picked tab while he is in the Hyrule tab. */
+function paintHyruleKey(s) {
+  const key = el('hykey');
+  key.hidden = !s.hyrule;
+  if (!s.hyrule) return;
+  if (!key.dataset.drawn) {
+    key.dataset.drawn = '1';
+    const g = key.querySelector('canvas').getContext('2d');
+    const R = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+    R(1, 2, 14, 11, '#120A05');                                                // the outline
+    R(2, 3, 4, 9, '#F0DCB4'); R(6, 3, 4, 9, '#e2c58e'); R(10, 3, 4, 9, '#F0DCB4');   // three folds, the middle in shade
+    R(2, 6, 3, 4, '#6faa4c'); R(7, 4, 3, 3, '#5e9a40'); R(10, 8, 3, 3, '#6faa4c');   // the land
+    R(3, 10, 2, 1, '#4a8fc8'); R(5, 9, 3, 1, '#4a8fc8'); R(8, 8, 2, 1, '#4a8fc8'); R(10, 7, 3, 1, '#4a8fc8');   // a river across it
+    R(10, 1, 4, 4, '#120A05'); R(11, 2, 2, 2, '#C8322A'); R(11, 2, 1, 1, '#f07a6a'); R(11, 5, 2, 1, '#120A05');   // the pin
+  }
+  const on = state.tabs.some((t) => t.hyrule && t.id === state.active);
+  key.classList.toggle('lit', on);
+  key.setAttribute('aria-pressed', String(on));
+}
+function paintMockKey(mk) {
+  const key = el('mqkey');
+  key.hidden = !mk;
+  if (!mk) return;
+  if (!key.dataset.drawn) {
+    key.dataset.drawn = '1';
+    const c = key.querySelector('canvas'), g = c.getContext('2d');
+    const R = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+    R(3, 2, 10, 10, '#120A05'); R(4, 3, 8, 8, '#F0DCB4');                      // the sheet
+    for (const y of [5, 7, 9]) R(5, y, 5, 1, '#c9a46a');                         // its lines
+    R(1, 1, 14, 3, '#120A05'); R(2, 2, 12, 1, '#e2c58e'); R(1, 2, 1, 1, '#9a7a48'); R(14, 2, 1, 1, '#9a7a48');   // the top roll
+    R(1, 10, 14, 3, '#120A05'); R(2, 11, 12, 1, '#e2c58e');                     // the bottom roll
+    R(10, 8, 4, 4, '#120A05'); R(11, 9, 2, 2, '#C8322A'); R(11, 9, 1, 1, '#f07a6a');   // the wax seal
+    R(11, 12, 1, 2, '#8A1E18'); R(13, 12, 1, 2, '#8A1E18');                     // its ribbon tails
+  }
+  const n = Number(mk.fresh) || 0, gem = key.querySelector('.gem');
+  gem.hidden = n < 1;
+  gem.textContent = String(n);
+  key.setAttribute('aria-label', n ? `Mockups, ${n} new` : 'Mockups');
+  // Sheet 107 v5: lit like a picked tab while he is in Mockups.
+  const on = state.tabs.some((t) => t.mocklog && t.id === state.active);
+  key.classList.toggle('lit', on);
+  key.setAttribute('aria-pressed', String(on));
+}
+// ---- dragging, smoother (2026-10-21: "make it easier to drag and drop into trails in general and make parent
+// child relationships easier with just a mouse move"). The browser's own drag and drop gave no say over each frame, so
+// this is pointer events:
+//  - a press only becomes a drag after a few pixels, so a click still just picks the tab;
+//  - between rows a gold line shows where it lands and how deep: slide right to tuck it under the row above, left to
+//    pull it back out, one indent per step, as deep as the trail draws (a tab under a tab, a mockup under a mockup);
+//  - on the middle of a row the row lights up: let go and it becomes that row's child; on a heading it joins that trail;
+//  - the rows slide apart to open the gap (a transform, never a change of layout) and glide to their places after the drop;
+//  - a folded trail or branch opens after hovering it for 600 ms; near the top or bottom edge the list scrolls;
+//  - Ctrl-click and Shift-click pick several tabs; dragging one of them moves them all, in their order;
+//  - Esc puts it all back. The tab menu's Move to items still make the same moves without a mouse.
+// The rules of where things may go are the old ones: a mockup stays in MOCKUPS and nothing else goes in.
+const DG_MOCK = -1, DG_INDENT = 28, DG_START = 5, DG_SPRING = 600, DG_EDGE = 44;
+const dropMark = Object.assign(document.createElement('div'), { className: 'dropmark' });
+const dgShift = new WeakMap();
+const dgCalm = matchMedia('(prefers-reduced-motion: reduce)');
+let dragging = null, dgPress = null, flipUntil = 0, dgSwallow = false;
+const picked = new Set();
+let pickFrom = null;
+const dgTab = (id) => state.tabs.find((t) => t.id === id);
+
+/** Each row's place on screen, by what it is (a rebuilt row is still the same tab), to glide from. */
+function dgKey(n) {
+  if (n.dataset.tab) return 't' + n.dataset.tab;
+  if (n.matches('.th[data-trail]')) return 'h' + n.dataset.trail;
+  if (n.dataset.branch) return 'b' + n.dataset.branch;
+  return n.id || '';
+}
+function rowSpots() {
+  const m = new Map();
+  for (const n of tabsBox.children) { const k = dgKey(n); if (k) m.set(k, n.getBoundingClientRect().top); }
+  return m;
+}
+/** FLIP: every row starts where it was and glides to where it is now. */
+function glide(was) {
+  if (!was || dgCalm.matches) return;
+  const kids = [...tabsBox.children].filter((n) => n !== dropMark && !n.classList.contains('dragghost'));
+  for (const n of kids) { n.style.transition = 'none'; n.style.transform = ''; }
+  const moved = [];
+  for (const n of kids) {
+    const old = was.get(dgKey(n));
+    if (old === undefined) continue;
+    const d = old - n.getBoundingClientRect().top;
+    if (Math.abs(d) < 1) continue;
+    n.style.transform = `translateY(${d.toFixed(1)}px)`;
+    moved.push(n);
+  }
+  void tabsBox.offsetHeight;
+  for (const n of kids) n.style.transition = '';
+  for (const n of moved) {
+    n.style.transition = 'transform 180ms cubic-bezier(.2,.8,.2,1)'; n.style.transform = '';
+    n.addEventListener('transitionend', () => { n.style.transition = ''; }, { once: true });
+  }
+}
+/** After every redraw: the picked look, and a drag in progress keeps its gap, its ghost and its line. */
+function afterPaint(was) {
+  for (const id of [...picked]) if (!state.tabs.some((t) => t.id === id)) picked.delete(id);
+  paintPicked();
+  if (dragging) { dgLift(); tabsBox.append(dragging.ghost); dgAim(); return; }
+  if (was) glide(was);
+}
+
+// ---- picking several: Ctrl adds or takes one, Shift takes the run from the last one picked.
+function paintPicked() { for (const [id, r] of rows) r.el.classList.toggle('picked', picked.has(id)); }
+function clearPicked() { if (!picked.size) return; picked.clear(); pickFrom = null; paintPicked(); }
+function pickRows(id, range) {
+  const order = [...tabsBox.querySelectorAll('.tp[data-tab]')].map((n) => Number(n.dataset.tab));
+  // Like Chrome: the tab he is on is one of them.
+  if (!picked.size && state.active != null && order.includes(state.active)) { picked.add(state.active); pickFrom ??= state.active; }
+  if (range && pickFrom != null && order.includes(pickFrom)) {
+    const a = order.indexOf(pickFrom), b = order.indexOf(id);
+    for (const x of order.slice(Math.min(a, b), Math.max(a, b) + 1)) picked.add(x);
+  } else {
+    if (picked.has(id) && id !== state.active) picked.delete(id); else picked.add(id);
+    pickFrom = id;
+  }
+  paintPicked();
+}
+function pickedInOrder() {
+  const out = [...tabsBox.querySelectorAll('.tp[data-tab]')].map((n) => Number(n.dataset.tab)).filter((id) => picked.has(id));
+  for (const t of state.tabs) if (picked.has(t.id) && !out.includes(t.id)) out.push(t.id);
+  return out;
+}
+
+// ---- the press, and the few pixels that make it a drag
+tabsBox.addEventListener('dragstart', (e) => e.preventDefault());   // no picture-drag of an icon
+tabsBox.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || dragging) return;
+  if (e.target.closest('button, input, select, textarea')) return;
+  const row = e.target.closest('.tp[data-tab]'), head = row ? null : e.target.closest('.th[data-trail]');
+  if (!row && !head) return;
+  const mod = e.ctrlKey || e.metaKey || e.shiftKey;
+  if (row && mod) { e.stopPropagation(); pickRows(Number(row.dataset.tab), e.shiftKey); }   // picking, not switching
+  else if (row && !picked.has(Number(row.dataset.tab))) clearPicked();
+  dgPress = { x: e.clientX, y: e.clientY, kind: row ? 'tab' : 'trail', id: Number(row ? row.dataset.tab : head.dataset.trail), el: row || head, pointerId: e.pointerId, mod };
+}, true);
+window.addEventListener('pointermove', (e) => {
+  if (dragging) { if (e.pointerId === dragging.pointerId) { dragging.cx = e.clientX; dragging.cy = e.clientY; dgAim(); } return; }
+  if (!dgPress || e.pointerId !== dgPress.pointerId) return;
+  if (!(e.buttons & 1)) { dgPress = null; return; }
+  if (Math.hypot(e.clientX - dgPress.x, e.clientY - dgPress.y) < DG_START) return;
+  dgStart(e);
+});
+window.addEventListener('pointerup', (e) => {
+  if (dgPress && e.pointerId === dgPress.pointerId) {
+    // A plain click on one of the picked tabs: just that tab now, as everywhere else.
+    if (!dgPress.mod && dgPress.kind === 'tab') clearPicked();
+    dgPress = null;
+    return;
+  }
+  if (!dragging || e.pointerId !== dragging.pointerId) return;
+  dragging.cx = e.clientX; dragging.cy = e.clientY;
+  dgFinish(true);
+});
+window.addEventListener('pointercancel', () => { dgPress = null; if (dragging) dgFinish(false); });
+window.addEventListener('blur', () => { if (dragging) dgFinish(false); });
+// Esc puts it back. Taken first, so nothing else closes on the same press.
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (dragging) { e.preventDefault(); e.stopImmediatePropagation(); dgFinish(false); return; }
+  dgPress = null;
+  clearPicked();
+}, true);
+// A drag is never also a click (a heading's name would open for renaming).
+window.addEventListener('click', (e) => { if (dgSwallow) { dgSwallow = false; e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+document.addEventListener('scroll', () => { if (dragging) dgAim(); }, true);
+
+function dgStart(e) {
+  const p = dgPress; dgPress = null;
+  // A loading tab's row is redrawn as its page comes in, so the row he pressed may be a new one by now.
+  if (!p.el.isConnected) p.el = p.kind === 'tab' ? rows.get(p.id)?.el : tabsBox.querySelector(`:scope > .th[data-trail="${p.id}"]`);
+  if (!p.el?.isConnected) return;
+  const r = p.el.getBoundingClientRect();
+  const d = { kind: p.kind, grab: p.id, pointerId: p.pointerId, x0: p.x, cx: e.clientX, cy: e.clientY, dx: p.x - r.left, dy: p.y - r.top,
+    gap: Math.min(Math.round(r.height) + 9, 58), depth0: Number(p.el.dataset.depth) || 0, ids: [], lift: [], mock: false, canKid: true, target: null, springEl: null, springT: 0, raf: 0 };
+  if (p.kind === 'tab') {
+    d.mock = Boolean(dgTab(p.id)?.mock);
+    const ids = (picked.has(p.id) && picked.size > 1 ? pickedInOrder() : [p.id]).filter((id) => dgTab(id) && Boolean(dgTab(id).mock) === d.mock);
+    if (!d.mock) {
+      // A tab carries the tabs under it, right behind it.
+      for (const id of ids) {
+        if (d.ids.includes(id)) continue;
+        d.ids.push(id);
+        const t = dgTab(id);
+        if (t.trail != null) for (const k of state.tabs) if (k.opener === id && k.trail === t.trail && !k.done && !d.ids.includes(k.id) && !ids.includes(k.id)) d.ids.push(k.id);
+      }
+      d.lift = [...d.ids];
+    } else {
+      // A mockup's children follow it in the mockups' own tree; they are only lifted with it here.
+      d.ids = ids; d.lift = [...ids];
+      const sheets = new Set(ids.map((id) => dgTab(id).mock.sheet));
+      for (const k of state.tabs) if (k.mock?.parent && sheets.has(k.mock.parent) && !d.lift.includes(k.id)) d.lift.push(k.id);
+      d.canKid = ids.every((id) => !(Number(dgTab(id).mock.kids) > 0));
+    }
+  } else {
+    d.ids = [p.id];
+    d.lift = state.tabs.filter((t) => t.trail === p.id).map((t) => t.id);
+  }
+  // The ghost: the row itself, lifted off the wood, with how many go when it is several.
+  const g = p.el.cloneNode(true);
+  for (const k of Object.keys(g.dataset)) delete g.dataset[k];
+  g.classList.remove('lifted', 'onto', 'picked', 'spring');
+  g.classList.add('dragghost');
+  g.removeAttribute('tabindex');
+  g.style.width = r.width + 'px';
+  if (p.kind === 'tab' && d.ids.length > 1) g.append(Object.assign(document.createElement('b'), { className: 'dgcount', textContent: String(d.ids.length) }));
+  d.ghost = g;
+  dragging = d;
+  closeTabMenu();
+  try { tabsBox.setPointerCapture(p.pointerId); } catch { /* a pointer the page did not see go down: the window still sends its moves */ }
+  tabsBox.style.setProperty('--dggap', d.gap + 'px');
+  tabsBox.classList.add('dragging');
+  document.documentElement.classList.add('rowdrag');
+  tabsBox.append(g);
+  dgLift();
+  dgAim();
+  const roll = () => { if (dragging !== d) return; dgEdgeScroll(d); d.raf = requestAnimationFrame(roll); };
+  d.raf = requestAnimationFrame(roll);
+}
+function dgLift() {
+  const d = dragging;
+  if (d.kind === 'trail') { for (const n of tabsBox.children) if (n.dataset.trail === String(d.grab)) n.classList.add('lifted'); return; }
+  for (const id of d.lift) rows.get(id)?.el.classList.add('lifted');
+}
+/** Near the top or bottom edge of the list, it scrolls: faster the closer he is to the edge. */
+function dgEdgeScroll(d) {
+  const sc = tabsBox.closest('.drawer');
+  if (!sc || sc.scrollHeight <= sc.clientHeight) return;
+  const r = sc.getBoundingClientRect();
+  let v = 0;
+  if (d.cy < r.top + DG_EDGE) v = -Math.min(1, (r.top + DG_EDGE - d.cy) / DG_EDGE);
+  else if (d.cy > r.bottom - DG_EDGE) v = Math.min(1, (d.cy - (r.bottom - DG_EDGE)) / DG_EDGE);
+  if (!v) return;
+  const was = sc.scrollTop;
+  sc.scrollTop += v * 14;
+  if (sc.scrollTop !== was) dgAim();
+}
+/** The rows and headings as they stand now (with the gap's slide), the moving ones left out: the places to land. */
+function dgSlots() {
+  const out = [];
+  for (const n of tabsBox.children) {
+    if (n.classList.contains('lifted') || n.classList.contains('dragghost') || n === dropMark) continue;
+    const top = n.offsetTop + (dgShift.get(n) || 0), h = n.offsetHeight;
+    if (n.matches('.tp[data-tab]')) out.push({ n, top, h, type: 'tab', id: Number(n.dataset.tab), trail: n.dataset.trail === '' ? null : Number(n.dataset.trail),
+      depth: Number(n.dataset.depth) || 0, sheet: n.dataset.mock || '', branch: n.dataset.mbranch ? Number(n.dataset.mbranch) : null });
+    else if (n.matches('.th[data-trail]')) out.push({ n, top, h, type: 'head', trail: Number(n.dataset.trail), shut: n.classList.contains('shut') });
+    else if (n.matches('.bh[data-branch]')) out.push({ n, top, h, type: 'branch', trail: DG_MOCK, branch: Number(n.dataset.branch), shut: n.classList.contains('folded') });
+    else if (n.matches('.mhist')) out.push({ n, top, h, type: 'end' });
+    else if (n.matches('#doneshelf, .th.driver')) { out.push({ n, top, h, type: 'stop' }); break; }
+  }
+  return out;
+}
+/** Where a tab let go here lands: onto a row or heading, or into a gap at a depth. Null: nowhere. */
+function dgAimTab(y) {
+  const d = dragging, S = dgSlots();
+  const want = d.depth0 + Math.round((d.cx - d.x0) / DG_INDENT);
+  for (const s of S) {
+    if (y < s.top || y >= s.top + s.h) continue;
+    if (s.type === 'head' || s.type === 'branch') {
+      // On a heading: into that trail (at its end) or that branch; the MOCKUPS heading makes a mockup top level.
+      const mockHead = s.trail === DG_MOCK;
+      if (mockHead !== d.mock) return null;
+      if (!d.mock) return { kind: 'onto', el: s.n, spring: s.shut ? s : null, act: { act: 'place', tabs: d.ids, trail: s.trail, before: null, parent: null } };
+      return { kind: 'onto', el: s.n, spring: s.shut ? s : null, mock: true, parentSheet: null, branch: s.type === 'branch' ? s.branch : null, reorder: false };
+    }
+    if (s.type === 'tab' && s.depth === 0 && y > s.top + s.h * 0.28 && y < s.top + s.h * 0.72) {
+      // The middle of a top row: it becomes that row's child.
+      if (d.mock && s.trail === DG_MOCK && s.sheet && d.canKid) return { kind: 'onto', el: s.n, mock: true, parentSheet: s.sheet, branch: s.branch, reorder: false };
+      if (!d.mock && s.trail !== null && s.trail !== DG_MOCK) {
+        let before = null;
+        for (let k = S.indexOf(s) + 1; k < S.length; k++) { const z = S[k]; if (z.type === 'tab' && z.trail === s.trail && z.depth === 1) continue; if (z.type === 'tab' && z.trail === s.trail) before = z.id; break; }
+        return { kind: 'onto', el: s.n, act: { act: 'place', tabs: d.ids, trail: s.trail, before, parent: s.id } };
+      }
+    }
+    break;
+  }
+  // Between rows: the gap before the first row whose middle is below the pointer.
+  let g = S.findIndex((s) => y < s.top + s.h / 2);
+  if (g < 0) g = S.length;
+  if (S[g - 1]?.type === 'stop') g--;
+  const prev = S[g - 1], next = S[g];
+  const ctx = !prev ? { trail: null, branch: null } : prev.type === 'tab' ? { trail: prev.trail, branch: prev.branch }
+    : prev.type === 'head' ? { trail: prev.trail, branch: null } : prev.type === 'branch' ? { trail: DG_MOCK, branch: prev.branch } : null;
+  if (!ctx || (ctx.trail === DG_MOCK) !== d.mock) return null;
+  const same = (s) => s && s.type === 'tab' && s.trail === ctx.trail;
+  let lo = 0, hi = 0;
+  if (ctx.trail !== null) { hi = same(prev) && (!d.mock || d.canKid) ? 1 : 0; lo = same(next) && next.depth === 1 ? 1 : 0; }
+  if (lo > hi) return null;
+  const depth = Math.max(lo, Math.min(hi, want));
+  let parent = null;
+  if (depth) for (let k = g - 1; k >= 0 && same(S[k]); k--) if (S[k].depth === 0) { parent = S[k]; break; }
+  if (depth && !parent) return null;
+  const before = same(next) ? next.id : null;
+  const top = prev ? prev.n.offsetTop + prev.h : 0;
+  const lineY = next ? (top + next.n.offsetTop + d.gap) / 2 : top + 5;
+  const t = { kind: 'gap', from: next?.n ?? null, lineY, depth };
+  if (d.mock) return { ...t, mock: true, parentSheet: depth ? parent.sheet : null, branch: ctx.branch, before, reorder: true };
+  return { ...t, act: { act: 'place', tabs: d.ids, trail: ctx.trail, before, parent: depth ? parent.id : null } };
+}
+/** Where a trail let go here lands: before the heading below the pointer, or last. */
+function dgAimTrail(y) {
+  const d = dragging, kids = [...tabsBox.children].filter((n) => n !== dropMark && !n.classList.contains('dragghost'));
+  const heads = kids.filter((n) => n.matches('.th[data-trail]') && !n.classList.contains('lifted'));
+  const at = heads.find((n) => y < n.offsetTop + (dgShift.get(n) || 0) + n.offsetHeight / 2) ?? null;
+  const from = at ?? kids.find((n) => n.matches('#doneshelf, .th.driver')) ?? null;
+  const i = from ? kids.indexOf(from) : kids.length;
+  const prev = kids[i - 1];
+  const top = prev ? prev.offsetTop + prev.offsetHeight : 0;
+  return { kind: 'gap', from, lineY: from ? (top + from.offsetTop + d.gap) / 2 : top + 5, depth: 0, before: at ? Number(at.dataset.trail) : null };
+}
+function dgAim() {
+  const d = dragging;
+  if (!d) return;
+  const box = tabsBox.getBoundingClientRect();
+  const x = d.cx - box.left, y = d.cy - box.top;
+  d.ghost.style.transform = `translate(${Math.round(x - d.dx)}px,${Math.round(y - d.dy)}px) rotate(-1.2deg)`;
+  const inside = d.cx >= 0 && d.cy >= 0 && d.cx <= innerWidth && d.cy <= innerHeight;
+  const t = inside ? (d.kind === 'trail' ? dgAimTrail(y) : dgAimTab(y)) : null;
+  d.target = t;
+  for (const n of tabsBox.querySelectorAll('.onto')) if (n !== t?.el) n.classList.remove('onto');
+  dgSpring(t?.spring ?? null);
+  if (!t) { dropMark.remove(); dgGap(null); return; }
+  if (t.kind === 'onto') { t.el.classList.add('onto'); dropMark.remove(); return; }   // the gap stays where it was: no jumping under him
+  dgGap(t.from);
+  const left = t.depth * DG_INDENT + 4;
+  dropMark.style.transform = `translate(${left}px,${Math.round(t.lineY - 2)}px)`;
+  dropMark.style.width = Math.max(40, tabsBox.clientWidth - left - 4) + 'px';
+  dropMark.classList.toggle('d1', t.depth > 0);
+  if (!dropMark.isConnected) tabsBox.append(dropMark);
+}
+/** The rows from this one down slide apart by one row's height; the rest slide back. */
+function dgGap(from) {
+  let on = false;
+  for (const n of tabsBox.children) {
+    if (n === dropMark || n.classList.contains('dragghost')) continue;
+    if (n === from) on = true;
+    const want = on && from ? dragging.gap : 0;
+    if ((dgShift.get(n) || 0) === want) continue;
+    if (want) dgShift.set(n, want); else dgShift.delete(n);
+    n.style.transform = want ? `translateY(${want}px)` : '';
+  }
+}
+/** Hovering a folded trail or branch: after 600 ms it opens (a gold line fills under it while he waits). */
+function dgSpring(s) {
+  const d = dragging;
+  if (d.springEl === (s?.n ?? null)) return;
+  clearTimeout(d.springT);
+  d.springEl?.classList.remove('spring');
+  d.springEl = s?.n ?? null;
+  if (!s) return;
+  s.n.classList.add('spring');
+  d.springT = setTimeout(() => {
+    if (dragging !== d || d.springEl !== s.n) return;
+    s.n.classList.remove('spring');
+    if (s.type === 'branch') window.samara?.browserMockup?.({ act: 'bfold', id: s.branch });
+    else window.samara?.browserTrail?.({ act: 'trail', id: s.trail, what: 'collapse' });
+  }, DG_SPRING);
+}
+function dgFinish(drop) {
+  const d = dragging;
+  if (!d) return;
+  cancelAnimationFrame(d.raf); clearTimeout(d.springT);
+  if (drop) dgAim();
+  const t = drop ? d.target : null;
+  const outside = drop && (d.cx < 0 || d.cy < 0 || d.cx > innerWidth || d.cy > innerHeight);
+  const was = rowSpots();
+  dragging = null;
+  try { tabsBox.releasePointerCapture(d.pointerId); } catch { /* already gone */ }
+  d.ghost.remove(); dropMark.remove();
+  for (const n of tabsBox.querySelectorAll('.onto, .lifted, .spring')) n.classList.remove('onto', 'lifted', 'spring');
+  tabsBox.classList.remove('dragging');
+  document.documentElement.classList.remove('rowdrag');
+  for (const n of tabsBox.children) { dgShift.delete(n); n.style.transform = ''; }
+  dgSwallow = true; setTimeout(() => { dgSwallow = false; }, 0);
+  // Let go outside the window (2026-10-13): it becomes its own window, like Chrome, or joins the one under it.
+  if (outside && d.kind === 'tab') { window.samara?.browserTearOut?.(d.grab); return; }
+  if (t) { dgSend(d, t); clearPicked(); }
+  flipUntil = performance.now() + 900;
+  glide(was);
+}
+function dgSend(d, t) {
+  if (d.kind === 'trail') { window.samara?.browserTrail?.({ act: 'movetrail', id: d.grab, before: t.before }); return; }
+  if (!t.mock) { window.samara?.browserTrail?.(t.act); return; }
+  // A mockup's place in the tree is the mockups' own (kept in mockups.json with its history); its order is the tab list's.
+  const sheets = new Set(d.ids.map((id) => dgTab(id)?.mock?.sheet));
+  for (const id of d.ids) {
+    const m = dgTab(id)?.mock;
+    if (!m || (m.parent && sheets.has(m.parent))) continue;   // it follows its parent
+    if (t.parentSheet) { if (m.parent !== t.parentSheet) window.samara?.browserMockup?.({ act: 'parent', sheet: m.sheet, to: t.parentSheet }); }
+    else if (t.branch == null) { if (m.parent || m.branch != null) window.samara?.browserMockup?.({ act: 'top', sheet: m.sheet }); }
+    else if (m.parent || m.branch !== t.branch) window.samara?.browserMockup?.({ act: 'branch', sheet: m.sheet, to: t.branch });
+  }
+  if (t.reorder) window.samara?.browserTrail?.({ act: 'place', tabs: d.ids, trail: DG_MOCK, before: t.before, parent: null });
+}
+
+// ---- downloads (2026-10-12): the key pops in only while the tray has something; a finished
+// download drops the tray open for a few seconds (it stays while the mouse is on it); a file drags out anywhere.
+const dlkey = el('dlkey'), dltray = el('dltray'), dlrows = el('dlrows');
+let dls = [], dlOpen = false, dlAuto = null, dlHover = false;
+const SVG_FOLDER = '<svg viewBox="0 0 8 7" width="16" height="14" shape-rendering="crispEdges" aria-hidden="true"><path d="M0 0h3v1h5v6H0z"/></svg>';
+const SVG_X = '<svg viewBox="0 0 7 7" width="12" height="12" shape-rendering="crispEdges" aria-hidden="true"><path d="M0 0h2v1H0zM5 0h2v1H5zM0 1h3v1H0zM4 1h3v1H4zM1 2h5v1H1zM2 3h3v1H2zM1 4h5v1H1zM0 5h3v1H0zM4 5h3v1H4zM0 6h2v1H0zM5 6h2v1H5z"/></svg>';
+const EXT = { zip: 'ZIP', pdf: 'PDF', img: 'IMG', exe: 'EXE', doc: 'DOC', av: 'A/V', file: 'FILE' };
+function mb(n) { return n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : n >= 1e3 ? Math.round(n / 1e3) + ' KB' : (n || 0) + ' B'; }
+function ago(t) {
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 50) return 'just now';
+  if (s < 3600) return Math.round(s / 60) + ' min ago';
+  return Math.round(s / 3600) + ' h ago';
+}
+function badge(kind) {
+  const b = Object.assign(document.createElement('i'), { className: 'fb ' + (EXT[kind] ? kind : 'file') });
+  b.append(Object.assign(document.createElement('b'), { textContent: EXT[kind] ?? 'FILE' }));
+  return b;
+}
+function paintDls() {
+  dlrows.replaceChildren();
+  for (const d of dls) {
+    const row = Object.assign(document.createElement('div'), { className: 'drow' + (d.state === 'going' ? ' going' : '') + (d.gone || d.state === 'stopped' || d.state === 'failed' ? ' gone' : '') });
+    const t = Object.assign(document.createElement('span'), { className: 'dt' });
+    t.append(Object.assign(document.createElement('b'), { textContent: d.name }));
+    if (d.state === 'going') {
+      const pct = d.total > 0 ? Math.min(100, Math.round((d.got / d.total) * 100)) : 0;
+      const bar = Object.assign(document.createElement('span'), { className: 'bar' });
+      bar.append(Object.assign(document.createElement('i'), { style: `width:${d.total > 0 ? pct : 30}%` }));
+      const left = d.left == null ? '' : d.left < 60 ? ` · ${d.left} s left` : ` · ${Math.ceil(d.left / 60)} min left`;
+      t.append(bar, Object.assign(document.createElement('small'), { textContent: d.total > 0 ? `${pct}% · ${mb(d.got)} of ${mb(d.total)}${left}` : `${mb(d.got)} so far` }));
+      const x = Object.assign(document.createElement('button'), { type: 'button', className: 'dx', title: 'Stop', innerHTML: SVG_X });
+      x.addEventListener('click', (e) => { e.stopPropagation(); window.samara?.browserDl?.({ act: 'stop', id: d.id }); });
+      row.append(badge(d.kind), t, x);
+    } else {
+      const why = d.gone ? 'Moved or deleted' : d.state === 'stopped' ? 'Stopped' : d.state === 'failed' ? 'Did not finish' : `${mb(d.size)}${d.site ? ' · ' + d.site : ''} · ${ago(d.at)}`;
+      t.append(Object.assign(document.createElement('small'), { textContent: why }));
+      row.append(badge(d.kind), t);
+      if (!row.classList.contains('gone')) {
+        const f = Object.assign(document.createElement('button'), { type: 'button', className: 'dx', title: 'Show in folder', innerHTML: SVG_FOLDER });
+        f.addEventListener('click', (e) => { e.stopPropagation(); closeDl(); window.samara?.browserDl?.({ act: 'show', id: d.id }); });
+        row.append(f);
+        row.title = 'Click to open. Drag it into Claude, the companion, a folder or the desktop.';
+        row.draggable = true;
+        row.addEventListener('dragstart', (e) => { e.preventDefault(); window.samara?.browserDlDrag?.(d.id); });
+        row.addEventListener('click', () => { closeDl(); window.samara?.browserDl?.({ act: 'open', id: d.id }); });
+      }
+    }
+    dlrows.append(row);
+  }
+  // The key's ring fills while a download is coming in.
+  const going = dls.filter((d) => d.state === 'going' && d.total > 0);
+  const ring = el('dlring');
+  ring.hidden = !going.length;
+  if (going.length) ring.style.setProperty('--p', Math.round(going.reduce((a, d) => a + d.got, 0) / going.reduce((a, d) => a + d.total, 0) * 100) + '%');
+}
+function openDl(auto = false) {
+  if (!dls.length) return;
+  if (!dlOpen) {
+    if (!auto) { closeMenu(); closeDrawer(); }
+    dlOpen = true;
+    dlkey.setAttribute('aria-expanded', 'true');
+    dltray.hidden = false;
+    freeze('dl');
+  }
+  clearTimeout(dlAuto); dlAuto = null;
+  if (auto) dlAuto = setTimeout(function fold() { if (dlHover) { dlAuto = setTimeout(fold, 1500); return; } closeDl(); }, 5000);
+}
+function closeDl() {
+  clearTimeout(dlAuto); dlAuto = null;
+  if (!dlOpen) return;
+  dlOpen = false;
+  dlkey.setAttribute('aria-expanded', 'false');
+  dltray.hidden = true;
+  unfreeze('dl');
+}
+dltray.addEventListener('mouseenter', () => { dlHover = true; });
+dltray.addEventListener('mouseleave', () => { dlHover = false; });
+dltray.addEventListener('click', (e) => e.stopPropagation());
+dlkey.addEventListener('click', (e) => { e.stopPropagation(); dlkey.classList.remove('glow'); dlOpen && !dlAuto ? closeDl() : openDl(); });
+el('dlfolder').addEventListener('click', () => { closeDl(); window.samara?.browserDl?.({ act: 'folder' }); });
+el('dlall').addEventListener('click', () => { closeDl(); window.samara?.browserDl?.({ act: 'page' }); });
+el('dlclear').addEventListener('click', () => { closeDl(); window.samara?.browserDl?.({ act: 'clear' }); });
+document.addEventListener('click', () => { if (dlOpen && !dlAuto) closeDl(); });
+page.addEventListener('pointerdown', () => closeDl());
+window.samara?.onBrowserDls?.((d) => {
+  dls = Array.isArray(d?.items) ? d.items : [];
+  const show = dls.length > 0;
+  dlkey.classList.toggle('away', !show);
+  dlkey.tabIndex = show ? 0 : -1;
+  if (!show) { dlkey.classList.remove('glow'); closeDl(); return; }
+  paintDls();
+  // Sheet 106: a finished download is a notice dropping from this key now; the key only glows (the tray opens on a click).
+  if (d.pop) { dlkey.classList.add('glow'); setTimeout(() => dlkey.classList.remove('glow'), 1600); }
+});
+window.samara?.browserDlHello?.();
+
+// ---- the gold bar (2026-10-12 from the research): 8% the moment he clicks, real steps as the site
+// answers (35%), the page is read (55%) and first draws (70%); a creep between, never past 90% and never stalling;
+// done: a quick sweep to full, a moment, a fade. Nothing moving for 5 s: the stripes speed up. A failure dulls it.
+const barEl = loading.querySelector('i');
+const ringWas = new Map();
+let bar = { id: null, on: false, v: 0, real: 0, lastStep: 0 }, creepT = null, doneT = null;
+function barTo(v, ms = 250, ease = 'cubic-bezier(.2,0,0,1)') {
+  bar.v = Math.min(1, Math.max(bar.v, v));
+  barEl.style.transition = `transform ${ms}ms ${ease}, opacity 140ms`;
+  barEl.style.opacity = '1';
+  loading.classList.add('run');
+  barEl.style.transform = `translateX(${((bar.v - 1) * 100).toFixed(2)}%)`;
+}
+function barHide(now = false) {
+  clearInterval(creepT); creepT = null; clearTimeout(doneT);
+  bar.on = false; loading.classList.remove('slow');
+  if (now) { barEl.style.transition = 'none'; barEl.style.opacity = '0'; barEl.style.transform = 'translateX(-100%)'; bar.v = 0; loading.classList.remove('fail', 'run'); return; }
+  barEl.style.transition = 'opacity 200ms'; barEl.style.opacity = '0';
+  doneT = setTimeout(() => { barEl.style.transition = 'none'; barEl.style.transform = 'translateX(-100%)'; bar.v = 0; loading.classList.remove('fail', 'run'); }, 220);
+}
+function barStart(id, v) {
+  clearTimeout(doneT); loading.classList.remove('fail', 'slow');
+  barEl.style.transition = 'none'; barEl.style.transform = 'translateX(-100%)'; bar.v = 0;
+  bar = { id, on: true, v: 0, real: v, lastStep: performance.now() };
+  void barEl.offsetWidth;
+  barTo(Math.max(0.08, v), 120);
+  clearInterval(creepT);
+  creepT = setInterval(() => {
+    if (!bar.on) return;
+    if (bar.v < 0.9) barTo(bar.v + (0.9 - bar.v) * 0.035, 400, 'linear');
+    loading.classList.toggle('slow', performance.now() - bar.lastStep > 5000);
+  }, 200);
+}
+function barFor(t) {
+  const phase = t ? (t.phase ?? (t.loading ? 'loading' : 'idle')) : 'idle';
+  const prog = Number(t?.prog) || 0;
+  if (!t || t.id !== bar.id) {                 // another tab is in front: show its own state, no animation from the last
+    if (phase === 'idle' || !t) { barHide(true); bar.id = t?.id ?? null; return; }
+    barStart(t.id, prog); return;
+  }
+  if (phase === 'idle') {
+    if (!bar.on) return;
+    if (t.failed) { loading.classList.add('fail'); clearInterval(creepT); creepT = null; bar.on = false; barEl.style.transition = 'opacity 300ms'; barEl.style.opacity = '0'; doneT = setTimeout(() => barHide(true), 320); return; }
+    clearInterval(creepT); creepT = null; bar.on = false;
+    barTo(1, 150, 'cubic-bezier(.5,0,1,1)');    // speeds up into the end
+    doneT = setTimeout(() => barHide(false), 300);
+    return;
+  }
+  if (!bar.on || prog < bar.real - 0.01) { barStart(t.id, prog); return; }   // a new page started
+  if (prog > bar.real) { bar.real = prog; bar.lastStep = performance.now(); loading.classList.remove('slow'); barTo(prog, 250); }
+}
+// ---- Reload / Stop
+let reloadMode = 'reload', reloadAt = 0, reloadHover = false, reloadLater = null;
+const reloadBtn = el('reload');
+reloadBtn.addEventListener('pointerenter', () => { reloadHover = true; });
+reloadBtn.addEventListener('pointerleave', () => { reloadHover = false; if (reloadLater) { const w = reloadLater; reloadLater = null; reloadWant(w); } });
+reloadBtn.addEventListener('click', (e) => { if (reloadMode === 'stop' && performance.now() - reloadAt < 500) e.stopImmediatePropagation(); }, true);
+function reloadWant(busy) {
+  const want = busy ? 'stop' : 'reload';
+  if (want === reloadMode) { reloadLater = null; return; }
+  // Stop turning back into Reload under a resting mouse would make his next click a reload he did not mean.
+  if (!busy && reloadHover && performance.now() - reloadAt < 1350) { reloadLater = false; setTimeout(() => { if (reloadLater === false) { reloadLater = null; reloadWant(false); } }, 1350); return; }
+  reloadMode = want; reloadAt = performance.now();
+  reloadBtn.dataset.mode = want;
+  reloadBtn.innerHTML = busy ? STOPGLYPH : RELOADGLYPH;
+  reloadBtn.setAttribute('aria-label', busy ? 'Stop loading' : 'Reload');
+}
+
+// ---- 6.25a: the companion's and Claude sessions' own trails: their icon, their pages, and the brick-red STOP while they work.
+const CLAUDE_IC = '<svg viewBox="0 0 9 9" width="16" height="16" shape-rendering="crispEdges" aria-hidden="true"><path d="M4 0h1v3H4zM4 6h1v3H4zM0 4h3v1H0zM6 4h3v1H6zM1 1h1v1H1zM2 2h1v1H2zM7 1h1v1H7zM6 2h1v1H6zM1 7h1v1H1zM2 6h1v1H2zM7 7h1v1H7zM6 6h1v1H6zM3 3h3v3H3z" fill="#E07A4F"/></svg>';
+const STOP_IC = '<svg viewBox="0 0 7 7" width="12" height="12" shape-rendering="crispEdges" aria-hidden="true"><path d="M1 1h5v5H1z" fill="#ffe4dc"/></svg>';
+function driverIcon(kind) {
+  const ic = Object.assign(document.createElement('span'), { className: 'who-ic' });
+  if (kind === 'claude') ic.innerHTML = CLAUDE_IC;
+  else ic.append(Object.assign(document.createElement('img'), { src: 'art/samara/samara-lantern-64.png', alt: '' }));
+  return ic;
+}
+const stopArmed = new Map();
+function stopKey(jobId, big = false) {
+  const b = Object.assign(document.createElement('button'), { type: 'button', className: 'stopk' + (big ? ' big' : ''), title: 'Stop', innerHTML: STOP_IC });
+  b.setAttribute('aria-label', 'Stop');
+  // Two presses: the first turns it into "Stop?" for 3 seconds, the second stops. A slow redraw once put the key
+  // under his pointer and a job stopped that he never meant to (2026-10-14). The armed state outlives a redraw.
+  // Sheet 111: it stops every tab of the job, so it says so.
+  if (stopArmed.get(jobId) > Date.now()) { b.classList.add('armed'); b.textContent = 'STOP ALL?'; }
+  b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if ((stopArmed.get(jobId) ?? 0) > Date.now()) { stopArmed.delete(jobId); window.samara?.browserDriver?.({ act: 'stop', id: jobId }); return; }
+    stopArmed.set(jobId, Date.now() + 3000); b.classList.add('armed'); b.textContent = 'STOP ALL?';
+    setTimeout(() => { if (!((stopArmed.get(jobId) ?? 0) > Date.now())) { b.classList.remove('armed'); b.innerHTML = STOP_IC; } }, 3100);
+  });
+  return b;
+}
+function driverNodes() {
+  const out = [];
+  for (const j of Array.isArray(state.drivers) ? state.drivers : []) {
+    const h = document.createElement('div'); h.className = 'th driver';
+    const nm = Object.assign(document.createElement('span'), { className: 'nm', textContent: j.name });
+    const n = Object.assign(document.createElement('span'), { className: 'n', textContent: `${j.pages.length} TAB${j.pages.length === 1 ? '' : 'S'}` });
+    const more = Object.assign(document.createElement('button'), { type: 'button', className: 'thm', textContent: '\u00d7', title: 'Close these' });
+    more.addEventListener('click', (e) => { e.stopPropagation(); window.samara?.browserDriver?.({ act: 'close', id: j.id }); });
+    h.append(driverIcon(j.kind), nm, n);
+    if (j.working) h.append(stopKey(j.id)); else h.append(more);
+    out.push(h);
+    for (const p of j.pages) {
+      const row = document.createElement('div');
+      // Sheet 111: a Claude page is a real tab (p.tab): lit when he is in it, resting (no breath) while he has it or the
+      // job is not working, and draggable out into his own tabs like any row.
+      const real = Number.isInteger(p.tab);
+      const on = real ? state.active === p.tab : state.watching?.page === p.id;
+      row.className = 'tp drv ' + (j.kind === 'claude' ? 'by-claude' : 'by-companion') + (on ? ' on' : '') + (p.held ? ' held' : '') + (j.working ? '' : ' idle');
+      row.title = p.url; row.tabIndex = 0;
+      if (real) { row.dataset.tab = String(p.tab); row.dataset.trail = ''; row.dataset.depth = '0'; row.dataset.parent = ''; }
+      if (p.favicon) { const i = document.createElement('img'); i.className = 'fi'; i.alt = ''; i.src = p.favicon; i.referrerPolicy = 'no-referrer'; i.onerror = () => i.remove(); row.append(i); }
+      row.append(Object.assign(document.createElement('span'), { className: 't', textContent: p.title || p.url }));
+      if (p.held) row.append(Object.assign(document.createElement('span'), { className: 'dupchip held', textContent: 'YOU HAVE IT' }));
+      // Sheet 110 v3 (2026-10-31): whose tab it is, at the end of the row where his own tabs have the close key.
+      const own = driverIcon(j.kind); own.className = 'own'; row.append(own);
+      if (real) row.addEventListener('click', () => window.samara?.browserDriver?.({ act: 'show', id: p.id }));
+      else {
+        row.addEventListener('click', () => window.samara?.browserDriver?.({ act: 'watch', id: p.id }));
+        row.addEventListener('dblclick', () => window.samara?.browserDriver?.({ act: 'open', id: p.id }));
+      }
+      out.push(row);
+    }
+  }
+  return out;
+}
+// The live picture while he watches one of the companion's pages; the address bar says who is driving, with STOP.
+const watchpic = el('watchpic');
+window.samara?.onBrowserWatch?.((src) => {
+  if (typeof src === 'string' && src.startsWith('data:image/')) { watchpic.src = src; watchpic.hidden = false; }
+  else if (src === null) { watchpic.hidden = true; watchpic.removeAttribute('src'); }
+});
+// Sheet 109 (2026-10-30): on his own tab a Claude session drives, the band carries Claude's gem, and
+// Take over before STOP; after Take over (or when Claude gives him the turn) it says YOU HAVE IT, and the hand card
+// (its own layer) hangs from the address bar's end, so the band says where that is.
+const GEM_IC = '<svg viewBox="0 0 11 11" width="22" height="22" shape-rendering="crispEdges" aria-hidden="true"><path d="M3 0h5v1H3zM1 1h2v1H1zM8 1h2v1H8zM0 3h1v5H0zM10 3h1v5H10zM1 2h1v1H1zM9 2h1v1H9zM1 8h1v1H1zM9 8h1v1H9zM1 9h2v1H1zM8 9h2v1H8zM3 10h5v1H3z" fill="#120A05"/><path d="M3 1h5v1H3zM2 2h7v1H2zM1 3h9v5H1zM2 8h7v1H2zM3 9h5v1H3z" fill="#F6F2EA"/><path d="M3 1h3v1H3zM2 2h2v1H2zM1 3h1v2H1z" fill="#ffffff"/><path d="M8 8h1v1H8zM6 9h2v1H6zM9 6h1v2H9z" fill="#cfc6b6"/><path d="M5 2h1v2H5zM5 7h1v2H5zM2 5h2v1H2zM7 5h2v1H7zM3 3h1v1H3zM7 3h1v1H7zM3 7h1v1H3zM7 7h1v1H7zM4 4h3v3H4z" fill="#D97757"/></svg>';
+function takeKey(jobId) {
+  const b = Object.assign(document.createElement('button'), { type: 'button', className: 'takek', textContent: 'Take over' });
+  b.addEventListener('click', (e) => { e.stopPropagation(); window.samara?.browserDriver?.({ act: 'takeover', id: jobId }); });
+  return b;
+}
+let handSpotWas = '';
+function handSpot() {
+  const r = el('slot').getBoundingClientRect(), k = `${Math.round(r.right)},${Math.round(r.bottom)}`;
+  if (k !== handSpotWas) { handSpotWas = k; window.samara?.browserHandSpot?.({ x: Math.round(r.right), y: Math.round(r.bottom) }); }
+}
+window.addEventListener('resize', () => { if (state.driving?.hand) requestAnimationFrame(handSpot); });
+function paintWho() {
+  const w = state.watching || state.driving, who = el('who');
+  who.classList.remove('you');
+  if (!w) { who.hidden = true; who.replaceChildren(); return false; }
+  who.hidden = false;
+  const mine = !state.watching && w.kind === 'claude';
+  if (mine && w.hand) {
+    who.classList.add('you');
+    who.replaceChildren(Object.assign(document.createElement('span'), { className: 'gem', innerHTML: GEM_IC }), 'YOU HAVE IT');
+    requestAnimationFrame(handSpot);
+    return true;
+  }
+  const label = w.kind === 'claude' ? 'CLAUDE IS DRIVING' : 'COMPANION IS DRIVING';
+  const icon = mine ? Object.assign(document.createElement('span'), { className: 'gem', innerHTML: GEM_IC }) : driverIcon(w.kind);
+  who.replaceChildren(icon, label, ...(mine && w.working ? [takeKey(w.job)] : []), ...(w.working ? [stopKey(w.job, true)] : []));
+  if (mine) requestAnimationFrame(handSpot);
+  return true;
+}
+
+// ---- the update key and its tray (sheet 18, then sheet 35, 2026-10-14). The main process sends `update`
+// with the tabs once an update is fully ready: its title ("Version 1.1.0: Gojo"), what it does as groups of lines
+// (some he can leave out), whether there is a last version to go back to, and his overnight setting.
+{
+  const key = el('upkey'), tray = el('uptray'), done = el('updone');
+  // His report (2026-10-27): every update looks like a new app to the Mac's Keychain, which asks once. Said before, not after.
+  el('upkc').hidden = window.samara?.platform !== 'darwin';
+  const kcWords = el('upkc').innerHTML;   // the page's own words (the Keychain note), put back after sheet 114's line
+  let shownFor = null, cur = null;
+  const DAY = 86_400_000;
+  const place = (box, anchor) => { const b = el('band').getBoundingClientRect(), k = anchor.getBoundingClientRect(); box.style.right = Math.max(8, Math.round(b.right - k.right)) + 'px'; };
+  const view = (name) => { for (const [id, v] of [['upmain', 'main'], ['upskip1', 'skip1'], ['upskip2', 'skip2'], ['upvers', 'vers']]) el(id).hidden = v !== name; el('upmenu').hidden = true; el('upmore').setAttribute('aria-expanded', 'false'); };
+  const close = () => { if (tray.hidden) return; tray.hidden = true; key.setAttribute('aria-expanded', 'false'); unfreeze('up'); view('main'); };
+  const choices = {};
+  const T2 = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  // Old messages (a plain engine, or a Mac on yesterday's code) still read: notes and checks become one group.
+  const groupsOf = (u) => Array.isArray(u.groups) && u.groups.length ? u.groups
+    : [{ name: u.title ? 'SAMARA' : "SAMARA'S ENGINE", items: (Array.isArray(u.checks) && u.checks.length ? u.checks : Array.isArray(u.notes) && u.notes.length ? u.notes : ['A newer engine, with the latest fixes.']).map((t) => ({ text: String(t) })) }];
+  const drawList = (box, groups, ticks) => {
+    box.replaceChildren();
+    for (const g of groups) {
+      if (g.name) box.append(T2('div', 'grp', String(g.name)));
+      for (const it of g.items ?? []) {
+        const row = T2('div', 'it' + (ticks && it.key ? ' opt' : ''));
+        const on = ticks && it.key ? choices[it.key] !== false : true;
+        const mark = ticks ? T2('span', 'bx' + (on ? '' : ' off')) : T2('span', 'dot');
+        const words = T2('span', '', String(it.text ?? ''));
+        const note = ticks && it.key ? (on ? 'Click to leave this out.' : 'Left out. Click to put it back in.') : it.note;
+        if (note) words.append(T2('small', '', note));
+        row.append(mark, words);
+        if (ticks && it.key) row.addEventListener('click', (e) => { e.stopPropagation(); choices[it.key] = !(choices[it.key] !== false); drawList(box, groups, true); });
+        box.append(row);
+      }
+    }
+  };
+  window.samara?.onBrowserTabs?.((s) => {
+    const u = s && s.update;
+    // Once, after an update put in by itself overnight: what it did, hanging off the ... key.
+    const d = s && s.updated;
+    if (d && typeof d.title === 'string' && done.hidden && !done.dataset.seen) {
+      el('updonename').textContent = d.title;
+      drawList(el('updonelist'), [{ name: '', items: (Array.isArray(d.lines) ? d.lines : []).map((t) => ({ text: String(t) })) }], false);
+      done.hidden = false; done.dataset.seen = '1'; place(done, el('menukey')); freeze('updone');
+    }
+    if (!u || typeof u.version !== 'string') { key.classList.add('away'); key.tabIndex = -1; close(); shownFor = null; cur = null; return; }
+    cur = u;
+    // His escalation (2026-10-14): gold today; the arrow and word glow turquoise after a day; red after three;
+    // after four it swells out of the band and shakes now and then (never in a call).
+    const days = Math.floor((Date.now() - (Number(u.since) || Date.now())) / DAY);
+    // Phase 2 (2026-11-17): an engine that closes a gap in Chrome's security fixes is red from the start and
+    // goes in by itself tonight (2-5 am, idle, no call or game) unless he restarts first.
+    const sec = u.security === true;
+    key.classList.remove('age0', 'age1', 'age2', 'swell', 'sec');
+    key.classList.add(sec || days >= 3 ? 'age2' : days >= 1 ? 'age1' : 'age0');
+    if (sec) key.classList.add('sec');
+    if (days >= 4 && s.inCall !== true) key.classList.add('swell');
+    key.title = sec ? 'Security fixes ready' : days >= 1 ? `Update ready, waiting ${days} day${days === 1 ? '' : 's'}` : 'Update ready';
+    el('upname').textContent = u.title || 'Engine update';
+    el('upsince').textContent = days >= 1 ? `${days} DAY${days === 1 ? '' : 'S'}` : 'TODAY';
+    for (const g of groupsOf(u)) for (const it of g.items ?? []) if (it.key && !(it.key in choices)) choices[it.key] = it.on !== false;
+    drawList(el('uplist'), groupsOf(u), true);
+    el('upback').hidden = u.canBack !== true;
+    el('upnight').classList.toggle('on', u.overnight === true); el('upnightkey').setAttribute('aria-checked', String(u.overnight === true));
+    const call = s.inCall === true;
+    // Sheet 108 (2026-10-30): castLabs wants him to sign in before the new engine is signed for video (one key,
+    // Terminal opens with the sign-in typed), or Terminal is open; otherwise how far behind Chrome the engine is.
+    const si = u.signin === 'ask' || u.signin === 'waiting' ? u.signin : '';
+    el('upkicker').textContent = si === 'ask' ? 'ONE STEP FROM YOU' : si === 'waiting' ? 'WAITING FOR CASTLABS' : sec ? 'SECURITY FIXES READY' : 'UPDATE READY';
+    const note = el('upnote');
+    note.replaceChildren();
+    if (si === 'ask') note.append('castLabs wants you to sign in before it signs this engine for video. Terminal opens with the sign-in typed. ', T2('b', '', 'Your password goes to castLabs only'), ', never to Samara or the companion.');
+    else if (si === 'waiting') note.append("Finish in Terminal. Samara signs the engine by itself the moment you're in.");
+    else {
+      if (typeof u.behind === 'string' && u.behind) for (const part of u.behind.slice(0, 200).split(/(\d+ weeks?|\d+ days?|less than a day)/)) if (part) note.append(/^(\d+ (weeks?|days?)|less than a day)$/.test(part) ? T2('b', '', part) : part);
+      if (sec && u.tonight === true) note.append(note.childNodes.length ? ' ' : '', 'It goes in by itself ', T2('b', '', 'tonight'), ' while you sleep, unless you restart first.');
+    }
+    note.hidden = !note.childNodes.length;
+    // Sheet 114 (2026-10-31): a newer one getting ready behind this one, in the Keychain note's place.
+    const co = u.coming && typeof u.coming.next === 'string' && typeof u.coming.now === 'string' ? u.coming : null;
+    const kc = el('upkc');
+    if (co) {
+      const next = co.next.slice(0, 60), now = co.now.slice(0, 60);
+      kc.replaceChildren(T2('b', '', `${next.charAt(0).toUpperCase()}${next.slice(1)} is getting ready`), ` behind this one. Restart now puts in ${now}, and ${next} comes to this key when it's ready.`);
+      kc.hidden = false;
+    } else {
+      if (kc.innerHTML !== kcWords) kc.innerHTML = kcWords;
+      kc.hidden = window.samara?.platform !== 'darwin' || !note.hidden;
+    }
+    el('upgo').textContent = si === 'ask' ? 'Sign in to castLabs' : si === 'waiting' ? 'Signing in...' : 'Restart now';
+    el('upgo').disabled = call || si === 'waiting';
+    // Sheet 115 (2026-10-31): it waits while Claude works or a form has typing; after 2 hours it asks.
+    const wt = !call && u.wait && typeof u.wait.b === 'string' ? u.wait : null;
+    el('upwhy').hidden = !call && !wt;
+    if (call) el('upwhy').textContent = "You're in a call. Restart when it's over.";
+    else if (wt) el('upwhy').replaceChildren(T2('b', '', wt.b.slice(0, 80)), String(wt.t ?? '').slice(0, 160));
+    el('uplater').textContent = wt && wt.anyway === true ? 'Keep waiting' : 'Later';
+    if (wt) kc.hidden = true;
+    if (shownFor !== u.version) {
+      shownFor = u.version;
+      key.classList.remove('away'); key.tabIndex = 0;
+      key.classList.add('glow'); setTimeout(() => key.classList.remove('glow'), 1600);
+    }
+  });
+  // The companion's bubble line about an update, clicked (2026-11-01): the same as clicking this key.
+  window.samara?.onOpenUpdate?.(() => { if (cur && tray.hidden) key.click(); });
+  key.addEventListener('click', (e) => { e.stopPropagation(); if (tray.hidden) { closeMenu(); closeDrawer(); closeDl(); view('main'); tray.hidden = false; key.setAttribute('aria-expanded', 'true'); place(tray, key); freeze('up'); } else close(); });
+  el('uplater').addEventListener('click', close);
+  const go = () => {
+    el('upgo').disabled = true;
+    if (cur?.signin === 'ask') { window.samara?.browserUpdateAct?.({ act: 'castlabs' }); return; }
+    window.samara?.browserUpdateGo?.({ ...choices });
+  };
+  el('upgo').addEventListener('click', go);
+  el('upmore').addEventListener('click', (e) => { e.stopPropagation(); const m = el('upmenu'); m.hidden = !m.hidden; el('upmore').setAttribute('aria-expanded', String(!m.hidden)); el('upsafe').hidden = true; });
+  const act = (a, extra = {}) => window.samara?.browserUpdateAct?.({ act: a, ...extra });
+  tray.addEventListener('click', (e) => {
+    const b = e.target.closest?.('[data-up]');
+    if (!b) { if (!el('upmenu').contains(e.target) && e.target !== el('upmore')) el('upmenu').hidden = true; return; }
+    e.stopPropagation();
+    const a = b.dataset.up;
+    if (a === 'safe') { el('upsafe').hidden = !el('upsafe').hidden; return; }
+    if (a === 'skip') { view('skip1'); return; }
+    if (a === 'take') { view('main'); go(); return; }
+    if (a === 'file') { act('file'); close(); return; }
+    if (a === 'skip2') { el('upskip2msg').innerHTML = ''; el('upskip2msg').append(document.createTextNode(`${cur?.title || 'This version'} will be `), T2('b', '', 'gone for good'), document.createTextNode(". You'll only get these fixes when a newer version comes out.")); view('skip2'); return; }
+    if (a === 'forever') { act('skip'); close(); return; }
+    if (a === 'changelog') { act('changelog'); view('vers'); el('uplog').textContent = 'One moment...'; return; }
+    if (a === 'home') { view('main'); return; }
+    if (a === 'back') { act('back'); close(); return; }
+    if (a === 'overnight') { const on = !el('upnight').classList.contains('on'); el('upnight').classList.toggle('on', on); el('upnightkey').setAttribute('aria-checked', String(on)); act('overnight', { on }); return; }
+  });
+  // Every version: the changelog, read here as plain lines (headings stay headings).
+  const showLog = (box, text) => {
+    box.replaceChildren();
+    for (const line of String(text ?? '').split(/\r?\n/)) {
+      if (/^# /.test(line) || !line.trim()) continue;
+      if (/^## /.test(line)) box.append(T2('div', 'grp', line.slice(3)));
+      else if (/^\*.*\*$/.test(line)) box.append(T2('small', 'logday', line.replace(/\*/g, '')));
+      else if (/^- /.test(line)) { const r = T2('div', 'it'); r.append(T2('span', 'dot'), T2('span', '', line.slice(2))); box.append(r); }
+      else box.append(T2('p', 'logp', line));
+    }
+    if (!box.children.length) box.append(T2('p', 'logp', 'No versions written down yet.'));
+  };
+  window.samara?.onBrowserChangelog?.((text) => { showLog(el('uplog'), text); if (!done.hidden) { /* from the overnight drop-down */ } });
+  el('updoneok').addEventListener('click', () => { done.hidden = true; unfreeze('updone'); act('seen'); });
+  el('updonevers').addEventListener('click', () => { done.hidden = true; unfreeze('updone'); act('seen'); view('vers'); tray.hidden = false; place(tray, el('menukey')); freeze('up'); act('changelog'); el('uplog').textContent = 'One moment...'; });
+  window.samara?.onBrowserUpdateWhy?.((why) => { view('main'); el('upwhy').textContent = String(why ?? ''); el('upwhy').hidden = false; el('upgo').disabled = false; });
+  el('m-updates').addEventListener('click', () => { closeMenu(); ckHid = false; act('check'); });
+  // Sheet 122 (2026-11-22: "clicking check for updates freezes the window ... we need an interaction for
+  // that"): what the check is doing, under the ... key. Hide while it works keeps it closed until it ends; closing an
+  // ending (ready, up to date, could not check) is the end of it.
+  const ck = el('upcheck');
+  let ckHid = false, ckStage = '';
+  const FINAL = new Set(['ready', 'none', 'error']);
+  const ckClose = (final) => { if (!ck.hidden) { ck.hidden = true; unfreeze('upcheck'); } if (final) act('checkdone'); else ckHid = true; };
+  window.samara?.onBrowserTabs?.((s) => {
+    const c = s && s.checking;
+    if (!c || typeof c.stage !== 'string') { if (!ck.hidden) { ck.hidden = true; unfreeze('upcheck'); } ckHid = false; ckStage = ''; return; }
+    const st = c.stage, final = FINAL.has(st);
+    if (final) ckHid = false;
+    if (ckHid) return;
+    ckStage = st;
+    const v = typeof c.version === 'string' ? c.version.slice(0, 20) : '';
+    const title = typeof c.title === 'string' && c.title ? c.title.slice(0, 60) : v ? `Samara ${v}` : 'Samara';
+    el('upckick').textContent = { checking: 'CHECKING FOR UPDATES', download: 'GETTING IT READY', setup: 'GETTING IT READY', ready: 'UPDATE READY', none: "YOU'RE UP TO DATE", error: 'COULD NOT CHECK' }[st] ?? 'CHECKING FOR UPDATES';
+    el('upcname').textContent = st === 'none' || st === 'error' || st === 'checking' ? (v ? `Samara ${v}` : 'Samara') : title;
+    const mb = (n) => (Math.max(0, Number(n) || 0) / 1048576).toFixed(1);
+    const line = el('upcline'); line.replaceChildren();
+    if (st === 'checking') line.append('Looking on GitHub for a newer Samara. ', T2('b', '', 'Keep browsing'), ', this never stops your tabs.');
+    else if (st === 'download') line.append('Downloading. ', T2('b', '', `${mb(c.got)} of ${mb(c.total)} MB`));
+    else if (st === 'setup') line.append("Setting it up beside the one you're using. ", T2('b', '', 'About a minute.'));
+    else if (st === 'ready') line.append("Ready to go in. It's on the ", T2('b', '', 'UPDATE'), ' key too.');
+    else if (st === 'none') line.append('This is the newest Samara.');
+    else line.append('GitHub did not answer. ', T2('b', '', 'Try again'), ' in a minute.');
+    const bar = el('upcbar'), fill = bar.querySelector('i');
+    bar.hidden = st === 'none' || st === 'error';
+    bar.classList.toggle('busy', st === 'checking' || st === 'setup');
+    fill.style.width = st === 'download' ? `${Math.round(100 * Math.min(1, (Number(c.got) || 0) / Math.max(1, Number(c.total) || 1)))}%` : st === 'ready' ? '100%' : '';
+    const keys = { checking: [], download: ['Hide'], setup: ['Hide'], ready: ['Restart now', 'Later'], none: ['Got it'], error: ['Try again', 'Close'] }[st] ?? [];
+    el('upca').textContent = keys[0] ?? ''; el('upca').hidden = !keys[0];
+    el('upcb').textContent = keys[1] ?? ''; el('upcb').hidden = !keys[1];
+    el('upcfoot').hidden = !keys.length;
+    if (ck.hidden) { ck.hidden = false; place(ck, el('menukey')); freeze('upcheck'); }
+  });
+  el('upca').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (ckStage === 'download' || ckStage === 'setup') { ckClose(false); return; }
+    if (ckStage === 'error') { act('check'); return; }
+    // Restart now: through the key's own tray, so a "not right now" is said where it always is
+    if (ckStage === 'ready') { ckClose(true); if (cur && tray.hidden) key.click(); go(); return; }
+    ckClose(true);
+  });
+  el('upcb').addEventListener('click', (e) => { e.stopPropagation(); ckClose(true); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !ck.hidden) ckClose(FINAL.has(ckStage)); });
+  document.addEventListener('mousedown', (e) => { if (!ck.hidden && !ck.contains(e.target)) ckClose(FINAL.has(ckStage)); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (!tray.hidden) close(); if (!done.hidden) { done.hidden = true; unfreeze('updone'); act('seen'); } } });
+  document.addEventListener('mousedown', (e) => {
+    if (!tray.hidden && !tray.contains(e.target) && !key.contains(e.target)) close();
+    if (!done.hidden && !done.contains(e.target)) { done.hidden = true; unfreeze('updone'); act('seen'); }
+  });
+}
+
+// ---- Sheet 37: a Claude session's plan, from the band (when no companion bubble shows it). Built with textContent: the task, the
+// steps and the sites are Claude's words.
+let planCard = null;
+const planKeep = new Set();
+function paintPlanTray(c) {
+  planCard = c;
+  el('plantray').hidden = !c;
+  // Over the live page, on a still picture of it, like the update tray.
+  if (!c) { unfreeze('plan'); return; }
+  freeze('plan');
+  planKeep.clear(); for (const x of c.sites) planKeep.add(x.site);
+  el('plantask').textContent = c.task;
+  const sites = el('plansites'); sites.replaceChildren();
+  for (const x of c.sites) {
+    const r = Object.assign(document.createElement('div'), { className: 'prow' });
+    let ic;
+    if (x.favicon) { ic = Object.assign(document.createElement('img'), { alt: '' }); ic.onerror = () => ic.replaceWith(pixIcon('globe', 2) ?? document.createElement('span')); ic.src = x.favicon; }
+    else ic = pixIcon('globe', 2) ?? document.createElement('span');
+    const nm = Object.assign(document.createElement('span'), { className: 'nm', textContent: x.site });
+    const tick = Object.assign(document.createElement('button'), { type: 'button', className: 'tq', title: 'Untick to keep Claude off ' + x.site });
+    tick.setAttribute('aria-pressed', 'true');
+    tick.addEventListener('click', () => { const on = !planKeep.has(x.site); if (on) planKeep.add(x.site); else planKeep.delete(x.site); tick.classList.toggle('off', !on); r.classList.toggle('off', !on); tick.setAttribute('aria-pressed', String(on)); });
+    r.append(ic, nm);
+    if (x.login) r.append(Object.assign(document.createElement('small'), { textContent: 'with your login' }));
+    r.append(Object.assign(document.createElement('span'), { className: 'sp' }), tick);
+    sites.append(r);
+  }
+  const steps = el('plansteps'); steps.replaceChildren();
+  c.steps.forEach((t, i) => { const r = Object.assign(document.createElement('div'), { className: 'prow' }); r.append(Object.assign(document.createElement('span'), { className: 'num', textContent: String(i + 1) }), t); steps.append(r); });
+  el('planwont').hidden = !c.wont; el('planwonttext').textContent = c.wont ? "Won't " + c.wont.replace(/^won.?t\s+/i, '') : '';
+  el('plannote').hidden = true; el('plannote').value = ''; el('plango').textContent = 'Go';
+}
+const wontIcon = document.querySelector('#planwont [data-pix]'); { const svg = pixIcon('wont', 2); if (svg) wontIcon.append(svg); }
+window.samara?.onBrowserPlan?.((c) => paintPlanTray(c && typeof c === 'object' ? c : null));
+el('planchange').addEventListener('click', () => { el('plannote').hidden = false; el('plannote').focus(); el('plango').textContent = 'Send changes'; });
+el('plango').addEventListener('click', () => {
+  if (!planCard) return;
+  const note = el('plannote').hidden ? '' : el('plannote').value.trim();
+  // Change opened and nothing typed: "Send changes" must never count as Go (2026-10-30).
+  if (!el('plannote').hidden && !note) { el('plannote').focus(); return; }
+  window.samara?.browserPlanReply?.(planCard.id, { go: !note, change: !!note, keep: [...planKeep], note });
+  paintPlanTray(null);
+});
+el('planno').addEventListener('click', () => { if (planCard) window.samara?.browserPlanReply?.(planCard.id, { go: false, change: false, keep: [], note: '' }); paintPlanTray(null); });
+
+// C7 Claude's rune (2026-10-21, sheet 50): by the ... key only while a Claude job runs, waits on him, or has finished and
+// he has not said Nice. Its panel is drawn in its own layer over the live page (see below). The tray layer
+// (?tray) has no band, so no rune.
+if (!SOLO && !FLOAT) {
+  // 2026-10-21 (opening it bugged out the browser, worst over a video): its panel no longer freezes the page
+  // or pictures it (no freeze, no peek): it opens in its own see-through layer above the live page (browser.ts runeView).
+  startRune({ slot: el('runeslot'), band: el('band'), closeOthers: () => { closeMenu(); closeDrawer(); closeDl(); } });
+}
+
+// ---------------------------------------------------------------- sheet 89, the TV
+{
+  const ARROW = '<svg width="12" height="12" viewBox="0 0 6 6" shape-rendering="crispEdges" aria-hidden="true"><path fill="#6b5132" d="M0 2h3V0h1v1h1v1h1v2H5v1H4v1H3V4H0z"/></svg>';
+  const tvkey = el('tvkey'), chip = el('tvchip');
+  tvkey.append(pixIcon('video', 2) ?? document.createTextNode('TV'));
+  el('tvtag').prepend(pixIcon('video', 1.5) ?? document.createTextNode(''));
+  el('tvface').append(pixIcon('video', 2) ?? document.createTextNode(''));
+  el('tvto').innerHTML = ARROW;
+  let keys = { yes: '', no: '' }, was = null, tvNow = null, drawn = '';
+  // Sheet 99: the TV icon's screen filling a third per step (pixicons' "video", 10 x 10 at 2x, its own palette)
+  const TV_MAP = ['kkkkkkkkkk', 'kSSSSSSSSk', 'kSSSSSSSSk', 'kSSSSSSSSk', 'kSSSSSSSSk', 'kSSSSSSSSk', 'kSSSSSSSSk', 'kkkkkkkkkk', '...kGGk...', '.kkkkkkkk.'];
+  const tvFill = (step) => {
+    const c = Object.assign(document.createElement('canvas'), { width: 20, height: 20 }), g = c.getContext('2d');
+    const upto = 1 + step * 3;           // 0: dark, 1: a third, 2: two thirds (the bright edge is where it has reached)
+    TV_MAP.forEach((r, y) => [...r].forEach((ch, x) => {
+      const col = ch === 'k' ? '#2E3248' : ch === 'G' ? '#A2AAC0' : ch === 'S' ? (x < upto - 1 ? '#2B78D0' : x === upto - 1 && step > 0 ? '#8ED2FF' : '#161a2c') : null;
+      if (col) { g.fillStyle = col; g.fillRect(x * 2, y * 2, 2, 2); }
+    }));
+    return c;
+  };
+  const code = el('tvcode'), boxes = [...code.querySelectorAll('input')];
+  const typed = () => boxes.map((x) => x.value).join('').toUpperCase();
+  for (const [i, x] of boxes.entries()) {
+    x.addEventListener('input', () => { x.value = x.value.replace(/[^0-9a-f]/gi, '').slice(-1).toUpperCase(); if (x.value && boxes[i + 1]) boxes[i + 1].focus(); if (typed().length === 6) window.samara?.browserTv?.('code:' + typed()); });
+    x.addEventListener('keydown', (e) => { if (e.key === 'Backspace' && !x.value && boxes[i - 1]) { boxes[i - 1].focus(); boxes[i - 1].value = ''; } if (e.key === 'Enter' && typed().length === 6) window.samara?.browserTv?.('code:' + typed()); if (e.key === 'Escape') window.samara?.browserTv?.('nolink'); });
+    x.addEventListener('paste', (e) => { const t = (e.clipboardData?.getData('text') || '').replace(/[^0-9a-f]/gi, '').toUpperCase().slice(0, 6); if (!t) return; e.preventDefault(); boxes.forEach((b, j) => { b.value = t[j] ?? ''; }); if (t.length === 6) window.samara?.browserTv?.('code:' + t); else boxes[t.length]?.focus(); });
+  }
+  window.paintTv = (tv) => {
+    tvNow = tv;
+    // the icon: playing (the full picture, it breathes once as it starts), sending (filling), or ready to send (dim)
+    const playing = Boolean(tv?.kind), going = tv?.step != null, on = playing || going || Boolean(tv?.can);
+    if (playing && drawn !== 'play') tvkey.classList.remove('live');
+    const want = playing ? 'play' : going ? 'step' + tv.step : on ? 'idle' : '';
+    if (want !== drawn) {
+      tvkey.replaceChildren(going ? tvFill(tv.step) : pixIcon('video', 2) ?? document.createTextNode('TV'));
+      if (want === 'play') { void tvkey.offsetWidth; tvkey.classList.add('live'); }
+      drawn = want;
+    }
+    tvkey.classList.toggle('idle', want === 'idle'); tvkey.classList.toggle('going', going);
+    tvkey.title = playing ? `On ${tv.name}` : tv?.toTv ? 'Send to TV' : 'Send window';
+    tvkey.setAttribute('aria-label', tvkey.title);
+    tvkey.hidden = !on;
+    // the ask: setting yeet up as a second screen, what is playing there, the code (sheet 99), or the TV asleep
+    // Sheet 106 v7: the code, the TV asleep and the once-only setup are notices now; only what is playing stays here.
+    const ask = tv?.ask === 'playing' ? 'playing' : null;
+    if (!ask) { chip.hidden = true; was = null; return; }
+    const name = tv.name || 'your TV';
+    const faces = chip.querySelector('.faces');
+    faces.hidden = ask === 'link' || ask === 'asleep';
+    code.hidden = ask !== 'link';
+    chip.classList.toggle('k-bad', ask === 'asleep');
+    el('tvtagw').textContent = ask === 'asleep' ? 'Went wrong' : 'Your TV';
+    el('tvfrom').textContent = (tv.site || 'S').replace(/^www\./, '').charAt(0).toUpperCase();
+    if (ask === 'setup') {
+      el('tvq').textContent = `Show this window on ${name}?`;
+      el('tvm').replaceChildren('Once only: your Mac needs ', Object.assign(document.createElement('b'), { textContent: name }), ' as a second screen. Samara opens the place to turn it on.');
+      keys = { yes: 'displays', no: 'close' }; el('tvyes').firstChild.textContent = 'Open Displays'; el('tvno').firstChild.textContent = 'Not now';
+    } else if (ask === 'link') {
+      el('tvq').textContent = `Link Samara to ${name}`;
+      el('tvm').textContent = tv.linkErr || 'Type the code your TV is showing. Only this once.';
+      if (tv.linkErr && was === 'link') { code.classList.remove('wrong'); void code.offsetWidth; code.classList.add('wrong'); boxes.forEach((b) => { b.value = ''; }); boxes[0].focus(); }
+      keys = { yes: 'code', no: 'nolink' }; el('tvyes').firstChild.textContent = 'Link'; el('tvno').firstChild.textContent = 'Not now';
+      if (was !== 'link') { boxes.forEach((b) => { b.value = ''; }); setTimeout(() => boxes[0].focus(), 60); }
+    } else if (ask === 'asleep') {
+      el('tvq').textContent = `${name === 'your TV' ? 'Your TV' : name} didn't wake up`;
+      el('tvm').textContent = 'Turn it on with its remote, then try again. Or send this window, which works with the TV asleep.';
+      keys = { yes: 'retry', no: 'send:window' }; el('tvyes').firstChild.textContent = 'Try again'; el('tvno').firstChild.textContent = 'Send window';
+    } else {
+      el('tvq').textContent = tv.kind === 'window' ? `This window is on ${name}` : `Playing on ${name}`;
+      el('tvm').replaceChildren(Object.assign(document.createElement('b'), { textContent: tv.title || tv.site }), tv.kind === 'window' ? '' : (tv.site ? `, from ${tv.site}` : ''), '.');
+      keys = { yes: 'back', no: 'stop' }; el('tvyes').firstChild.textContent = 'Bring it back'; el('tvno').firstChild.textContent = tv.kind === 'window' ? 'Back to the Mac' : 'Stop';
+    }
+    // the code and the asleep ask hang from the TV icon; the others from the address bar, flush with its left edge
+    const band = el('band').getBoundingClientRect(), slot = el('slot').getBoundingClientRect(), k = tvkey.getBoundingClientRect();
+    chip.style.left = Math.round((ask === 'link' || ask === 'asleep') && k.width ? k.left - band.left - 22 : slot.left - band.left) + 'px';
+    if (was !== ask) { chip.classList.remove('in'); void chip.offsetWidth; chip.classList.add('in'); }
+    was = ask;
+    chip.hidden = false;
+  };
+  // One click: Send to TV (or Send window on a site that cannot go on its own); while playing, what and where.
+  tvkey.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (tvNow?.kind || tvNow?.ask) window.samara?.browserTv?.(chip.hidden ? 'open' : 'close');
+    else if (tvNow?.step == null) window.samara?.browserTv?.(tvNow?.toTv ? 'send' : 'send:window');
+  });
+  // Right-click: his two ways , and the TV's settings.
+  tvkey.addEventListener('contextmenu', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    closeTabMenu();
+    const m = document.createElement('div'); m.id = 'tabmenu'; m.className = 'tabmenu'; m.setAttribute('role', 'menu');
+    const item = (label, act, off = false) => { const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.textContent = label; b.disabled = off;
+      b.addEventListener('click', () => { closeTabMenu(); window.samara?.browserTv?.(act); }); m.append(b); };
+    item('Send to TV', 'send', !tvNow?.toTv);
+    item('Send window', 'send:window');
+    m.append(Object.assign(document.createElement('div'), { className: 'sep' }));
+    item('TV settings', 'settings');
+    placeMenu(m, e.clientX, e.clientY);
+  });
+
+  el('tvyes').addEventListener('click', () => { if (keys.yes === 'code') { if (typed().length === 6) window.samara?.browserTv?.('code:' + typed()); else boxes.find((b) => !b.value)?.focus(); } else if (keys.yes) window.samara?.browserTv?.(keys.yes); });
+  el('tvno').addEventListener('click', () => { if (keys.no) window.samara?.browserTv?.(keys.no); });
+}

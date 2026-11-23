@@ -1,0 +1,212 @@
+/* The browser's Settings (2026-10-12). Darker recessed wood behind; dark ink cards raised on it, in a wood
+   frame with the gold arrow caps; FFX choices: white words, the glove on the one that is on; the brand lettering:
+   Cinzel headings, Figtree text, Silkscreen labels. */
+html,body{margin:0;height:100%;color:#efe4cc;font:500 14.5px/1.5 var(--body)}
+body{background:linear-gradient(180deg,rgba(0,0,0,.42),rgba(0,0,0,.32)),url(art/browser/tray.png) 0 0/128px 256px;image-rendering:pixelated}
+[hidden]{display:none !important}
+.set{display:grid;grid-template-columns:240px 1fr;min-height:100%;image-rendering:auto}
+.side{padding:28px 14px}
+/* Search settings (2026-10-13): a field under the title, like every browser's. */
+.find{display:block;box-sizing:border-box;width:calc(100% - 16px);margin:0 8px 16px;padding:7px 10px;border:2px solid rgba(239,228,204,.35);border-radius:8px;
+  background:rgba(0,0,0,.35);color:#fff;font:600 14px var(--body);outline:none}
+.find::placeholder{color:#a99fbd}
+.find:focus{border-color:#ffe28c}
+.nomatch{display:none !important}
+.nofind{font:600 15px var(--body);color:#d8ccb4;margin:28px 24px}
+.side h1{font:700 22px var(--display);color:#ffe28c;margin:0 8px 20px;text-shadow:0 2px 0 #000}
+.side a{display:flex;align-items:center;gap:10px;padding:9px 12px 9px 36px;margin:2px 0;border-radius:8px;color:#d8ccb4;text-decoration:none;font:700 14px var(--body);
+  text-shadow:1px 1px 0 #000;position:relative;cursor:pointer}
+.side a:hover{color:#fff2d6}
+.side a i{position:absolute;left:10px;top:50%;margin-top:-9px;width:20px;height:18px;display:grid;place-items:center}
+.side a i svg path{fill:currentColor}
+.side a.on{color:#ffe28c;background:rgba(255,226,140,.08)}
+.side a.on i{display:none}
+.side a.on::before{content:"";position:absolute;left:6px;top:50%;width:24px;height:18px;margin-top:-9px;background:url(art/browser/hand.png) 0 0/24px 18px;image-rendering:pixelated}
+.main{padding:30px 40px 70px;max-width:860px}
+.main h2{font:700 24px var(--display);color:#ffe28c;margin:0 0 4px;text-shadow:0 2px 0 #000}
+.lead{color:#cdbb9a;margin:0 0 20px;text-shadow:1px 1px 0 #000}
+.card{position:relative;margin:0 0 22px;border:8px solid transparent;border-image:url(art/browser/trayframe.png) 4 repeat;
+  background:url(art/browser/ink.png) 0 0/64px 64px;image-rendering:pixelated;
+  box-shadow:0 4px 0 #120a05,0 9px 0 rgba(0,0,0,.35),0 16px 26px rgba(0,0,0,.6)}
+.card>.caps{position:absolute;inset:-10px;pointer-events:none;image-rendering:pixelated;
+  background:url(art/browser/cap3_tl.png) left top/22px 22px no-repeat,url(art/browser/cap3_tr.png) right top/22px 22px no-repeat,
+    url(art/browser/cap3_bl.png) left bottom/22px 22px no-repeat,url(art/browser/cap3_br.png) right bottom/22px 22px no-repeat}
+.card h3{margin:0;padding:16px 24px 4px;font:700 12px var(--body);letter-spacing:.2px;color:#ffe28c}
+.row{display:flex;align-items:center;gap:18px;padding:12px 24px;border-top:2px solid rgba(255,255,255,.05);image-rendering:auto}
+.card h3+.row{border-top:none}
+.row .t{flex:1;min-width:0}
+.row .t b{display:block;font:700 15px var(--body);color:#fff2d6}
+.row .t small{display:block;font:500 12.5px var(--body);color:#c9bfdc;margin-top:2px}
+/* FFX choices: words; the glove points at the one that is on */
+.choice{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.choice button,.pick{background:none;border:none;font:700 14.5px var(--body);color:#e6edff;text-shadow:2px 2px 0 #000;padding:4px 6px;position:relative;cursor:pointer;border-radius:0}
+.choice button:hover,.pick:hover{color:#fff}
+.choice button.on,.pick:hover{color:#ffe28c;padding-left:30px}
+.choice button.on::before,.pick:hover::before{content:"";position:absolute;left:0;top:50%;width:24px;height:18px;margin-top:-9px;background:url(art/browser/hand.png) 0 0/24px 18px;image-rendering:pixelated}
+.choice button:focus-visible,.pick:focus-visible,.side a:focus-visible{outline:2px solid #ffe28c;outline-offset:2px}
+.field{display:flex;gap:10px;align-items:center}
+.field input{width:240px;padding:6px 2px;border:none;border-bottom:2px solid #efe4cc;background:transparent;color:#fff;font:600 14px var(--body);outline:none}
+.field input:focus{border-bottom-color:#ffe28c}
+/* The state tags (ALWAYS ON, OFF): dark carved plaques with readable words (report, 2026-10-14: the old pale green on
+   the cockpit's green box could not be read). */
+.tag{font:700 12px var(--body);letter-spacing:.2px;color:#9FF0E6;text-shadow:0 0 6px rgba(159,240,230,.55),1px 1px 0 #000;padding:6px 10px;border-radius:6px;
+  border:2px solid #120A05;background:linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,.55)),url(art/browser/tray.png) 0 0/128px 256px;image-rendering:pixelated;white-space:nowrap}
+/* Sheet 37, Your sites (pick A): an item row per site. Lit gold = on or allowed; dark = off; purple frame with a "?" =
+   asks; a small red mark = blocked; every slot says its state underneath. */
+.yoursites .find{display:block;width:calc(100% - 48px);box-sizing:border-box;margin:6px 24px 12px;padding:8px 12px;border-radius:8px;background:#0B0718;border:2.5px solid #120A05;
+  font:500 14px var(--body);color:#f1e4cc;box-shadow:inset 0 3px 0 rgba(0,0,0,.6);outline:none}
+.yoursites .find::placeholder{color:#8a8099}
+.ysgrid{display:grid;grid-template-columns:minmax(150px,1fr) 46px 46px 46px 46px 46px 14px 46px 46px 26px;column-gap:12px;align-items:center;padding:0 24px}
+.ysgroups span{font:700 12px var(--body);letter-spacing:.2px;color:#c9a35a;text-align:center;border-bottom:2px solid rgba(201,163,90,.35);padding-bottom:4px}
+.ysgroups .none{border:none}.ysgroups .g1{grid-column:2 / span 5}.ysgroups .g2{grid-column:8 / span 2}
+.yslegend{margin-top:6px}
+.yslegend span{font:700 12px var(--body);letter-spacing:.2px;color:#ffe28c;text-align:center;line-height:1.25}
+.ysrow{padding-top:12px;padding-bottom:10px;border-top:2px solid rgba(255,255,255,.06);image-rendering:auto}
+.ysrow b{display:grid;grid-template-columns:22px minmax(0,1fr);align-items:center;column-gap:9px;font:700 15px var(--body);color:#fff2d6;text-shadow:1px 1px 0 #000;min-width:0}
+.ysrow b .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.ysrow b small{grid-column:2;font:700 12px var(--body);letter-spacing:.2px;color:#ff9a7a}
+.ysrow .fav{width:20px;height:20px;flex:none;border-radius:4px;background:#fff;padding:2px;box-sizing:border-box;box-shadow:0 0 0 2px #120A05}
+.ysrow .globe{display:grid;place-items:center;width:22px;height:22px}
+.yscell{display:flex;flex-direction:column;align-items:center;gap:5px}
+.yscell i{font:700 12px var(--body);letter-spacing:.2px;font-style:normal;color:#8a7f9e}
+.yscell.on i{color:#ffe28c}.yscell.ask i{color:#c8b0ff}.yscell.block i,.yscell.never i{color:#ff9a7a}
+.slot{width:46px;height:42px;border-radius:7px;display:grid;place-items:center;position:relative;cursor:pointer;border:none;padding:0;
+  background:#120a1e;box-shadow:inset 0 3px 0 rgba(0,0,0,.65),inset 0 0 0 2px #2a1f3a;image-rendering:pixelated}
+.slot svg{opacity:.32;filter:grayscale(.85)}
+.slot.on{background:radial-gradient(circle,rgba(255,196,60,.32),rgba(255,196,60,.05) 70%),#1f1530;box-shadow:inset 0 0 0 2px #FFC43C,0 0 8px rgba(255,196,60,.45)}
+.slot.on svg{opacity:1;filter:none}
+.slot.ask{box-shadow:inset 0 0 0 2px #8f6ad8,inset 0 3px 0 rgba(0,0,0,.4)}
+.slot.ask svg{opacity:.75;filter:none}
+.slot.ask::after{content:"?";position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:3px;background:#5a3a9a;box-shadow:0 0 0 1.5px #120A05;
+  font:700 12px var(--body);color:#fff;line-height:14px;text-align:center}
+.slot.block::before{content:"";position:absolute;right:3px;top:3px;width:12px;height:12px;border-radius:3px;background:#3a0f0a;box-shadow:0 0 0 1.5px #120A05}
+.slot.block::after{content:"";position:absolute;right:3px;top:3px;width:12px;height:12px;background:linear-gradient(45deg,transparent 40%,#C8402E 40% 60%,transparent 60%),linear-gradient(-45deg,transparent 40%,#C8402E 40% 60%,transparent 60%)}
+.slot.never{cursor:default;box-shadow:inset 0 0 0 2px #6e1d10}
+.slot.never::after{content:"";position:absolute;inset:8px;background:linear-gradient(45deg,transparent 45%,#C8402E 45% 55%,transparent 55%),linear-gradient(-45deg,transparent 45%,#C8402E 45% 55%,transparent 55%)}
+.slot:focus-visible{outline:2px solid #ffe28c;outline-offset:2px}
+.ysrow .x{justify-self:end}
+.yskey{display:flex;gap:16px;padding:12px 24px 18px;font:500 13px var(--body);color:#d9cfe9;align-items:center;flex-wrap:wrap}
+.yskey .slot{width:30px;height:28px;cursor:default}
+.yskey .slot svg{transform:scale(.7)}
+.yskey em{font-style:normal;margin-left:auto;color:#a99fbf}
+.ysempty{padding:14px 24px;font:500 13.5px var(--body);color:#a99fbf}
+.tag.off{color:#e8d6b0;text-shadow:1px 1px 0 #000}
+.list{padding:2px 24px 14px}
+.list .mark{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid rgba(255,255,255,.05);image-rendering:auto}
+.list .mark img{width:16px;height:16px;border-radius:3px}
+.list .mark span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 13.5px var(--body);color:#efe4cc}
+.list .mark small{color:#9f94b4;font:500 12px var(--body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}
+.x{flex:0 0 auto;width:22px;height:22px;border:none;border-radius:50%;background:rgba(255,226,140,.10);color:#efe4cc;font:700 12px var(--body);cursor:pointer}
+.x:hover{background:rgba(255,90,74,.85);color:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:4px 5px 4px 12px;border-radius:999px;background:rgba(0,0,0,.35);border:2px solid rgba(0,0,0,.5);font:600 12.5px var(--body);color:#dccfb5}
+.empty{font:500 12.5px var(--body);color:#9f94b4}
+
+/* Sheet 77: your details for autofill, a short form in the card; each line a label and Settings' own underline field. */
+.afform{padding:4px 24px 14px;display:grid;gap:8px}
+.afform[hidden]{display:none}
+.afform .field span{width:96px;font:700 13px var(--body);color:#c9bfdc}
+.afform .field input{width:320px}
+.afkeys{display:flex;gap:16px;margin-top:4px}
+
+/* ---- Sheet 83 v2 (2026-10-23): the game menu. A row is a name and its value, nothing under it; ‹ › change it; a › row
+   opens one level in; one help line at the bottom for the row the glove has rested on. */
+.main{display:flex;flex-direction:column;min-height:100vh;box-sizing:border-box;max-width:900px}
+.main h2{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+.main h2 .back{font:700 14px var(--body);color:#d8ccb4;cursor:pointer;text-shadow:1px 1px 0 #000}
+.main h2 .back:hover{color:#fff2d6}
+.card{margin:0 0 16px}
+.r{display:flex;align-items:center;gap:16px;padding:0 22px 0 52px;min-height:50px;border-top:2px solid rgba(255,255,255,.05);position:relative;cursor:pointer;image-rendering:auto}
+.card>.r:first-of-type,.card>.caps+.r{border-top:none}
+.r b{flex:1;font:700 15px var(--body);color:#fff2d6;text-shadow:1px 1px 0 #000}
+.r:hover{background:rgba(255,226,140,.06)}
+.r:hover::before,.fld.lit::before{content:"";position:absolute;left:18px;top:50%;width:24px;height:18px;margin-top:-9px;background:url(art/browser/hand.png) 0 0/24px 18px;image-rendering:pixelated}
+.r .v{font:700 15px var(--body);color:#e6edff;text-shadow:2px 2px 0 #000;white-space:nowrap}
+.r:hover .v{color:#ffe28c}
+.r .v.dim{color:#a99fbd}
+.cyc{display:flex;align-items:center;gap:6px}
+.cyc .v{min-width:92px;text-align:center}
+.ar{width:22px;height:22px;border:none;background:none;padding:0;cursor:pointer;display:grid;place-items:center;opacity:.55}
+.r:hover .ar,.ar:focus-visible{opacity:1}
+.ar svg{width:10px;height:14px}.ar path,.go path{fill:#ffe28c}
+.ar:hover path{fill:#fff}
+.go{display:grid;place-items:center;width:10px;margin-left:4px;opacity:.55}.go svg{width:10px;height:14px}
+.r:hover .go{opacity:1}
+.tag2{font:700 12px var(--body);letter-spacing:.2px;color:#9FF0E6;text-shadow:0 0 6px rgba(159,240,230,.55),1px 1px 0 #000}
+.tag2.off{color:#e8d6b0;text-shadow:1px 1px 0 #000}
+/* v4: the row's label, by the mouse after a 2 second rest */
+.tip{position:fixed;z-index:20;max-width:320px;padding:7px 12px;border:4px solid transparent;border-image:url(art/browser/trayframe.png) 4 repeat;
+  background:url(art/browser/ink.png) 0 0/64px 64px;image-rendering:pixelated;font:600 13.5px/1.35 var(--body);color:#efe4cc;text-shadow:1px 1px 0 #000;
+  box-shadow:0 8px 18px rgba(0,0,0,.55);pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .18s ease,transform .18s ease}
+.tip.on{opacity:1;transform:none}
+.fld.sub label{visibility:hidden}
+.fld{display:flex;align-items:center;gap:14px;padding:0 22px 0 52px;min-height:48px;border-top:2px solid rgba(255,255,255,.05);position:relative;image-rendering:auto}
+.card>.caps+.fld{border-top:none}
+.fld label{width:120px;flex:none;font:700 15px var(--body);color:#fff2d6;text-shadow:1px 1px 0 #000}
+.fld input{flex:1;max-width:380px;padding:6px 2px;border:none;border-bottom:2px solid rgba(239,228,204,.55);background:transparent;color:#fff;font:600 15px var(--body);outline:none}
+.fld input:focus{border-bottom-color:#ffe28c}
+.ok{display:grid;place-items:center;width:16px}.ok svg{width:16px;height:14px}.ok path{fill:#7ee08a}
+.grow{position:relative;flex:1;max-width:380px}
+.grow input{width:100%;max-width:none;box-sizing:border-box}
+.sug{position:absolute;left:-8px;right:-8px;top:calc(100% + 6px);z-index:5;border:6px solid transparent;border-image:url(art/browser/trayframe.png) 4 repeat;
+  background:url(art/browser/ink.png) 0 0/64px 64px;image-rendering:pixelated;box-shadow:0 10px 22px rgba(0,0,0,.6)}
+.sug div{position:relative;padding:9px 12px 9px 40px;font:600 14px var(--body);color:#e6edff;text-shadow:1px 1px 0 #000;cursor:pointer;image-rendering:auto}
+.sug div:hover,.sug div.hi{color:#ffe28c;background:rgba(255,226,140,.07)}
+.sug div:hover::before,.sug div.hi::before{content:"";position:absolute;left:8px;top:50%;width:24px;height:18px;margin-top:-9px;background:url(art/browser/hand.png) 0 0/24px 18px;image-rendering:pixelated}
+.sug small{display:block;text-align:right;padding:2px 10px 6px;font:700 10px var(--body);color:#8a7f9e;letter-spacing:.3px}
+.slots{display:flex;gap:8px;align-items:center;outline:none;padding:4px;border-radius:8px}
+.slots:focus-visible{box-shadow:0 0 0 2px #ffe28c}
+.slots i{width:30px;height:36px;border-radius:6px;display:grid;place-items:center;font:700 18px var(--body);font-style:normal;color:#ffe28c;
+  background:#120a1e;box-shadow:inset 0 3px 0 rgba(0,0,0,.65),inset 0 0 0 2px #2a1f3a;text-shadow:0 0 8px rgba(255,196,60,.6)}
+.slots i.f{box-shadow:inset 0 0 0 2px #FFC43C,0 0 8px rgba(255,196,60,.4)}
+.eye{width:34px;height:30px;border:none;background:none;cursor:pointer;display:grid;place-items:center;margin-left:6px;opacity:.7}
+.eye:hover,.eye.on{opacity:1}
+.eye.on{filter:drop-shadow(0 0 5px rgba(255,196,60,.9))}
+.eye svg{width:22px;height:14px}.eye path{fill:#ffe28c}
+.acts{display:flex;align-items:center;gap:18px;padding:10px 22px 14px 44px;image-rendering:auto}
+.act{background:none;border:none;font:700 15px var(--body);color:#e6edff;text-shadow:2px 2px 0 #000;padding:4px 6px 4px 30px;position:relative;cursor:pointer}
+.act:hover{color:#ffe28c}
+.act:hover::before{content:"";position:absolute;left:0;top:50%;width:24px;height:18px;margin-top:-9px;background:url(art/browser/hand.png) 0 0/24px 18px;image-rendering:pixelated}
+.act:focus-visible,.r:focus-visible{outline:2px solid #ffe28c;outline-offset:2px}
+.say{font:600 14px var(--body);color:#ffe28c;text-shadow:1px 1px 0 #000}
+
+/* ---- Sheet 120 A, wood refined (2026-11-20): what you open is wood. The cards are the tray's own grain in
+   its gold-cornered frame (no ink); rows 40 high; light words on the wood, the dim ones still easy to read; on and off
+   is the switch, a choice of a few the segmented row (samaralook.css draws both). */
+body{color:var(--wood-text)}
+.card{background:var(--wood-panel);padding:4px 0}
+.card h3{font:400 10px var(--label);letter-spacing:1.4px;color:var(--wood-label);text-transform:uppercase;padding:12px 22px 6px}
+.side a{color:#E3D5B8;font:700 14.5px var(--body)}
+.side a:hover{color:#FFF2D6;background:rgba(255,226,140,.06)}
+.side a.on{color:#FFE28C;background:rgba(255,226,140,.12)}
+.main h2 .back{color:#E3D5B8}
+.lead{color:var(--wood-dim)}
+.r{min-height:40px;padding:0 18px 0 48px;gap:14px;border-top:2px solid rgba(255,226,140,.07)}
+.fld{min-height:42px;padding:0 18px 0 48px;border-top:2px solid rgba(255,226,140,.07)}
+.r b,.fld label{font:600 15px var(--body);color:var(--wood-text)}
+.r:hover{background:rgba(255,226,140,.08)}
+.r:hover::before,.fld.lit::before{left:16px}
+.r .v{font:700 14.5px var(--body);color:var(--wood-text);text-shadow:1px 1px 0 #000}
+.r:hover .v{color:#FFE28C}
+.r .v.dim{color:var(--wood-dim)}
+.r.pickrow{cursor:default}
+.r .seg,.r .sw{margin:5px 0}
+.tag2{color:#A8F4EA}
+.tag2.off{color:var(--wood-dim)}
+.ar,.go{opacity:.8}
+.fld input{color:#FFF6E0;border-bottom-color:rgba(241,230,207,.6)}
+.act{color:var(--wood-text)}
+.say{color:#FFE28C}
+.empty,.ysempty{color:var(--wood-dim)}
+.list .mark small{color:var(--wood-dim)}
+.chip{color:var(--wood-text);background:rgba(0,0,0,.4)}
+.x{color:var(--wood-text);background:rgba(255,226,140,.14)}
+.yskey{color:var(--wood-text)}
+.yscell i{color:#B9A9C9}
+.tip{background:var(--wood-panel);color:var(--wood-text)}
+.sug{background:var(--wood-panel)}
+.sug div{color:var(--wood-text)}
+.sug small{font:400 9px var(--label);letter-spacing:1.2px;color:var(--wood-dim)}
+.slots i{background:var(--slot)}
+/* the page behind is recessed further, so the wood cards stand out from it */
+body{background:linear-gradient(180deg,rgba(0,0,0,.6),rgba(0,0,0,.5)),url(art/browser/tray.png) 0 0/128px 256px}

@@ -1,0 +1,297 @@
+// The update engine (his picks, 2026-10-30): ONE updater for Samara and the companion on both machines. Everything that can be
+// updated is a source (Samara's own code from GitHub, the castLabs engine, the companion); each machine adds its own
+// install steps (macupdate.ts / macsource.ts on the Mac, pcupdate.ts / engineupdate.ts on the PC). The rules live here,
+// once: his UPDATE key, overnight (2-5 am, idle half an hour, never in a call or a game), skip, put away, trial and
+// going back. Before today the overnight rule was written three times (main.ts twice, mac.ts once).
+// Its own file, with no Electron, so the rules are tested on their own (test/updateengine.test.ts).
+import { readFileSync } from 'node:fs';
+import { saveText } from './store.ts';
+import { openLog } from './log.ts';
+import { sched } from './sched.ts';
+
+// ---------------------------------------------------------------- versions
+/** "44.5.1+wvcus" -> "44.5.1". */
+export const plain = (v: string): string => String(v ?? '').replace(/\+.*$/, '');
+export const isVersion = (v: unknown): v is string => typeof v === 'string' && /^\d{1,4}\.\d{1,4}\.\d{1,4}$/.test(v);
+/**
+ * Is a newer than b? The one comparison for every source (it used to be two: ghrelease.ts and engineupdate.ts).
+ * A build tag ("+wvcus") is ignored. A that is not x.y.z is never newer; b that is not x.y.z (a hand install, the PC's
+ * old fingerprints) is older than any release.
+ */
+export function newer(a: string, b: string): boolean {
+  if (!isVersion(plain(a))) return false;
+  if (!isVersion(plain(b))) return true;
+  const x = plain(a).split('.').map(Number), y = plain(b).split('.').map(Number);
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i]! > y[i]!;
+  return false;
+}
+
+// ---------------------------------------------------------------- the rules
+/** What the rules look at, read fresh each time. */
+export interface Moment { now: Date; idleSeconds: number; inCall: boolean; inGame: boolean;
+  /** Sheet 115: what Claude is doing in Samara ("filling an application" in Contoso), or null. */
+  work?: { doing: string; where: string } | null }
+/** Sheet 115 (his pick, "After 2 hours, ask me"): how long an update waits for Claude before the key asks him. */
+export const WORK_WAIT_MS = 2 * 3_600_000;
+/** The update key's "waits" line (sheet 115 A): why it waits, or, after two hours, the ask. Pure, for tests. */
+export function waitLine(work: Moment['work'], waitedMs: number): { b: string; t: string; anyway: boolean } | null {
+  if (!work) return null;
+  if (waitedMs >= WORK_WAIT_MS) return { b: 'Claude has been working for 2 hours.', t: ' Restart anyway? Its tabs and your typing come back.', anyway: true };
+  return { b: `Claude is ${work.doing}`, t: ` in ${work.where}. The update waits until it's done.`, anyway: false };
+}
+/** His overnight hours and idle time (sheet 35): between 2 and 5 am, after half an hour with no keyboard or mouse. */
+export const NIGHT = { from: 2, to: 5, idleSeconds: 30 * 60 } as const;
+
+/** Why not right now, in his words, or null when it may go (a call or a game always wins). */
+export function notNow(m: Pick<Moment, 'inCall' | 'inGame'>): string | null {
+  if (m.inCall) return "You're in a call. Restart when it's over.";
+  if (m.inGame) return 'Not during a game.';
+  return null;
+}
+/** May an update go in by itself now? Only with his overnight toggle on, in the night window, idle, and quiet. */
+export function overnightNow(m: Moment, overnightOn: boolean): boolean {
+  const h = m.now.getHours();
+  return overnightOn && h >= NIGHT.from && h < NIGHT.to && m.idleSeconds >= NIGHT.idleSeconds && notNow(m) === null;
+}
+/** the companion (his pick, 2026-10-30: "by itself, quietly"): any time he has been away half an hour and is not in a
+ *  call or a game. A brain restart takes seconds and closes no window. */
+export function quietNow(m: Moment): boolean {
+  return m.idleSeconds >= NIGHT.idleSeconds && notNow(m) === null;
+}
+
+// ---------------------------------------------------------------- skip and put away
+/**
+ * His ... menu on the key (sheet 35): Skip for good (never offered again; also where a version that failed its trial
+ * goes) and Put it away (kept on file until "Check for updates"). One pair of plain-text lists per source.
+ */
+export class VersionLists {
+  private readonly skipFile: string;
+  private readonly filedFile: string;
+  constructor(skipFile: string, filedFile: string) { this.skipFile = skipFile; this.filedFile = filedFile; }
+  private read(f: string): string[] { try { return readFileSync(f, 'utf8').split(/\s+/).filter(Boolean); } catch { return []; } }
+  private add(f: string, v: string): void { openLog('list:' + f, f).line(plain(v)); }
+  skipped(v: string): boolean { return this.read(this.skipFile).includes(plain(v)); }
+  filed(v: string): boolean { return this.read(this.filedFile).includes(plain(v)); }
+  /** Not to be offered: skipped for good, failed, or put away. */
+  blocked(v: string): boolean { return this.skipped(v) || this.filed(v); }
+  skip(v: string): void { this.add(this.skipFile, v); }
+  file(v: string): void { this.add(this.filedFile, v); }
+  /** "Check for updates": what was put away comes back. */
+  unfile(): void { saveText(this.filedFile, ''); }
+}
+
+// ---------------------------------------------------------------- the engine
+/** One group of lines on the key's card (sheet 35): SAMARA, SAMARA'S ENGINE. */
+export interface CardGroup { name: string; items: { text: string; note?: string; key?: string; on?: boolean }[] }
+/** What a source has waiting for his key. */
+export interface Offer {
+  version: string; since: number; title?: string; groups: CardGroup[]; canBack?: boolean; lines?: string[];
+  /** Sheet 108: castLabs wants him to sign in before the engine can be signed for video ('ask': the one key;
+   *  'waiting': Terminal is open). While set, the key shows "Sign in to castLabs" instead of Restart now. */
+  signin?: 'ask' | 'waiting';
+  /** Sheet 108: the one line under the lines ("Your engine today is 6 weeks behind Chrome's security fixes..."). */
+  behind?: string;
+  /** Sheet 114: a newer one is getting ready behind this one (next), while Restart now still puts this one in (now). */
+  coming?: { next: string; now: string };
+  /** Sheet 115: the update waits for Claude (its line; anyway: two hours passed, so it asks). */
+  wait?: { b: string; t: string; anyway: boolean };
+  /** Phase 2 (his call, 2026-11-17): this engine closes a gap in Chrome's security fixes (red key, "security fixes"). */
+  security?: boolean;
+  /** And it passed the companion's checks on this machine, so it goes in by itself tonight even with his overnight toggle off
+   *  (2-5 am, idle, no call or game), with the usual trial and roll back. */
+  tonight?: boolean;
+}
+/**
+ * A thing that updates. `ready` is set once the update is downloaded, checked against its seal and made ready beside
+ * the one running; `go` puts it in (the caller restarts); `back` goes to the version before.
+ */
+export interface Source {
+  readonly id: 'samara' | 'engine' | 'brain';
+  /** On the key (Samara, the engine) or quiet (the companion: his pick, by itself while he is away). */
+  readonly onKey: boolean;
+  ready(): Offer | null;
+  check(why: string): Promise<void>;
+  go(): Promise<{ ok: boolean; why?: string }>;
+  file(): void;
+  skip(): void;
+  canBack(): boolean;
+  back(): boolean;
+  /** "Check for updates": what was put away comes back, and a look right now. */
+  checkNow(): void;
+  /** Sheet 108, the engine only: his click on "Sign in to castLabs". */
+  signin?(): Promise<boolean>;
+  /** Sheet 122, Samara only: "Check for updates" with each step said as it happens; how it ended. */
+  watch?(report: (p: Omit<CheckProgress, 'at'>) => void): Promise<CheckOutcome>;
+  /** Sheet 122: the version running now ("1.62.1"). */
+  current?(): string;
+}
+
+/** Sheet 122 (his pick, 2026-11-22): what his own "Check for updates" is doing, for the drop-down under the ... key. */
+export interface CheckProgress {
+  stage: 'checking' | 'download' | 'setup' | 'ready' | 'none' | 'error';
+  version?: string; title?: string; got?: number; total?: number; at: number;
+}
+export type CheckOutcome = 'ready' | 'none' | 'error';
+
+export interface EngineOptions {
+  sources: Source[];
+  /** The moment as the machine sees it (Electron's idle time, Samara's call state, the PC's game watch). */
+  moment: () => Moment;
+  /** His overnight toggle, read fresh. */
+  overnight: () => boolean;
+  /** The key's card changed. */
+  changed: (card: Offer | null) => void;
+  /** Just before anything goes in (the Mac's script closes Samara itself, so what to say afterwards is kept first). */
+  beforeGo?: (what: { overnight: boolean; title: string; lines: string[] }) => void;
+  /** Something was put in: close the windows and restart (the Mac's script does it itself; the PC's pet restarts). */
+  restart: (what: { sources: string[]; overnight: boolean; title: string; lines: string[] }) => void;
+  /** Sheet 115: just before anything goes in, Claude's jobs and the typing in its forms are written down. */
+  saveWork?: () => Promise<void>;
+  log?: (s: string) => void;
+}
+
+/** Ten minutes: how often the overnight and quiet rules are looked at. */
+export const TICK_MS = 10 * 60_000;
+/** How often a running Samara looks for a new version: once a day (on start too, and on his check). */
+export const CHECK_MS = 24 * 60 * 60_000;
+
+export class UpdateEngine {
+  private going = false;
+  /** Sheet 115: since when a ready update has been waiting for Claude (0: it is not waiting). */
+  private waitSince = 0;
+  private readonly o: EngineOptions;
+  constructor(o: EngineOptions) { this.o = o; }
+
+  private get keyed(): Source[] { return this.o.sources.filter((s) => s.onKey); }
+  source(id: Source['id']): Source | undefined { return this.o.sources.find((s) => s.id === id); }
+
+  /** The key's one card: Samara's version first, then the engine's; one title, one Restart now. */
+  card(): Offer | null {
+    const ready = this.keyed.map((s) => s.ready()).filter((r): r is Offer => !!r);
+    if (!ready.length) return null;
+    const [first] = ready;
+    return {
+      version: ready.map((r) => r.version).join('+'), since: Math.min(...ready.map((r) => r.since)),
+      ...(first!.title ? { title: first!.title } : {}),
+      groups: ready.flatMap((r) => r.groups), canBack: this.keyed.some((s) => s.canBack()),
+      lines: ready.flatMap((r) => r.lines ?? r.groups.flatMap((g) => g.items.filter((i) => !i.key || i.on !== false).map((i) => i.text))),
+      ...(ready.find((r) => r.signin)?.signin ? { signin: ready.find((r) => r.signin)!.signin! } : {}),
+      ...(ready.find((r) => r.behind)?.behind ? { behind: ready.find((r) => r.behind)!.behind! } : {}),
+      ...(ready.find((r) => r.coming)?.coming ? { coming: ready.find((r) => r.coming)!.coming! } : {}),
+      ...(ready.some((r) => r.security) ? { security: true } : {}),
+      ...(ready.some((r) => r.security && r.tonight) ? { tonight: true } : {}),
+      ...this.waiting(),
+    };
+  }
+  /** The waits line for the card, counting how long it has waited. */
+  private waiting(): { wait?: { b: string; t: string; anyway: boolean } } {
+    let work: Moment['work'] = null;
+    try { work = this.o.moment().work ?? null; } catch { /* no line */ }
+    if (!work) { this.waitSince = 0; return {}; }
+    if (!this.waitSince) this.waitSince = Date.now();
+    const w = waitLine(work, Date.now() - this.waitSince);
+    return w ? { wait: w } : {};
+  }
+  show(): void { this.o.changed(this.card()); }
+
+  /** His Restart now, or overnight: every source on the key that is ready goes in, Samara first. `securityOnly`: the
+   *  overnight security install with his toggle off, so only the sources carrying security fixes go in. */
+  async go(overnight = false, securityOnly = false): Promise<{ ok: boolean; why?: string }> {
+    const why = notNow(this.o.moment());
+    if (why) return { ok: false, why };
+    if (this.going) return { ok: false, why: 'Already updating.' };
+    const card = this.card();
+    if (card?.signin) return { ok: false, why: 'Sign in to castLabs first, so the new engine plays video.' };
+    const ready = this.keyed.filter((s) => { const r = s.ready(); return r && (!securityOnly || (r.security && r.tonight)); });
+    if (!card || !ready.length) return { ok: false, why: 'The update is not ready yet. It will show up again when it is.' };
+    this.going = true;
+    try {
+      try { await this.o.saveWork?.(); } catch (e) { this.o.log?.(`update: Claude's work was not saved first: ${(e as Error).message}`); }
+      // What goes in, for the "updated while you slept" card: only the security sources when it is just them.
+      const offers = ready.map((s) => s.ready()!);
+      const title = securityOnly ? offers[0]?.title ?? 'Samara update' : card.title ?? 'Samara update';
+      const lines = securityOnly ? offers.flatMap((r) => r.lines ?? r.groups.flatMap((g) => g.items.map((i) => i.text))) : card.lines ?? [];
+      this.o.beforeGo?.({ overnight, title, lines });
+      const done: string[] = [];
+      for (const s of ready) {
+        const r = await s.go();
+        if (!r.ok) { if (!done.length) return r; break; }
+        done.push(s.id);
+      }
+      this.o.log?.(`update: putting in ${done.join(' and ')}${overnight ? ' overnight' : ''}`);
+      this.o.restart({ sources: done, overnight, title, lines });
+      return { ok: true };
+    } finally { this.going = false; }
+  }
+
+  /**
+   * Sheet 122 (his pick, 2026-11-22): his "Check for updates", said step by step (checking, downloading, setting up) and
+   * how it ended (ready, up to date, could not check). The other sources look too, as before.
+   */
+  private watching = false;
+  async checkNow(report: (p: CheckProgress) => void): Promise<void> {
+    if (this.watching) return;
+    this.watching = true;
+    const send = (p: Omit<CheckProgress, 'at'>) => { try { report({ ...p, at: Date.now() }); } catch { /* a closed window */ } };
+    const main = this.o.sources.find((s) => s.watch);
+    const here = () => main?.current?.() ?? '';
+    send({ stage: 'checking', version: here() });
+    try {
+      for (const s of this.o.sources) if (s !== main) s.checkNow();
+      const out = main ? await main.watch!(send) : 'none';
+      const card = this.card();
+      if (card) send({ stage: 'ready', version: card.version, ...(card.title ? { title: card.title } : {}) });
+      else send({ stage: out === 'error' ? 'error' : 'none', version: here() });
+    } catch { send({ stage: 'error', version: here() }); }
+    finally { this.watching = false; }
+  }
+
+  /** The ... menu, for whatever the key shows (Samara's first). */
+  act(a: 'file' | 'skip' | 'check' | 'back'): boolean {
+    if (a === 'check') { for (const s of this.o.sources) s.checkNow(); return true; }
+    if (a === 'back') { const s = this.keyed.find((x) => x.canBack()); return s ? s.back() : false; }
+    const s = this.keyed.find((x) => x.ready());
+    if (!s) return false;
+    if (a === 'file') s.file(); else s.skip();
+    this.show();
+    return true;
+  }
+
+  /** Sheet 108: his click on "Sign in to castLabs" (Terminal opens with castLabs' sign-in typed). */
+  async signin(): Promise<boolean> {
+    const s = this.o.sources.find((x) => x.signin && x.ready()?.signin === 'ask');
+    const ok = s ? await s.signin!() : false;
+    this.show();
+    return ok;
+  }
+
+  /** One look at the rules: overnight for the key, quiet for the brain. */
+  async tick(): Promise<void> {
+    const m = this.o.moment();
+    // Sheet 115: overnight waits while Claude works or a form has typing; after two hours the key asks him instead.
+    const card = this.card();
+    if (card) this.o.changed(card);
+    if (card && !m.work && overnightNow(m, this.o.overnight())) { await this.go(true); return; }
+    // Phase 2 (his call, 2026-11-17): security fixes do not wait for his toggle. Same night window, same idle, same
+    // call and game rule; only what carries them goes in.
+    if (card?.tonight && !m.work && overnightNow(m, true)) { this.o.log?.('update: security fixes go in tonight by themselves'); await this.go(true, true); return; }
+    for (const s of this.o.sources) if (!s.onKey && s.ready() && quietNow(m)) { const r = await s.go(); if (r.ok) this.o.log?.(`update: ${s.id} put in quietly`); }
+  }
+
+  /**
+   * Checks on start (half a minute in), then once a day, and when he presses check (2026-11-19, his "Trim it": it was
+   * every 15 minutes plus an always-open ntfy nudge; a new version now shows within a day, or at once on his check or
+   * the next start). On the scheduler
+   * (2026-10-30): the checks wait out a call or a game (a check can download and build); the tick does its own deciding.
+   */
+  start(): void {
+    let first = true;
+    sched.every('update.check', CHECK_MS, () => this.checkAll(first ? (first = false, 'start') : 'regular'), { first: 30_000, quiet: true });
+    sched.every('update.tick', TICK_MS, () => this.tick());
+  }
+  stop(): void { sched.cancel('update.check'); sched.cancel('update.tick'); }
+  async checkAll(why: string): Promise<void> {
+    for (const s of this.o.sources) { try { await s.check(why); } catch (e) { this.o.log?.(`update: ${s.id} check: ${(e as Error).message}`); } }
+    this.show();
+  }
+}

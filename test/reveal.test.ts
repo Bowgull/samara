@@ -1,0 +1,208 @@
+// Step 6.12: the reply arrives at the pace he chose, whatever Claude does.
+//
+// The behaviour being protected is the one that was already got wrong once and fixed deliberately: the
+// pace must NOT depend on how fast the answer arrives. A clock that can be wound by hand, so the pace
+// is measured rather than waited for.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  CHARS_PER_SECOND, COLLAPSED_LINES, PER_TICK, Reveal, TICK_MS,
+  hasMore, linesShown, scrolls,
+} from '../pages/reveal.js';
+
+/** A clock under the test's control. */
+function clock() {
+  let t = 1000;
+  return { now: () => t, advance: (ms: number) => { t += ms; } };
+}
+
+test('the pace is his: 2 characters every 50ms, which is 40 a second', () => {
+  assert.equal(PER_TICK, 2);
+  assert.equal(TICK_MS, 50);
+  assert.equal(CHARS_PER_SECOND, 40);
+
+  const c = clock();
+  const r = new Reveal(c.now);
+  r.start('abcdefghij', false);
+  assert.equal(r.text, '', 'nothing before the first tick');
+  c.advance(50); r.tick();
+  assert.equal(r.text, 'ab');
+  c.advance(50); r.tick();
+  assert.equal(r.text, 'abcd');
+  c.advance(1000); r.tick();
+  assert.equal(r.text, 'abcdefghij', 'and it stops at the end rather than running on');
+});
+
+test('A REPLY THAT ARRIVES ALL AT ONCE READS AT THE SAME PACE AS A SLOW ONE', () => {
+  // The whole reason this file exists. The old code was Math.Max(2, backlog / 6), which dumped an
+  // instant reply at about 2,000 characters a second, so the same bubble read as typing or as a flash
+  // depending on how fast Claude happened to answer. Never again.
+  const text = 'x'.repeat(400);
+
+  const fast = clock(); const a = new Reveal(fast.now);
+  a.start(text, false);                       // the whole thing, instantly
+  fast.advance(500); a.tick();
+
+  const slow = clock(); const b = new Reveal(slow.now);
+  b.start('x'.repeat(40), true);              // dribbling in
+  slow.advance(250); b.tick();
+  b.append('x'.repeat(200), true);
+  slow.advance(250); b.tick();
+
+  assert.equal(a.text.length, 20, '500ms is 20 characters, no matter how much is waiting');
+  assert.equal(b.text.length, 20, 'and exactly the same for the slow one');
+});
+
+test('more arriving never speeds it up or restarts it', () => {
+  const c = clock();
+  const r = new Reveal(c.now);
+  r.start('abcdefghij', true);
+  c.advance(100); r.tick();
+  assert.equal(r.text, 'abcd');
+  r.append('abcdefghijklmnopqrst', true);     // twice as much to say now
+  r.tick();
+  assert.equal(r.text, 'abcd', 'the backlog does not move it along');
+  c.advance(50); r.tick();
+  assert.equal(r.text, 'abcdef', 'it carries on at the same pace');
+});
+
+test('a dropped frame catches up rather than falling behind', () => {
+  // Counted tick by tick, a hidden or throttled window would reveal slower than promised and a long
+  // reply would still be crawling minutes later. Worked out from the clock instead.
+  const c = clock();
+  const r = new Reveal(c.now);
+  r.start('x'.repeat(100), false);
+  c.advance(1000);                            // a whole second missed
+  r.tick();
+  assert.equal(r.text.length, 40, 'exactly where it should be, not one tick in');
+});
+
+test('a click shows the rest, and says whether there was anything to show', () => {
+  const c = clock();
+  const r = new Reveal(c.now);
+  r.start('abcdefghij', false);
+  c.advance(50); r.tick();
+  assert.equal(r.skip(), true);
+  assert.equal(r.text, 'abcdefghij');
+  // Said NO the second time, because the same click means "expand" once there is nothing left to
+  // reveal, and doing both would expand a bubble he was only trying to finish.
+  assert.equal(r.skip(), false);
+});
+
+test('copying takes the whole message, never the half that is on screen', () => {
+  const c = clock();
+  const r = new Reveal(c.now);
+  r.start('the whole sentence', false);
+  c.advance(50); r.tick();
+  assert.equal(r.text, 'th');
+  assert.equal(r.whole, 'the whole sentence');
+});
+
+test('"finished" means nothing more is coming AND all of it is shown', () => {
+  const c = clock();
+  const r = new Reveal(c.now);
+  r.start('abcd', true);
+  c.advance(500); r.tick();
+  assert.equal(r.revealing, false, 'all of it is on screen');
+  assert.equal(r.done, false, 'but the brain has not finished talking');
+  r.append('abcdef', false);
+  c.advance(500); r.tick();
+  assert.equal(r.done, true);
+});
+
+test('six lines collapsed, and then however many the reply needs', () => {
+  assert.equal(COLLAPSED_LINES, 6);
+
+  assert.equal(linesShown(3, false), 3, 'a short reply is just itself');
+  assert.equal(hasMore(3, false), false, 'and has no arrow');
+
+  assert.equal(linesShown(9, false), 6, 'a long one collapses to six');
+  assert.equal(hasMore(9, false), true, 'with the arrow');
+  assert.equal(linesShown(9, true), 9, 'and a click shows all nine');
+  assert.equal(hasMore(9, true), false);
+
+  // The twelve-line cap is gone. The arrow says there is more, so clicking it shows ALL of it, however
+  // long: "if something needs to get big let it, to fit" (2026-10-04). Nothing scrolls any more; the
+  // only limit is the screen, and anchor.ts keeps the window on it.
+  assert.equal(linesShown(30, true), 30, 'thirty lines expands to thirty');
+  assert.equal(linesShown(200, true), 200, 'and there is no upper bound');
+  assert.equal(hasMore(30, true), false, 'so there is never more left over');
+  assert.equal(scrolls(30, true), false, 'and it never scrolls');
+});
+
+test('clearing leaves nothing behind for the next message to inherit', () => {
+  const c = clock();
+  const r = new Reveal(c.now);
+  r.start('something', true);
+  c.advance(100); r.tick();
+  r.clear();
+  assert.equal(r.text, '');
+  assert.equal(r.whole, '');
+  assert.equal(r.done, true);
+  r.tick();
+  assert.equal(r.text, '', 'and a stray tick afterwards does not resurrect it');
+});
+
+test('the cockpit pace: whole words, one every 38 ms, never faster because more is waiting', async () => {
+  const { WORD_MS, wordEnd } = await import('../pages/reveal.js');
+  assert.equal(WORD_MS, 38);
+  assert.equal(wordEnd('one two three', 1), 4, 'a word ends after the space that follows it');
+  assert.equal(wordEnd('one two three', 9), 13);
+
+  const fast = clock(); const a = new Reveal(fast.now, { wordMs: WORD_MS });
+  a.start('w '.repeat(500), false);
+  fast.advance(38 * 5); a.tick();
+  const slow = clock(); const b = new Reveal(slow.now, { wordMs: WORD_MS });
+  b.start('w w ', true);
+  slow.advance(38 * 2); b.tick();
+  b.append('w '.repeat(8), true);
+  slow.advance(38 * 3); b.tick();
+  assert.equal(a.text, 'w '.repeat(5), 'five words after five beats, however much is waiting');
+  assert.equal(b.text, a.text, 'and the same for one dribbling in, while it is not behind');
+  assert.ok(!/\S$/.test('one tw'.slice(0, wordEnd('one two', 1))), 'never stops mid-word');
+});
+
+// 2026-10-21, smoother and faster: a STREAMED reply keeps up with the model. Never faster than the words that
+// have arrived, never more than about LAG_WORDS behind them for long, never faster than FASTEST_WORD_MS. A reply that
+// arrives whole keeps the fixed pace (the test above): the rule against dumping stands.
+test('a streamed reply keeps up with the model, within a moment, never ahead of it', async () => {
+  const { WORD_MS, LAG_WORDS, FASTEST_WORD_MS } = await import('../pages/reveal.js');
+  const c = clock(); const r = new Reveal(c.now, { wordMs: WORD_MS });
+  const words = (t: string) => (t.match(/\S+/g) ?? []).length;
+  r.start('Tom', true);
+  c.advance(200); r.tick();
+  assert.equal(r.text, '', 'a word still arriving ("Tom" of "Tomorrow") is never shown half-made');
+  r.append('Tomorrow you ', true);
+  c.advance(38); r.tick();
+  assert.equal(r.text, 'Tomorrow ', 'and once it is whole it shows');
+  // The model streams 60 words a second, faster than the base pace: the reveal speeds up to stay within a moment.
+  let have = 'Tomorrow you ';
+  let worst = 0;
+  for (let i = 0; i < 120; i++) {
+    have += 'w '; r.append(have, true);
+    c.advance(1000 / 60); r.tick();
+    const behind = words(have) - words(r.text);
+    worst = Math.max(worst, behind);
+    assert.ok(words(r.text) <= words(have), 'never ahead of what arrived');
+  }
+  assert.ok(worst <= LAG_WORDS * 2.5, `stays within a moment of the model (worst ${worst} words behind)`);
+  // A stall: nothing is banked to be dumped when the words come back.
+  c.advance(3000); r.tick();
+  const before = words(r.text);
+  r.append(have + 'a b c d e f g h ', true);
+  c.advance(38); r.tick();
+  assert.ok(words(r.text) - before <= 1 + 38 / FASTEST_WORD_MS, 'after a stall the new words come at the pace, not all at once');
+  r.append(have + 'a b c d e f g h end.', false);
+  for (let i = 0; i < 40; i++) { c.advance(38); r.tick(); }
+  assert.equal(r.done, true, 'and it finishes');
+});
+
+test('a long answer folds to its short version; a short or one-paragraph one never does', async () => {
+  const { summaryOf, SUMMARY_AFTER_CHARS } = await import('../pages/reveal.js');
+  const short = 'Short version: your WoW alerts break when the new bubble is on. Three lines fix it.';
+  const rest = 'What happens now: '.padEnd(SUMMARY_AFTER_CHARS, 'x');
+  assert.equal(summaryOf(short + '\n\n' + rest), short);
+  assert.equal(summaryOf('a\n\nb'), null, 'too short to fold');
+  assert.equal(summaryOf('y'.repeat(SUMMARY_AFTER_CHARS + 50)), null, 'one paragraph: nothing to fold to');
+  assert.equal(summaryOf('z'.repeat(400) + '\n\n' + 'tail'), null, 'a "short version" that is most of it is not one');
+});

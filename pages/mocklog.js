@@ -1,0 +1,413 @@
+// Sheet 107, Mockups, the one place (2026-10-30). Everything drawn with textContent: titles are Claude's words.
+// The tree comes from Samara (mocklog:get, then mocklog:data on every change). A sheet opens here, on the right, at its
+// true size, in a frame that cannot reach this page; opening it is all it takes for its NEW to go.
+import { pixIcon } from './pixicons.js';
+import { projectIcon, topicIcon } from './mockicons.js';
+
+const STG = { fix: ['FIX', 'chg'], ok: ['APPROVED', 'ok'], chat: ['APPROVED', 'ok'], built: ['BUILT', 'built'], park: ['PARKED', 'park'] };
+// Sheet 112 A (2026-10-31): OPEN is its own mark, no longer APPROVED's gold.
+const OPEN = ['OPEN', 'open'];
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+let tree = { projects: [] };
+// What he is looking at: the project tab, the sheet open on the right (and its version), and the topics he folded.
+const pick = { p: null, s: null, v: null, newAtOpen: false };
+const folded = new Set();
+let focusN = null;
+
+// Each project's own logo: pixel art at whole-number sizes, a drawn logo only ever scaled down.
+// The companion's face is 27 x 27 art drawn at 4x: shown at 1x and 2x, so every pixel stays whole.
+const LOGOS = {
+  samara: { src: 'art/samara/samara-lantern-64.png', px: true, sm: 32, lg: 64 },
+  waymark: { src: 'art/mockups/waymark.png', px: false, sm: 32, lg: 64 },
+  // 2026-11-03: ShrineDock's Start seal (design-language art/shrine/seal-start.png), drawn art, scaled down.
+  shrinedock: { src: 'art/mockups/shrinedock.png', px: false, sm: 32, lg: 64 },
+};
+const PIX = { 'couch mode': 'fire', showcase: 'video' };
+function emblem(name, big = false, icon = null) {
+  const k = String(name).toLowerCase(), size = big ? 64 : 32;
+  const own = LOGOS[k], other = tree.logos?.[name];
+  if (own || (typeof other === 'string' && other.startsWith('http://127.0.0.1:'))) {
+    const i = el('img', own?.px ? 'px' : 'smooth'); i.alt = ''; i.src = own?.src ?? other;
+    if (own) { i.width = i.height = big ? own.lg : own.sm; } else i.style.cssText = `max-width:${size}px;max-height:${size}px`;
+    return i;
+  }
+  if (PIX[k]) return pixIcon(PIX[k], big ? 6 : 3);
+  return projectIcon(name, false, null, icon);
+}
+const projects = () => tree.projects ?? [];
+const sheetsOf = (p) => [...p.topics.flatMap((t) => t.sheets), ...p.done];
+function where(sheet) {
+  for (const p of projects()) {
+    for (const t of p.topics) { const n = t.sheets.find((x) => x.sheet === sheet); if (n) return { p, t, n }; }
+    const n = p.done.find((x) => x.sheet === sheet); if (n) return { p, t: null, n };
+  }
+  return null;
+}
+
+/**
+ * auto: Mockups opened itself on a sheet Claude just sent. That is NOT him seeing it (2026-11-01: two sheets lost their
+ * NEW, count and notice the moment they arrived, because this page opened on them in a Samara he was not looking at).
+ * So an automatic open keeps NEW until he really touches this page (a click, a key, a scroll) while it is in front.
+ */
+let pendingSeen = null;
+function seen(sheet) {
+  const w = where(sheet);
+  if (!w || !w.n.fresh) return;
+  window.mocklog?.seen(sheet); w.n.fresh = false; w.p.fresh = Math.max(0, w.p.fresh - 1);
+}
+/**
+ * 2026-11-02: the NEW sheet he opens keeps
+ * its NEW and its place in New while he looks at it, and loses them when he opens another sheet, changes project, or
+ * leaves Mockups. Before, its NEW went on the click and it slid down into its topic, out from under his mouse.
+ */
+let looking = null;
+function doneLooking() { if (looking) { const s = looking; looking = null; seen(s); } }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && looking) { doneLooking(); draw(); } });
+function openSheet(sheet, v = null, auto = false) {
+  const w = where(sheet);
+  if (!w) return;
+  if (looking !== sheet) doneLooking();
+  pick.p = w.p.name; pick.s = sheet; pick.v = v; pick.newAtOpen = w.n.fresh;
+  // His own open: NEW stays while he looks (above); an automatic open waits for his first touch to count as looking.
+  if (auto) pendingSeen = w.n.fresh ? sheet : null; else { pendingSeen = null; if (w.n.fresh) looking = sheet; }
+  draw();
+  if (auto) document.querySelector('#list .sh.on')?.scrollIntoView({ block: 'nearest' });
+}
+for (const ev of ['pointerdown', 'keydown', 'wheel']) {
+  window.addEventListener(ev, () => {
+    if (!pendingSeen || document.visibilityState !== 'visible' || !document.hasFocus()) return;
+    const s = pendingSeen; pendingSeen = null;
+    if (pick.s === s) looking = s;
+  }, { capture: true, passive: true });
+}
+
+function draw() {
+  const ps = projects();
+  const p = ps.find((x) => x.name === pick.p) ?? ps[0];
+  // 2026-11-03: a redraw keeps where the list and the tabs were scrolled (emptying them threw both back to the top).
+  const tabs = document.getElementById('ptabs'), list = document.getElementById('list');
+  const tabsX = tabs.scrollLeft, listY = list.scrollTop;
+  const bar = document.getElementById('ptabbar');
+  if (bar.firstElementChild !== leaveKey()) bar.prepend(leaveKey());
+  tabs.replaceChildren();
+  let onTab = null;
+  for (const q of ps) {
+    const b = el('button', 'ptab' + (q === p ? ' on' : '')); b.type = 'button'; b.setAttribute('role', 'tab');
+    if (q === p) onTab = b;
+    b.dataset.fresh = String(q.fresh || 0);
+    const em = el('span', 'em'); em.append(emblem(q.name, false, q.icon));
+    b.append(em, el('span', '', q.name), el('span', 'c', String(q.count)));
+    if (q.fresh) b.append(el('span', 'newc', `${q.fresh} NEW`));
+    b.addEventListener('click', () => { if (pick.p !== q.name) { doneLooking(); pick.p = q.name; pick.s = pick.v = null; } draw(); });
+    tabs.append(b);
+  }
+  tabs.scrollLeft = tabsX;
+  // Sheet 119: the project he is in always stands fully in view (a sheet from Claude can open a tab past the edge).
+  if (onTab && p.name !== shownP) { const first = shownP === null; shownP = p.name; showTab(onTab, !first); }
+  tabEdges();
+  list.replaceChildren();
+  if (!p) { list.append(el('div', 'empty', 'No mockups yet.')); drawView(null); return; }
+  pick.p = p.name;
+  if (pick.s && !sheetsOf(p).some((x) => x.sheet === pick.s)) pick.s = pick.v = null;
+  const row = (n) => {
+    const b = el('button', 'sh' + (n.mark === 'park' ? ' parked' : '') + (n.sheet === pick.s ? ' on' : '')); b.type = 'button';
+    if (n.num) b.append(el('span', 'num', n.num));
+    b.append(nameOf(n));
+    const last = n.versions.at(-1);
+    if (last) b.append(el('span', 'vc', 'v' + last.v));
+    const m = STG[n.mark] ?? OPEN;
+    b.append(n.fresh ? el('span', 'new', 'NEW') : el('i', 'mk ' + m[1], m[0]));
+    b.addEventListener('click', () => openSheet(n.sheet));
+    return b;
+  };
+  const head = (key, name, count, icon, done) => {
+    const shut = folded.has(p.name + '\n' + key) && !finding();
+    const h = el('button', 'topic' + (shut ? '' : ' on')); h.type = 'button';
+    h.append(el('i', 'chev'));
+    if (!done) { const ic = el('span', 'ti'); ic.append(topicIcon(name, icon)); h.append(ic); }
+    h.append(el('span', '', name), el('span', 'n', String(count)));
+    h.addEventListener('click', () => { const k = p.name + '\n' + key; if (folded.has(k)) folded.delete(k); else folded.add(k); draw(); });
+    return [h, shut];
+  };
+  // Sheet 113 (2026-10-31): what he has not opened sits in New, above the topics, until he opens it; search,
+  // the marks and the sort narrow what is shown. Done stays at the bottom either way.
+  const live = p.topics.flatMap((t) => t.sheets).filter(shows);
+  let any = false;
+  if (find.sort === 'newest') {
+    any = live.length > 0;
+    list.append(...[...live].sort((a, b) => (b.at ?? 0) - (a.at ?? 0) || Number(b.num) - Number(a.num)).map(row));
+  } else {
+    const fresh = live.filter((n) => n.fresh);
+    if (fresh.length) {
+      any = true;
+      const [h, shut] = head('new', 'New', fresh.length, null, true);
+      h.classList.add('isnew'); h.insertBefore(el('span', 'gemnew'), h.children[1]);
+      list.append(h);
+      if (!shut) list.append(...fresh.map(row));
+    }
+    // A project with one group only, the one with no topic, needs no heading over it.
+    const lone = p.topics.length === 1 && p.topics[0].name === 'Other';
+    for (const t of p.topics) {
+      const ss = t.sheets.filter((n) => !n.fresh && shows(n));
+      if (!ss.length) continue;
+      any = true;
+      if (lone) { list.append(...ss.map(row)); continue; }
+      const [h, shut] = head(t.id, t.name, ss.length, t.icon, false);
+      list.append(h);
+      if (!shut) list.append(...ss.map(row));
+    }
+  }
+  const done = p.done.filter(shows);
+  if (done.length) {
+    any = true;
+    const d = el('div', 'done');
+    const [h, shut] = head('done', 'Done', done.length, null, true);
+    d.append(h);
+    if (!shut) d.append(...done.map(row));
+    list.append(d);
+  }
+  if (!any) list.append(el('div', 'empty', finding() ? 'Nothing matches.' : 'No mockups yet.'));
+  list.scrollTop = listY;
+  drawView(p);
+  tellWhere();
+}
+
+// Sheet 113 (2026-10-31): search by name or number, filter by mark (any mix), sort by topic or newest.
+// Built once, outside the list, so a redraw never takes the box from under his typing.
+const find = { q: '', marks: new Set(), sort: 'topic' };
+const markOf = (n) => (n.fresh ? 'new' : (STG[n.mark] ?? OPEN)[1]);
+const finding = () => Boolean(find.q || find.marks.size);
+function shows(n) {
+  if (find.marks.size && !find.marks.has(markOf(n))) return false;
+  const q = find.q.trim().toLowerCase();
+  return !q || String(n.name).toLowerCase().includes(q) || String(n.num ?? '').startsWith(q);
+}
+function nameOf(n) {
+  const s = el('span', 'nm'), q = find.q.trim().toLowerCase(), name = String(n.name), i = q ? name.toLowerCase().indexOf(q) : -1;
+  if (i < 0) { s.textContent = name; return s; }
+  s.append(name.slice(0, i), el('span', 'hl', name.slice(i, i + q.length)), name.slice(i + q.length));
+  return s;
+}
+(function finder() {
+  const box = document.getElementById('find');
+  const q = el('input'); q.type = 'search'; q.placeholder = 'Search by name or number'; q.spellcheck = false;
+  q.addEventListener('input', () => { find.q = q.value; draw(); });
+  q.addEventListener('keydown', (e) => { if (e.key === 'Escape' && q.value) { e.stopPropagation(); q.value = ''; find.q = ''; draw(); } });
+  const chips = el('div', 'chips');
+  for (const [t, c] of [['NEW', 'new'], ['OPEN', 'open'], ['APPROVED', 'ok'], ['FIX', 'chg'], ['BUILT', 'built'], ['PARKED', 'park']]) {
+    const b = el('button', 'mk ' + (c === 'new' ? 'fnew' : c), t); b.type = 'button';
+    b.addEventListener('click', () => { if (find.marks.has(c)) find.marks.delete(c); else find.marks.add(c); b.classList.toggle('sel', find.marks.has(c)); draw(); });
+    chips.append(b);
+  }
+  const sort = el('div', 'sort');
+  const keys = [['topic', 'BY TOPIC'], ['newest', 'NEWEST']].map(([k, t]) => {
+    const b = el('button', k === find.sort ? 'on' : '', t); b.type = 'button';
+    b.addEventListener('click', () => { find.sort = k; for (const x of keys) x.classList.toggle('on', x === b); draw(); });
+    return b;
+  });
+  sort.append(...keys);
+  box.append(q, chips, sort);
+})();
+
+// 2026-11-01: Big view hides the list and the project
+// tabs so the sheet gets the whole tab. Kept for next time; with no sheet open the list always shows.
+let big = false;
+try { big = localStorage.getItem('mocklog.big') === '1'; } catch {}
+function bigKey() {
+  const b = el('button', 'bigk'); b.type = 'button';
+  b.append(el('i'), el('span', '', big ? 'Show list' : 'Big view'));
+  b.title = big ? 'Bring back the list' : 'Give the sheet the whole tab';
+  b.addEventListener('click', () => {
+    big = !big;
+    try { localStorage.setItem('mocklog.big', big ? '1' : '0'); } catch {}
+    draw();
+  });
+  return b;
+}
+
+let frameSrc = '';
+function drawView(p) {
+  const view = document.getElementById('view');
+  const w = pick.s ? where(pick.s) : null;
+  document.body.classList.toggle('big', big && Boolean(p && w));
+  if (!p || !w) {
+    frameSrc = '';
+    const f = el('div', 'frame'), r = el('div', 'rest');
+    if (p) r.append(emblem(p.name, true));
+    f.append(r); view.replaceChildren(f); closeMenu();
+    return;
+  }
+  const { t, n } = w, vs = n.versions;
+  const v = vs.find((x) => x.v === pick.v) ?? vs.findLast((x) => x.stage === 'ok' || x.stage === 'chat') ?? vs.at(-1);
+  pick.v = v.v;
+  const bar = el('div', 'vbar');
+  // Back says where it goes: the topic (or the project, when it has no topics), or Done.
+  const lone = p.topics.length === 1 && p.topics[0].name === 'Other';
+  const back = el('button', 'back'); back.type = 'button'; back.append(el('i'), !t ? 'Done' : lone ? p.name : t.name);
+  back.addEventListener('click', () => { pick.s = pick.v = null; draw(); });
+  const dt = el('div', 'dt');
+  if (n.num) dt.append(el('span', 'num', n.num));
+  dt.append(el('span', '', n.name));
+  if (pick.newAtOpen) dt.append(el('span', 'tag1', 'NEW'));
+  const chips = el('div', 'vs');
+  for (const x of vs) {
+    const b = el('b', x === v ? 'on' : '', 'v' + x.v);
+    if (x.said || x.note) b.title = x.said ? `You said: "${x.said}"` : `To fix: ${x.note}`;
+    b.addEventListener('click', () => { pick.v = x.v; draw(); });
+    chips.append(b);
+  }
+  const m = STG[v.stage] ?? OPEN;
+  const mk = el('button', 'mk ' + m[1], m[0]); mk.type = 'button';
+  if (v.said || v.note) mk.title = v.said ? `You said: "${v.said}"` : `To fix: ${v.note}`;
+  mk.addEventListener('click', (e) => { e.stopPropagation(); markMenu(v, mk); });
+  bar.append(back, dt, chips, mk, bigKey());
+  // The frame is kept while the same version shows, never moved (moving a frame reloads it), so a change elsewhere never
+  // reloads the sheet he is reading or loses his place in it.
+  let f = view.querySelector('.frame');
+  const swapBar = () => { const old = view.querySelector('.vbar'); if (old) old.replaceWith(bar); else view.prepend(bar); };
+  if (f && frameSrc === v.url && f.querySelector('iframe')) { swapBar(); return; }
+  // 2026-11-03: the new sheet loads out of sight, on top of
+  // the one showing (that one stays put); a quiet loader comes up only if it takes a moment; then it fades in whole,
+  // never paints in pieces. A sheet with no background of its own sits on white, as it would in a tab.
+  const keep = f?.querySelector('iframe.ready') ? f : null;
+  if (!keep) f = el('div', 'frame');
+  for (const x of f.querySelectorAll('iframe:not(.ready), .ld')) x.remove();
+  const ifr = el('iframe');
+  ifr.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+  ifr.setAttribute('referrerpolicy', 'no-referrer');
+  ifr.title = n.name;
+  // The loader: Samara's gold bar, nothing else (his word, 2026-11-03: "just give me a loading state").
+  const ld = el('div', 'ld'), prog = el('div', 'prog'); prog.append(el('i')); ld.append(prog);
+  const showT = setTimeout(() => ld.classList.add('on'), 180);
+  ifr.addEventListener('load', () => {
+    clearTimeout(showT);
+    // A breath after load, so its fonts and pictures settle before he sees it.
+    setTimeout(() => {
+      if (!ifr.isConnected) return;
+      ifr.classList.add('ready'); ld.classList.remove('on');
+      setTimeout(() => { for (const o of f.querySelectorAll('iframe')) if (o !== ifr) o.remove(); ld.remove(); }, 220);
+    }, 90);
+  }, { once: true });
+  // The address goes on before the frame goes in (a frame put in with none first loads a blank page, and that load
+  // would count as the sheet's). The newest sheet goes first (it draws on top, see mocklog.css), the loader last.
+  ifr.src = v.url;
+  f.prepend(ifr); f.append(ld);
+  frameSrc = v.url;
+  if (keep) swapBar(); else view.replaceChildren(bar, f);
+}
+
+// ---- The mark: tap it for the rest (sheet 79): approve, needs a fix, park, take it off, Send to the companion.
+function closeMenu() { document.querySelector('.mmenu')?.remove(); }
+function markMenu(v, anchor) {
+  closeMenu();
+  const m = el('div', 'mmenu'); m.setAttribute('role', 'menu');
+  const item = (label, go) => { const b = el('button', '', label); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.addEventListener('click', (e) => { e.stopPropagation(); go(); }); m.append(b); };
+  const set = (to, note = '') => { closeMenu(); window.mocklog?.stage(v.id, to, note); };
+  const ok = v.stage === 'ok' || v.stage === 'chat';
+  if (v.stage !== 'built') item(ok ? 'Take back the approval' : 'Approve this version', () => set(ok ? null : 'ok'));
+  item(v.stage === 'fix' ? 'Take off the fix' : 'Needs a fix…', () => {
+    if (v.stage === 'fix') { set(null); return; }
+    const box = el('input'); box.maxLength = 300; box.placeholder = 'What to fix';
+    box.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter' && box.value.trim()) set('fix', box.value.trim()); if (e.key === 'Escape') closeMenu(); });
+    box.addEventListener('click', (e) => e.stopPropagation());
+    m.replaceChildren(box); box.focus();
+  });
+  if (v.stage !== 'park') item('Park it', () => set('park'));
+  if (v.stage && v.stage !== 'chat' && v.stage !== 'ok' && v.stage !== 'fix') item('Take off the mark', () => set(null));
+  if (tree.toAang) { m.append(el('div', 'sep')); item('Send to companion', () => { closeMenu(); window.mocklog?.send(v.id); }); }
+  document.body.append(m);
+  const r = anchor.getBoundingClientRect();
+  m.style.left = Math.max(8, Math.min(innerWidth - m.offsetWidth - 8, r.right - m.offsetWidth)) + 'px';
+  m.style.top = Math.min(innerHeight - m.offsetHeight - 8, r.bottom + 6) + 'px';
+}
+document.addEventListener('click', (e) => { if (!e.target.closest?.('.mmenu')) closeMenu(); });
+// Esc (Samara sends it, from the sheet's frame too): the mark's menu closes first, else he leaves Mockups.
+window.mocklog?.onEsc(() => { if (document.querySelector('.mmenu')) closeMenu(); else window.mocklog?.leave(); });
+
+// Sheet 107 v4: Back to Samara, first along the
+// top, in the scroll plaque's blue and gold with the lantern on it. Mockups closes; he is back on the tab he was on.
+let leave = null;
+// Sheet 119 (2026-11-09): the row of
+// project tabs scrolls. An up-down mouse wheel moves it sideways (a trackpad's own sideways swipe is left alone), Left
+// and Right walk the tabs, Home and End jump to the ends, and a tab picked or walked to slides fully into view. Each edge
+// shades and shows a gold arrow while more tabs sit that way, with the blue gem when one of those has something NEW.
+let shownP = null;
+const tabsEl = () => document.getElementById('ptabs');
+function showTab(b, smooth = true) {
+  const t = tabsEl(), r = t.getBoundingClientRect(), q = b.getBoundingClientRect(), pad = 60;
+  if (q.left < r.left + pad) t.scrollBy({ left: q.left - r.left - pad, behavior: smooth ? 'smooth' : 'auto' });
+  else if (q.right > r.right - pad) t.scrollBy({ left: q.right - r.right + pad, behavior: smooth ? 'smooth' : 'auto' });
+}
+function tabEdges() {
+  const t = tabsEl(), x = t.scrollLeft, max = t.scrollWidth - t.clientWidth, r = t.getBoundingClientRect();
+  const L = document.getElementById('pedgel'), R = document.getElementById('pedger');
+  const hid = (left) => [...t.querySelectorAll('.ptab')].some((b) => {
+    if (!(Number(b.dataset.fresh) > 0)) return false;
+    const q = b.getBoundingClientRect();
+    return left ? q.left < r.left + 30 : q.right > r.right - 30;
+  });
+  L.classList.toggle('on', x > 1); R.classList.toggle('on', x < max - 1);
+  L.classList.toggle('fresh', x > 1 && hid(true)); R.classList.toggle('fresh', x < max - 1 && hid(false));
+}
+{
+  const t = tabsEl();
+  t.addEventListener('wheel', (ev) => {
+    if (Math.abs(ev.deltaX) >= Math.abs(ev.deltaY) || t.scrollWidth <= t.clientWidth) return;
+    ev.preventDefault();
+    const d = ev.deltaMode === 1 ? ev.deltaY * 32 : ev.deltaMode === 2 ? ev.deltaY * t.clientWidth : ev.deltaY;
+    // A mouse notch is a big step (it glides); a trackpad's small steps follow the finger.
+    if (Math.abs(d) >= 40) t.scrollBy({ left: d, behavior: 'smooth' }); else t.scrollLeft += d;
+  }, { passive: false });
+  t.addEventListener('keydown', (ev) => {
+    const all = [...t.querySelectorAll('.ptab')], i = all.indexOf(document.activeElement);
+    if (i < 0) return;
+    const to = { ArrowLeft: i - 1, ArrowRight: i + 1, Home: 0, End: all.length - 1 }[ev.key];
+    if (to === undefined) return;
+    ev.preventDefault();
+    const b = all[Math.max(0, Math.min(all.length - 1, to))];
+    b.focus({ preventScroll: true }); showTab(b);
+  });
+  t.addEventListener('focusin', (ev) => { if (ev.target.classList?.contains('ptab')) showTab(ev.target); });
+  t.addEventListener('scroll', tabEdges, { passive: true });
+  new ResizeObserver(tabEdges).observe(t);
+  for (const [id, dir] of [['pedgel', -1], ['pedger', 1]]) document.getElementById(id).addEventListener('click', () => t.scrollBy({ left: dir * t.clientWidth * 0.75, behavior: 'smooth' }));
+}
+
+function leaveKey() {
+  if (leave) return leave;
+  leave = el('button', 'leave'); leave.type = 'button';
+  const lamp = el('img', 'px'); lamp.src = 'art/samara/samara-lantern-64.png'; lamp.alt = ''; lamp.width = lamp.height = 32;
+  leave.append(el('i'), lamp, el('span', '', 'Back to Samara'));
+  leave.addEventListener('click', () => window.mocklog?.leave());
+  return leave;
+}
+
+// Sheet 107 v5: Samara keeps where he is (project, sheet, version, and the last sheet
+// Claude sent that it covers), so a Mockups that slept or was rebuilt opens right there.
+let told = '', started = false;
+function tellWhere() {
+  const k = JSON.stringify([pick.p, pick.s, pick.v, focusN]);
+  if (k === told || !pick.p) return;
+  told = k;
+  window.mocklog?.where(pick.p, pick.s, pick.v, focusN);
+}
+function take(d) {
+  // The page shows once it has something to show, never empty first and filled a moment later.
+  requestAnimationFrame(() => document.body.classList.remove('wait'));
+  if (!d) return;
+  tree = d;
+  if (!started) {
+    started = true;
+    const w = d.was;
+    if (w && (!d.focus || d.focus.n === w.n)) { focusN = w.n ?? null; pick.p = w.p; pick.s = w.s; pick.v = w.v; }
+  }
+  // A new sheet from Claude (or one picked elsewhere): Mockups opens right on it, in its project's tab.
+  if (d.focus && d.focus.n !== focusN) {
+    focusN = d.focus.n;
+    const w = where(d.focus.sheet);
+    if (w) { const ver = w.n.versions.find((x) => x.id === d.focus.id); openSheet(d.focus.sheet, ver?.v ?? null, true); return; }
+  }
+  draw();
+}
+window.mocklog?.onData(take);
+window.mocklog?.get().then(take);

@@ -1,0 +1,197 @@
+// The browser's buttons, menus and pages, wired to the browser. Shared by the PC (main.ts) and the Mac (mac.ts,
+// M6): on the Mac it had none of these, so no button did anything (his report, 2026-10-13). Each message is taken only
+// from the page that may send it (the frame, the Settings or Your things tab, the page menu), never from a website.
+import { ipcMain } from 'electron';
+import type { SamaraBrowser } from './browser.ts';
+
+/** The window's own page, never a frame inside it (code audit L3, 2026-10-14): only the page itself may ask. */
+function top(e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): boolean {
+  try { const f = e.senderFrame; return !!f && f.parent === null; } catch { return false; }
+}
+
+export function wireBrowser(get: () => SamaraBrowser | null): void {
+  const b = (_e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent) => get() as SamaraBrowser;
+  // ---- 6.19/6.20 the browser frame. Only the frame page may drive it, never a tab.
+  // The tab list floating over the page: open (where the frame says) or closed.
+  // Sheet 120 A: the band's panels float in their own layer; the frame asks for a panel, the layer says when it opens or closes.
+  ipcMain.on('browser:float', (e, a) => {
+    if (!top(e) || !a || typeof a !== 'object') return;
+    const br = b(e);
+    if (br?.isFloat(e.sender)) br.floatFromLayer(a);
+    else if (br?.isMainFrame(e.sender)) br.floatFromFrame(a);
+  });
+  // Sheet 121 (5): peek at a link (Shift-click or a held press, from the page), and the peek strip's keys.
+  ipcMain.on('tab:peek', (e, href) => { if (top(e) && typeof href === 'string') b(e)?.peekLink(e.sender, href.slice(0, 4000)); });
+  ipcMain.on('browser:peek', (e, act) => { if (top(e) && typeof act === 'string') b(e)?.peekAct(e.sender, act); });
+  // Sheet 121 (4): side by side, from the band (the peg, a page's strip or its ×).
+  ipcMain.on('browser:sbs', (e, a) => { if (top(e) && b(e)?.isMainFrame(e.sender) && a && typeof a === 'object') b(e).splitFromFrame(a); });
+  // Sheet 121 (3): the tab list's hover picture, from the list's own layer.
+  ipcMain.on('browser:tabpeek', (e, a) => { if (top(e) && b(e)?.isFrame(e.sender)) void b(e).tabPeek(a && typeof a === 'object' ? a : null); });
+  ipcMain.on('browser:tray', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && typeof a === 'object') b(e).tray(a.open === true, a); });
+  // Sheet 60 section 4: the notes rail. A new note for this site (where it came from is the browser's to say), or one to open.
+  ipcMain.on('browser:notesave', (e, n) => { if (top(e) && b(e)?.isFrame(e.sender)) b(e).noteSave(n); });
+  ipcMain.on('browser:noteopen', (e, id) => { if (top(e) && b(e)?.isFrame(e.sender)) b(e).noteOpen(id); });
+  ipcMain.on('browser:insets', (e, r) => { if (b(e)?.isMainFrame(e.sender) && r) b(e).setInsets(Number(r.left), Number(r.top), Number(r.right) || 0, Number(r.bottom) || 0); });
+  // A tab's page has drawn (tabpreload.cjs): the only thing a website's tab ever sends, and it carries nothing.
+  ipcMain.on('tab:painted', (e) => b(e)?.painted(e.sender));
+  // Phase 3: a tab's top page asked for a passkey (tabpreload.cjs). It carries nothing; the browser reads the address.
+  ipcMain.on('tab:passkey', (e) => { if (top(e)) b(e)?.passkeyWanted(e.sender); });
+  // Sheet 87: the link he clicked in a tab's top page (the click trick), an address only.
+  ipcMain.on('tab:link', (e, href) => { if (top(e) && typeof href === 'string') b(e)?.linkClicked(e.sender, href.slice(0, 4000)); });
+  // Autofill (sheet 77): the box he is in, and a login he sent, from a tab's top page only; the light's two doors; the
+  // save card's Save, from the frame only.
+  ipcMain.on('tab:field', (e, m) => { if (top(e)) b(e)?.afField(e.sender, m); });
+  ipcMain.on('tab:cred', (e, m) => { if (top(e)) b(e)?.afCred(e.sender, m); });
+  // Sheet 109: while he has his tab back from a session, its top page names the fields he fills and what he clicks (never
+  // values); it asks whether to, as it starts. The hand card's Hand back (with his note) and its height, from its layer.
+  ipcMain.on('tab:did', (e, m) => { if (top(e)) b(e)?.handDid(e.sender, m); });
+  ipcMain.handle('tab:watchhim', (e) => { try { return top(e) ? b(e)?.handWatching(e.sender) === true : false; } catch { return false; } });
+  ipcMain.on('hand:back', (e, note) => { if (top(e)) b(e)?.handBack(e.sender, typeof note === 'string' ? note.slice(0, 300) : ''); });
+  ipcMain.on('hand:size', (e, h) => { if (top(e)) b(e)?.handSize(e.sender, Number(h)); });
+  ipcMain.on('light:pick', (e) => { if (top(e) && b(e)?.isLight(e.sender)) void b(e).afPick(false); });
+  ipcMain.on('light:flick', (e, d) => { if (top(e) && b(e)?.isLight(e.sender) && (d === 1 || d === -1)) b(e).afFlick(d); });
+  ipcMain.on('browser:afsavego', (e, m) => { if (top(e) && b(e)?.isMainFrame(e.sender)) void b(e).afSaveGo(m); });
+  // Nothing plays until he asks (2026-10-20): a starting page asks whether it may play by itself and whether he sees it.
+  // Dark mode at the page's start (2026-10-20): the top frame only, and only for the address that frame really has.
+  ipcMain.handle('tab:dark', (e) => { try { const f = e.senderFrame; if (!f || f.parent) return null; return b(e)?.darkAtStart(e.sender, f.url) ?? null; } catch { return null; } });
+  ipcMain.handle('tab:mayplay', (e) => { try { return b(e)?.mayPlay(e.sender) ?? { ok: true, shown: true }; } catch { return { ok: true, shown: true }; } });
+  // 6.25a: STOP, close, watch or open one of the companion's pages, from the drawer or the address bar.
+  ipcMain.on('browser:driver', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && typeof a.act === 'string' && Number.isInteger(a.id)) b(e).driverAct(a.act.slice(0, 10), a.id); });
+  // Sheet 109: where the address bar ends, so the hand card hangs from it.
+  ipcMain.on('browser:handspot', (e, r) => { if ((top(e) && b(e)?.isFrame(e.sender)) && r) b(e).setHandSpot(Math.round(Number(r.x)), Math.round(Number(r.y))); });
+  ipcMain.on('browser:act', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && typeof a === 'string') b(e).act(a); });
+  // Option + drag anywhere on the frame moves the window (2026-10-23): only the frame, only screen numbers.
+  ipcMain.on('browser:windrag', (e, m) => { if ((top(e) && b(e)?.isFrame(e.sender)) && m && typeof m.phase === 'string' && Number.isFinite(m.x) && Number.isFinite(m.y)) b(e).winDrag(e.sender, m.phase, Math.round(m.x), Math.round(m.y)); });
+  ipcMain.on('browser:slot', (e, open) => { if (top(e) && b(e)?.isFrame(e.sender)) b(e).slotState(open === true); });
+  ipcMain.on('browser:go', (e, text) => { if ((top(e) && b(e)?.isFrame(e.sender)) && typeof text === 'string') b(e).go(text.slice(0, 2000)); });
+  ipcMain.on('browser:askreply', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && Number.isInteger(a.id)) b(e).answer(a.id, a.allow === true); });
+  // 6.24: his pick in the screen-share panel. Only an id the panel was given can be shared.
+  ipcMain.on('browser:sharereply', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && Number.isInteger(a.id)) b(e).shareAnswer(a.id, typeof a.source === 'string' ? a.source.slice(0, 200) : null, a.sound === true); });
+  // Sheet 69: his pick in the keyboard ask (only a device the ask listed can be picked), and Forget in the shield.
+  ipcMain.on('browser:devreply', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && Number.isInteger(a.id)) b(e).devAnswer(a.id, typeof a.device === 'string' ? a.device.slice(0, 200) : null); });
+  ipcMain.on('browser:devforget', (e, key) => { if ((top(e) && b(e)?.isFrame(e.sender)) && typeof key === 'string') b(e).forgetDevice(key.slice(0, 100)); });
+  ipcMain.on('browser:adpause', (e, on) => { if ((top(e) && b(e)?.isFrame(e.sender))) b(e).pauseAds(on === true); });
+  ipcMain.on('browser:darkhere', (e, on) => { if ((top(e) && b(e)?.isFrame(e.sender))) b(e).setDarkHere(on === true); });
+  // The star's panel: rename the bookmark for this page, or remove it.
+  ipcMain.on('browser:markop', (e, a) => {
+    if (!(top(e) && b(e)?.isFrame(e.sender)) || !a || typeof a.url !== 'string') return;
+    if (!['rename', 'remove', 'left', 'right', 'newtab', 'pop', 'copy'].includes(String(a.act))) return;
+    b(e).markOp(String(a.act), a.url.slice(0, 4000), typeof a.title === 'string' ? a.title.slice(0, 300) : '');
+  });
+  ipcMain.on('browser:mark', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && (a.act === 'rename' || a.act === 'remove')) b(e).markAct(a.act, typeof a.title === 'string' ? a.title.slice(0, 300) : ''); });
+  // Sheet 37: his answer to a Claude session's plan, from the band's plan tray.
+  ipcMain.on('browser:planreply', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && typeof a.id === 'string') b(e).planReply(a.id.slice(0, 40), a); });
+  // Sheet 37: a rule for the site he is on, from the shield. Only these keys.
+  ipcMain.on('browser:siterule', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && ['ai', 'login', 'ads', 'popups', 'dark', 'camera', 'mic'].includes(a.key)) b(e).setSiteRule(a.key, a.value); });
+  ipcMain.on('browser:trail', (e, a) => {
+    if (!(top(e) && b(e)?.isFrame(e.sender)) || !a || typeof a !== 'object') return;
+    if (a.act === 'new') b(e).newTrail();
+    else if (a.act === 'rename' && Number.isInteger(a.id) && typeof a.name === 'string') b(e).renameTrail(a.id, a.name);
+    else if (a.act === 'move' && Number.isInteger(a.tab)) b(e).moveTab(a.tab, a.to === 'new' ? 'new' : Number.isInteger(a.to) ? a.to : null);
+    // Dragging (2026-10-12): a tab into a trail or loose, before another tab; a whole trail before another trail.
+    // Dragging, smoother (2026-10-21): several tabs at once, and under a parent tab. Every field is checked here and
+    // again in placeTabs: ids are whole numbers (1 to 60 of them, no repeats), the rest a whole number or null.
+    else if (a.act === 'place' && Array.isArray(a.tabs)) {
+      const idOrNull = (v: unknown) => v === null || v === undefined || (Number.isInteger(v) && Math.abs(v as number) < 1e9);
+      if (a.tabs.length < 1 || a.tabs.length > 60 || !a.tabs.every((x: unknown) => Number.isInteger(x) && (x as number) > 0 && (x as number) < 1e9)) return;
+      if (!idOrNull(a.trail) || !idOrNull(a.before) || !idOrNull(a.parent)) return;
+      b(e).placeTabs(a.tabs.slice(), a.trail ?? null, a.before ?? null, a.parent ?? null);
+    }
+    else if (a.act === 'place' && Number.isInteger(a.tab)) b(e).placeTab(a.tab, Number.isInteger(a.trail) ? a.trail : null, Number.isInteger(a.before) ? a.before : null);
+    else if (a.act === 'movetrail' && Number.isInteger(a.id)) b(e).moveTrail(a.id, Number.isInteger(a.before) ? a.before : null);
+    // The trail menu, and the Stash.
+    else if (a.act === 'trail' && Number.isInteger(a.id) && ['collapse', 'stash', 'ungroup', 'close'].includes(a.what)) b(e).trailAct(a.id, a.what);
+    else if (a.act === 'stash' && Number.isInteger(a.id) && (a.what === 'restore' || a.what === 'forget')) b(e).stashAct(a.id, a.what);
+  });
+  // Sheet 47: the MOCKUPS trail. A version to show, the history list, the broom, and the family tree (branches, children).
+  ipcMain.on('browser:mockup', (e, a) => {
+    if (!(top(e) && b(e)?.isFrame(e.sender)) || !a || typeof a.act !== 'string') return;
+    b(e).mockAct(a.act.slice(0, 12), {
+      id: Number.isInteger(a.id) ? a.id : undefined, open: a.open === true,
+      sheet: typeof a.sheet === 'string' ? a.sheet.slice(0, 400) : undefined,
+      to: Number.isInteger(a.to) ? a.to : typeof a.to === 'string' ? a.to.slice(0, 400) : null,
+      name: typeof a.name === 'string' ? a.name.slice(0, 300) : undefined,
+    });
+  });
+  ipcMain.on('browser:find', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && typeof a.text === 'string') b(e).find(a.text, a.next === true, a.back === true); });
+  ipcMain.on('pagemenu:pick', (e, id) => { if (b(e)?.isMenu(e.sender)) b(e).menuPick(typeof id === 'string' ? id.slice(0, 20) : ''); });
+  ipcMain.on('pagemenu:size', (e, r) => { if (b(e)?.isMenu(e.sender) && r) b(e).menuSize(Number(r.w) || 0, Number(r.h) || 0, Number(r.sub) || 0); });
+  // 6.23: his master password goes from the frame straight to the vault, once. Never logged, never to the brain.
+  ipcMain.on('browser:vaultunlock', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && typeof a.pw === 'string' && a.pw.length <= 1024) void b(e).vaultUnlock(a.pw); });
+  ipcMain.on('browser:vaultpick', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && typeof a.id === 'string') void b(e).vaultPick(a.id.slice(0, 64)); });
+  ipcMain.on('browser:home', (e, text) => { if ((top(e) && b(e)?.isFrame(e.sender)) && typeof text === 'string') b(e).setHome(text.slice(0, 2000)); });
+  // The Settings tab: only its own page may use these.
+  ipcMain.handle('settings:get', (e) => (top(e) && b(e)?.isSettings(e.sender)) ? b(e).settingsData() : null);
+  ipcMain.on('settings:set', (e, a) => { if ((top(e) && b(e)?.isSettings(e.sender)) && a && typeof a.key === 'string') b(e).setSetting(a.key.slice(0, 20), a.value); });
+  // Sheet 37: Settings > Your sites. A rule for any site in the list, or forget all of a site's rules.
+  ipcMain.on('settings:siterule', (e, a) => { if ((top(e) && b(e)?.isSettings(e.sender)) && a && typeof a.site === 'string' && ['ai', 'login', 'ads', 'popups', 'dark', 'camera', 'mic'].includes(a.key)) b(e).setSiteRule(a.key, a.value, a.site.slice(0, 300)); });
+  ipcMain.on('settings:siteclear', (e, a) => { if ((top(e) && b(e)?.isSettings(e.sender)) && typeof a === 'string') b(e).clearSite(a.slice(0, 300)); });
+  ipcMain.on('settings:remove', (e, a) => { if ((top(e) && b(e)?.isSettings(e.sender)) && a && typeof a.list === 'string' && typeof a.value === 'string') b(e).removeEntry(a.list, a.value); });
+  // Downloads tray (frame) and Your things (its own tab): a download is named by its number, never by a path.
+  ipcMain.on('browser:dl', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && typeof a.act === 'string') b(e).dlAct(a.act.slice(0, 10), Number(a.id) || 0); });
+  ipcMain.on('browser:dldrag', (e, id) => { if ((top(e) && b(e)?.isFrame(e.sender)) && Number.isInteger(id)) b(e).dlDrag(e.sender, id); });
+  ipcMain.on('browser:dlhello', (e) => { if ((top(e) && b(e)?.isFrame(e.sender))) b(e).resendDownloads(); });
+  // Sheet 100: the Mockups quest log's only doors: read the tree; sheet 107: a sheet opened (seen), a mark, Send to the companion.
+  // BG5: the Hyrule map's notes doors (hyrulepreload.cjs), from its own page only.
+  ipcMain.handle('hyrule:notes', (e) => (top(e) && b(e)?.isHyrule(e.sender)) ? b(e).hyruleNotes() : null);
+  ipcMain.on('hyrule:noteplace', (e, a) => { if (top(e) && b(e)?.isHyrule(e.sender)) b(e).hyruleNotePlace(a); });
+  ipcMain.on('hyrule:routetook', (e, a) => { if (top(e) && b(e)?.isHyrule(e.sender)) b(e).hyruleRouteTook(a); });
+  ipcMain.on('hyrule:routereport', (e, a) => { if (top(e) && b(e)?.isHyrule(e.sender)) b(e).hyruleRouteReport(a); });
+  ipcMain.on('hyrule:newnote', (e, a) => { if (top(e) && b(e)?.isHyrule(e.sender)) b(e).hyruleNewNote(a); });
+  ipcMain.on('hyrule:ask', (e, a) => { if (top(e) && b(e)?.isHyrule(e.sender)) b(e).hyruleAsk(a); });
+  ipcMain.on('hyrule:guide', (e, a) => { if (top(e) && b(e)?.isHyrule(e.sender)) b(e).hyruleGuide(a); });
+  ipcMain.on('hyrule:noteopen', (e, id) => { if (top(e) && b(e)?.isHyrule(e.sender)) b(e).noteOpen(id); });
+  // the map's save (hy.* keys), mirrored to a file because its page server's port, and so its origin, changes each launch
+  ipcMain.on('hyrule:saveload', (e) => { e.returnValue = (top(e) && b(e)?.isHyrule(e.sender)) ? b(e).hyruleSaveLoad() : {}; });
+  ipcMain.on('hyrule:save', (e, a) => { if (top(e) && b(e)?.isHyrule(e.sender)) b(e).hyruleSave(a); });
+  ipcMain.handle('mocklog:get', (e) => (top(e) && b(e)?.isMockLog(e.sender)) ? b(e).mockLogData() : null);
+  ipcMain.on('mocklog:seen', (e, sheet) => { if ((top(e) && b(e)?.isMockLog(e.sender)) && typeof sheet === 'string' && sheet.length <= 2000) b(e).mockLogSeen(sheet); });
+  ipcMain.on('mocklog:stage', (e, a) => { if ((top(e) && b(e)?.isMockLog(e.sender)) && a && Number.isInteger(a.id) && (a.to === null || ['ok', 'fix', 'park'].includes(a.to))) b(e).mockLogStage(a.id, a.to, typeof a.note === 'string' ? a.note.slice(0, 300) : ''); });
+  ipcMain.on('mocklog:where', (e, a) => { if (top(e) && b(e)?.isMockLog(e.sender) && a && typeof a.p === 'string' && a.p.length <= 80 && (a.s === null || (typeof a.s === 'string' && a.s.length <= 2000)) && (a.v === null || Number.isInteger(a.v)) && (a.n === null || Number.isInteger(a.n))) b(e).mockLogWhere({ p: a.p, s: a.s, v: a.v, n: a.n }); });
+  ipcMain.on('mocklog:leave', (e) => { if (top(e) && b(e)?.isMockLog(e.sender)) b(e).mockLogLeave(); });
+  ipcMain.on('mocklog:send', (e, id) => { if ((top(e) && b(e)?.isMockLog(e.sender)) && Number.isInteger(id)) b(e).mockLogSend(id); });
+  ipcMain.handle('things:history', (e, a) => (top(e) && b(e)?.isThings(e.sender)) && a ? b(e).historyPage(String(a.q ?? ''), Number(a.offset) || 0) : null);
+  ipcMain.handle('things:downloads', (e) => (top(e) && b(e)?.isThings(e.sender)) ? b(e).downloadsPage() : null);
+  ipcMain.on('things:hist', (e, a) => { if ((top(e) && b(e)?.isThings(e.sender)) && a && typeof a.act === 'string') b(e).historyAct(a.act.slice(0, 12), typeof a.url === 'string' ? a.url.slice(0, 2000) : undefined, Number(a.at)); });
+  ipcMain.on('things:dl', (e, a) => { if ((top(e) && b(e)?.isThings(e.sender)) && a && typeof a.act === 'string') b(e).dlAct(a.act.slice(0, 10), Number(a.id) || 0); });
+  ipcMain.on('things:dldrag', (e, id) => { if ((top(e) && b(e)?.isThings(e.sender)) && Number.isInteger(id)) b(e).dlDrag(e.sender, id); });
+  ipcMain.on('things:open', (e, url) => { if ((top(e) && b(e)?.isThings(e.sender)) && typeof url === 'string') b(e).openFromThings(url.slice(0, 2000)); });
+  ipcMain.on('things:go', (e, where) => { if ((top(e) && b(e)?.isThings(e.sender)) && where === 'bookmarks') b(e).act('bookmarks'); });
+  ipcMain.handle('settings:lookup', (e, q) => (top(e) && b(e)?.isSettings(e.sender)) && typeof q === 'string' ? b(e).addressLookup(q.slice(0, 200)) : []);
+  ipcMain.on('settings:act', (e, a) => { if ((top(e) && b(e)?.isSettings(e.sender)) && typeof a === 'string') b(e).settingsAct(a.slice(0, 20)); });
+  // Sheet 88: his engine's guesses for what he typed, for the frame's address bar only.
+  ipcMain.handle('browser:guesses', (e, text) => (top(e) && b(e)?.isFrame(e.sender)) && typeof text === 'string' ? b(e).guesses(text.slice(0, 200)) : []);
+  // Sheet 102: the bar's list on its own layer: the bar says what to show; the layer says which row and how tall it drew.
+  ipcMain.on('browser:suggestShow', (e, m) => { if (top(e) && b(e)?.isFrame(e.sender)) b(e).suggestShow(m); });
+  ipcMain.on('browser:suggestForget', (e, a) => { if (top(e) && b(e)?.isFrame(e.sender) && a && typeof a === 'object') b(e).suggestForget(String(a.kind ?? ''), String(a.url ?? '')); });
+  ipcMain.on('suggest:act', (e, a) => { if (top(e) && b(e)?.isSuggest(e.sender) && a && (a.act === 'hover' || a.act === 'pick') && Number.isInteger(a.i) && a.i >= 0 && a.i < 16) b(e).suggestAct(a.act, a.i); });
+  // Sheet 106 v7: the notices' layer says which button he pressed (the TV code, the device picked), his mouse on it, how
+  // big it drew, and a download row dragged out or clicked; the frame says where the key it drops from is.
+  ipcMain.on('notice:act', (e, a) => { if (top(e) && b(e)?.isNotice(e.sender) && a && Number.isInteger(a.id) && typeof a.act === 'string') b(e).noticeAct(a.id, a.act, typeof a.value === 'string' ? a.value : undefined); });
+  ipcMain.on('notice:hover', (e, on) => { if (top(e) && b(e)?.isNotice(e.sender)) b(e).noticeHover(on === true); });
+  ipcMain.on('notice:size', (e, m) => { if (top(e) && b(e)?.isNotice(e.sender) && m && Number.isFinite(m.w) && Number.isFinite(m.h)) b(e).noticeSize(Number(m.w), Number(m.h)); });
+  ipcMain.on('notice:dldrag', (e, id) => { if (top(e) && b(e)?.isNotice(e.sender) && Number.isInteger(id)) b(e).noticeFile(e.sender, id, 'drag'); });
+  ipcMain.on('notice:dlopen', (e, id) => { if (top(e) && b(e)?.isNotice(e.sender) && Number.isInteger(id)) b(e).noticeFile(e.sender, id, 'open'); });
+  ipcMain.on('browser:noticeAt', (e, m) => { if (top(e) && b(e)?.isFrame(e.sender)) b(e).noticeAt(m); });
+  ipcMain.on('suggest:size', (e, h) => { if (top(e) && b(e)?.isSuggest(e.sender) && Number.isFinite(h)) b(e).suggestSize(Number(h)); });
+  ipcMain.handle('browser:suggest', (e, text) => (top(e) && b(e)?.isFrame(e.sender)) && typeof text === 'string' ? b(e).suggest(text) : []);
+  ipcMain.on('browser:findstop', (e) => { if ((top(e) && b(e)?.isFrame(e.sender))) b(e).findStop(); });
+  ipcMain.on('browser:pref', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && typeof a.key === 'string') b(e).setPref(a.key, a.on === true); });
+  // His ask (2026-10-13): a tab let go outside its window becomes a window of its own (or joins the one it was dropped on).
+  ipcMain.on('browser:tearout', (e, id) => { if ((top(e) && b(e)?.isFrame(e.sender)) && Number.isInteger(id)) b(e).tearOut(id); });
+  // C7 Claude's rune (2026-10-21): the band's own page only (not the tab list's layer, never a website). What it may send
+  // is the cockpit's pause / play / message, checked again in claudeAct; Open in Claude only for the exact claude:// link.
+  // 2026-10-21: and the rune's own layer over the page (runeView), which draws the panel now.
+  ipcMain.on('browser:claudehello', (e) => { if (top(e) && (b(e)?.isMainFrame(e.sender) || b(e)?.isRune(e.sender))) b(e).claudeHello(e.sender); });
+  ipcMain.on('browser:claude', (e, raw) => { if (top(e) && (b(e)?.isMainFrame(e.sender) || b(e)?.isRune(e.sender))) b(e).claudeAct(raw); });
+  ipcMain.on('browser:openclaude', (e, raw) => { if (top(e) && (b(e)?.isMainFrame(e.sender) || b(e)?.isRune(e.sender))) b(e).claudeOpen(raw); });
+  ipcMain.on('browser:rune', (e, a) => {
+    if (!top(e) || !a || typeof a !== 'object') return;
+    if (b(e)?.isRune(e.sender)) b(e).runeFromLayer(a);
+    else if (b(e)?.isMainFrame(e.sender)) b(e).runeFromBand(a);
+  });
+  // Sheet 89: the TV light and the TV ask's keys, from the frame only.
+  // Sheet 99 adds: send (Send to TV), send:window, settings, retry, nolink, and code:XXXXXX (the six on his TV).
+  ipcMain.on('browser:tv', (e, act) => { if (top(e) && b(e)?.isMainFrame(e.sender) && typeof act === 'string' && (['open', 'close', 'displays', 'back', 'stop', 'send', 'send:window', 'settings', 'retry', 'nolink'].includes(act) || /^code:[0-9A-Fa-f]{6}$/.test(act))) void b(e).tvAct(act); });
+  ipcMain.on('browser:tab', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && Number.isInteger(a.id)) b(e).tabAct(a.id, String(a.act)); });
+}

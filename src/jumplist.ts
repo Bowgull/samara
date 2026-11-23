@@ -1,0 +1,99 @@
+// Samara's taskbar right-click list (2026-10-21: the Samara taskbar icon had no right-click options).
+//
+// How it reaches SAMARA's button, not the companion's: Windows keeps one jump list per app id. This process's own id is the companion app's
+// (main.ts), while Samara's windows wear their own id, 'Samara' (browser.ts setAppDetails), so they get their own
+// taskbar button. Electron writes the jump list for whatever the process id is at that moment, so main.ts switches the
+// id to 'Samara' just long enough to write it, then straight back: The companion's windows and everything else keep the companion app's.
+// Windows keeps the list after Samara closes, so it is written once per start.
+//
+// Each item starts this same Shell again (the same engine, the same main.ts) with one --samara-task=... argument. A Shell
+// already running gets it through the single-instance lock ('second-instance') and the copy just started steps aside; with
+// no Shell running, the new one IS Samara, on its own, without the companion (like the Samara shortcut). Only the names below
+// (five of Samara's, six pop-out ones) are ever acted on; anything else on the command line is ignored.
+import path from 'node:path';
+
+// The Pop-outs section's names (moved here from taskbarplan.ts on 2026-11-20, phase 1 of Samara's own repo).
+export const POPOUT_TASKS = ['popouts-show', 'popouts-hide', 'popouts-gather', 'new-note', 'timer', 'player'] as const;
+export type PopoutTask = typeof POPOUT_TASKS[number];
+/** New note, Timer and Music player need the companion (notes and timers belong to it): listed only while it runs. */
+export const NEEDS_COMPANION: ReadonlySet<PopoutTask> = new Set(['new-note', 'timer', 'player']);
+export const isPopoutTask = (t: unknown): t is PopoutTask => typeof t === 'string' && (POPOUT_TASKS as readonly string[]).includes(t);
+
+// Sheet 66 A (2026-10-22): a "Pop-outs" section above the Tasks (Show all, Hide all, Gather them by the companion, New note,
+// Timer, Music player). Same door: main.ts hands these six to taskbar.ts instead of the browser.
+// 'hyrule' (2026-11-03) is asked for by the Shrine dock's right-click; it is not in the taskbar list itself.
+export const SAMARA_TASKS = ['new-tab', 'new-window', 'mockups', 'hyrule', 'settings', 'reopen', 'quit', ...POPOUT_TASKS] as const;
+export type SamaraTask = typeof SAMARA_TASKS[number];
+const FLAG = '--samara-task=';
+
+/** One of the five, or null. The only door: every other spelling, case or extra text is refused. */
+export function samaraTask(x: unknown): SamaraTask | null {
+  return typeof x === 'string' && (SAMARA_TASKS as readonly string[]).includes(x) ? x as SamaraTask : null;
+}
+
+/** The task on a command line: exactly one --samara-task=<name>. Two of them (or a bad name) and nothing happens. */
+export function taskFromArgv(argv: unknown): SamaraTask | null {
+  if (!Array.isArray(argv)) return null;
+  const hits = argv.filter((a): a is string => typeof a === 'string' && a.startsWith(FLAG));
+  return hits.length === 1 ? samaraTask(hits[0]!.slice(FLAG.length)) : null;
+}
+
+/** What the copy that steps aside hands over with the lock (cleaner than the raw command line, which Chromium may add to). */
+export function taskFromLockData(data: unknown): SamaraTask | null {
+  return data && typeof data === 'object' ? samaraTask((data as { samaraTask?: unknown }).samaraTask) : null;
+}
+
+const WORDS: Record<SamaraTask, [string, string]> = {
+  'new-tab': ['New tab', 'Open a new tab in Samara'],
+  'new-window': ['New window', 'Open a new Samara window'],
+  'reopen': ['Reopen closed tab', 'Bring back the tab you just closed'],
+  'mockups': ['Mockups', "Open the MOCKUPS trail, Claude's mockups"],
+  'hyrule': ['Hyrule', 'Open the Hyrule map'],
+  'settings': ['Settings', "Samara's settings"],
+  // Phase 5 (2026-11-18): since P1 Samara stays open with no window; this is the way to close it completely.
+  'quit': ['Quit Samara', 'Close Samara completely'],
+  'popouts-show': ['Show all pop-outs', 'Bring every pop-out back on screen'],
+  'popouts-hide': ['Hide all pop-outs', 'Put every pop-out away (Show all brings them back)'],
+  'popouts-gather': ['Gather them', 'Snap every pop-out together'],
+  'new-note': ['New note', 'A new note, small and ready to type'],
+  'timer': ['Timer', 'Set a timer'],
+  'player': ['Music player', 'Open the music player'],
+};
+
+/** The pop-outs part: whether the companion runs (New note, Timer, Music need it), the icon file for each, and what the user took off. */
+export interface PopoutsSection { companion: boolean; icons: Partial<Record<PopoutTask, string>>; removed?: (args: string) => boolean }
+
+/** The list itself: Pop-outs (when given), then Tasks, in the order he reads them. Exported for its test. */
+export function jumpList(o: { exe: string; main: string; dir: string; icon: string; popouts?: PopoutsSection; quit?: boolean }): Electron.JumpListCategory[] {
+  const item = (t: SamaraTask, icon = o.icon) => ({
+    type: 'task' as const, title: WORDS[t][0], description: WORDS[t][1],
+    program: o.exe, args: `"${o.main}" ${FLAG}${t}`, workingDirectory: o.dir,
+    iconPath: icon, iconIndex: 0,
+  });
+  // Quit only where Samara is its own program (samara.ts): in the companion's windows it would have nothing of its own to close.
+  const order: SamaraTask[] = ['new-tab', 'new-window', 'reopen', 'mockups', 'settings', ...(o.quit ? ['quit' as const] : [])];
+  const out: Electron.JumpListCategory[] = [];
+  const p = o.popouts;
+  if (p) {
+    // An item he removed from the list can't be put back (Windows refuses the whole list), so it is left out.
+    // Every item, the companion running or not (2026-11-07): Samara starts it when one needs it (main.ts runPopoutTask).
+    const items = POPOUT_TASKS.map((t) => item(t, p.icons[t] || o.icon)).filter((i) => !p.removed?.(i.args));
+    if (items.length) out.push({ type: 'custom', name: 'Pop-outs', items });
+  }
+  out.push({ type: 'tasks', items: order.map((t) => item(t)) });
+  return out;
+}
+
+/** Write it under Samara's id. Never throws: a missing list must not stop Samara. Returns Electron's word for how it went. */
+export function writeSamaraJumpList(app: Electron.App, o: { main: string; dir: string; icon: string; ownId: string; popouts?: Omit<PopoutsSection, 'removed'>; quit?: boolean }): string {
+  if (process.platform !== 'win32') return 'not windows';
+  try {
+    app.setAppUserModelId('Samara');
+    let removed: PopoutsSection['removed'];
+    try { const r = app.getJumpListSettings().removedItems ?? []; removed = (args) => r.some((x) => x.args === args); } catch { /* none known */ }
+    return String(app.setJumpList(jumpList({ exe: process.execPath, main: o.main, dir: o.dir, icon: o.icon, popouts: o.popouts ? { ...o.popouts, removed } : undefined, quit: o.quit === true })));
+  } catch (e) { return 'error: ' + (e as Error).message; }
+  finally { try { app.setAppUserModelId(o.ownId); } catch { /* keeps Samara's: harmless */ } }
+}
+
+export const SAMARA_JUMP_ICON = path.join(import.meta.dirname, '..', 'pages', 'art', 'samara', 'samara-open.ico');

@@ -1,0 +1,379 @@
+import { pixIcon } from './pixicons.js';
+// The browser's Settings page, sheet 83 v2 (2026-10-23). Draws what the Shell sends (all text by textContent) and sends
+// back only: a setting key and value, an entry to take off one of his lists, an address to look up, or a few actions.
+const $ = (s, r = document) => r.querySelector(s);
+const S = window.settings;
+let data = null;
+
+// Pixel pieces, drawn here (static strings only, never page data).
+const svg = (vb, d) => { const n = new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" shape-rendering="crispEdges"><path d="${d}"/></svg>`, 'image/svg+xml').documentElement; return document.importNode(n, true); };
+const LEFT = () => svg('0 0 5 7', 'M3 0h2v1H4v1H3v1H2v1h1v1h1v1h1v1H3V6H2V5H1V4H0V3h1V2h1V1h1z');
+const RIGHT = () => svg('0 0 5 7', 'M0 0h2v1h1v1h1v1h1v1H4v1H3v1H2v1H0V6h1V5h1V4h1V3H2V2H1V1H0z');
+const TICK = () => svg('0 0 8 7', 'M7 0h1v2H7v1H6v1H5v1H4v1H3v1H2V6H1V5H0V3h1v1h1v1h1V4h1V3h1V2h1V1h1z');
+const EYE = () => svg('0 0 11 7', 'M3 0h5v1h2v1h1v3h-1v1H8v1H3V6H1V5H0V2h1V1h2zM4 2v3h3V2zM5 3h1v1H5z');
+for (const g of document.querySelectorAll('.go')) g.append(RIGHT());
+for (const a of document.querySelectorAll('.ar')) a.append(a.classList.contains('l') ? LEFT() : RIGHT());
+for (const o of document.querySelectorAll('.ok')) o.append(TICK());
+$('#eye').append(EYE());
+
+// ---- chapters and one level in; the glove points at the open chapter
+const ALIAS = { general: 'start', passwords: 'autofill', sound: 'sounds' };
+const ALL = [...document.querySelectorAll('section[data-sec]')].map((s) => s.dataset.sec);
+let current = 'start';
+function show(sec) {
+  const name = ALL.includes(ALIAS[sec] ?? sec) ? (ALIAS[sec] ?? sec) : 'start';
+  const el = document.querySelector(`section[data-sec="${name}"]`);
+  const chapter = el.dataset.up ?? name;
+  for (const s of document.querySelectorAll('section[data-sec]')) s.hidden = s !== el;
+  for (const a of document.querySelectorAll('.side a')) a.classList.toggle('on', a.dataset.sec === chapter);
+  if (current === 'start' && name !== 'start') homeDone(false);
+  current = name;
+  helpNow('');
+  if (name === 'details') fillDetails();
+  if (name === 'pin') pinReset();
+}
+for (const a of document.querySelectorAll('.side a')) a.addEventListener('click', (e) => { e.preventDefault(); show(a.dataset.sec); });
+for (const b of document.querySelectorAll('[data-back]')) b.addEventListener('click', () => show(b.closest('section').dataset.up));
+S?.onSection?.((s) => show(String(s)));
+
+// ---- the label (sheet 83 v4, his pick): once the glove has rested on one row for 2 seconds, a small label by the mouse
+// says what it does; another row, leaving it, a click or a scroll hides it at once.
+let helpFor = null, helpWait = 0, mx = 0, my = 0;
+const tip = Object.assign(document.createElement('div'), { className: 'tip', role: 'tooltip' });
+document.body.append(tip);
+const helpNow = (t) => {
+  if (!t) { tip.classList.remove('on'); return; }
+  tip.textContent = t;
+  tip.style.left = Math.max(8, Math.min(mx + 14, innerWidth - tip.offsetWidth - 12)) + 'px';
+  tip.style.top = Math.max(8, my - tip.offsetHeight - 12) + 'px';
+  tip.classList.add('on');
+};
+document.addEventListener('mousemove', (e) => { mx = e.clientX; my = e.clientY; });
+document.addEventListener('mouseover', (e) => {
+  const r = e.target.closest('[data-help]');
+  if (r === helpFor) return;
+  helpFor = r; clearTimeout(helpWait); helpNow('');
+  // Where the mouse is (or, if it has not moved since the page opened, by the row's name).
+  if (r?.dataset.help) helpWait = setTimeout(() => { if (helpFor !== r) return; if (!mx && !my) { const b = r.getBoundingClientRect(); mx = b.left + 60; my = b.top + 8; } helpNow(r.dataset.help); }, 2000);
+});
+for (const ev of ['mousedown', 'wheel', 'keydown']) document.addEventListener(ev, () => { clearTimeout(helpWait); helpNow(''); }, true);
+document.addEventListener('mouseleave', () => { helpFor = null; clearTimeout(helpWait); helpNow(''); });
+
+// ---- sheet 120 A: on and off is a switch; a choice of a few is a segmented row. Each control is named by its row
+// ("Dark websites, switch, on"); a click on an on/off row flips it too; the arrow keys move along a segmented row.
+const ONOFF = new Set(['dark', 'aiBox', 'ads', 'popups', 'sounds', 'afSounds', 'tvAnswer', 'tvPause']);
+const CHOICES = {
+  startup: [['tabs', 'My tabs'], ['home', 'Home page']], tabSize: [['s', 'Small'], ['m', 'Medium'], ['l', 'Large']],
+  search: [['brave', 'Brave'], ['ddg', 'DuckDuckGo'], ['google', 'Google']],
+  lockAfter: [['5m', '5 min'], ['30m', '30 min'], ['2h', '2 hours'], ['quit', 'Until I quit']],
+};
+/** A segmented row (radiogroup, roving tabindex): `pick(v, byKey)` is called when he chooses. */
+function segRow(name, choices, pick) {
+  const g = Object.assign(document.createElement('div'), { className: 'seg' });
+  g.setAttribute('role', 'radiogroup'); g.setAttribute('aria-label', name);
+  for (const [v, word] of choices) {
+    const b = Object.assign(document.createElement('button'), { type: 'button', textContent: word, tabIndex: -1 });
+    b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', 'false'); b.dataset.v = String(v);
+    b.addEventListener('click', (e) => { e.stopPropagation(); pick(v, false); });
+    g.append(b);
+  }
+  g.addEventListener('keydown', (e) => {
+    const bs = [...g.querySelectorAll('button')], at = bs.indexOf(document.activeElement);
+    if (at < 0) return;
+    const to = { ArrowRight: at + 1, ArrowDown: at + 1, ArrowLeft: at - 1, ArrowUp: at - 1, Home: 0, End: bs.length - 1 }[e.key];
+    if (to === undefined) return;
+    e.preventDefault();
+    const n = (to + bs.length) % bs.length;
+    bs[n].focus();
+    pick(choices[n][0], true);
+  });
+  return g;
+}
+function segPaint(g, now) {
+  const bs = [...g.querySelectorAll('button')];
+  const hit = bs.findIndex((b) => b.dataset.v === String(now));
+  bs.forEach((b, i) => { b.setAttribute('aria-checked', String(i === hit)); b.tabIndex = i === (hit < 0 ? 0 : hit) ? 0 : -1; });
+}
+const choose = (key, v) => { if (data) { data[key] = v; paintCycles(); } S?.set(key, v); };
+for (const r of document.querySelectorAll('[data-cyc]')) {
+  const key = r.dataset.cyc, name = r.querySelector('b')?.textContent ?? key;
+  if (ONOFF.has(key)) {
+    const sw = Object.assign(document.createElement('button'), { type: 'button', className: 'sw' });
+    sw.setAttribute('role', 'switch'); sw.setAttribute('aria-checked', 'false'); sw.setAttribute('aria-label', name);
+    const bed = Object.assign(document.createElement('i'), { className: 'bed' }); bed.append(Object.assign(document.createElement('i'), { className: 'nub' }));
+    sw.append(bed);
+    r.classList.add('flip');
+    r.append(sw);
+    r.addEventListener('click', () => choose(key, data?.[key] !== true));
+  } else {
+    r.classList.add('pickrow');
+    r.append(segRow(name, CHOICES[key], (v) => choose(key, v)));
+  }
+}
+function paintCycles() {
+  for (const r of document.querySelectorAll('[data-cyc]')) {
+    const key = r.dataset.cyc;
+    const sw = r.querySelector('.sw');
+    if (sw) sw.setAttribute('aria-checked', String(data?.[key] === true));
+    else segPaint(r.querySelector('.seg'), data?.[key]);
+  }
+}
+for (const b of document.querySelectorAll('[data-act]')) b.addEventListener('click', () => S?.act(b.dataset.act));
+
+// ---- one-level rows (›)
+for (const r of document.querySelectorAll('[data-go]')) r.addEventListener('click', () => { if (r.dataset.go === 'home') homeEdit(); else show(r.dataset.go); });
+
+// ---- the home page: the row shows what is really saved; a click turns it into the box, Enter or leaving it saves
+const bare = (u) => String(u ?? '').replace(/^https:\/\//, '').replace(/\/$/, '');
+function homeEdit() {
+  $('#homerow').hidden = true; $('#homeedit').hidden = false;
+  const i = $('#homein'); i.value = bare(data?.homeNow); i.focus(); i.select();
+}
+function homeDone(save) {
+  if ($('#homeedit').hidden) return;
+  $('#homeedit').hidden = true; $('#homerow').hidden = false;
+  const v = $('#homein').value.trim();
+  if (save && v !== bare(data?.homeNow)) S?.set('home', v);
+}
+$('#homein').addEventListener('keydown', (e) => { if (e.key === 'Enter') homeDone(true); if (e.key === 'Escape') homeDone(false); });
+$('#homein').addEventListener('blur', () => homeDone(true));
+
+// ---- your details: kept the moment a box is left; the address box looks his address up (OpenStreetMap)
+const AF = ['given', 'family', 'phone', 'street', 'city', 'region', 'postal', 'country'];
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// v4: one row per email, the main one first, an empty row under the last to add another.
+function emailRows(list) {
+  const box = $('#emails');
+  box.replaceChildren();
+  [...list, ''].slice(0, 5).forEach((v, i) => {
+    const row = Object.assign(document.createElement('div'), { className: 'fld' + (i ? ' sub' : '') });
+    const lab = Object.assign(document.createElement('label'), { textContent: 'Emails', htmlFor: 'af-em' + i });
+    const inp = Object.assign(document.createElement('input'), { id: 'af-em' + i, type: 'text', spellcheck: false, maxLength: 200, autocomplete: 'off', value: v });
+    inp.dataset.em = String(i);
+    const ok = Object.assign(document.createElement('i'), { className: 'ok' }); ok.append(TICK()); ok.hidden = !EMAIL.test(v.trim());
+    inp.addEventListener('input', () => { ok.hidden = !EMAIL.test(inp.value.trim()); if (i === box.children.length - 1 && inp.value && box.children.length < 5) { emailRows(emails()); $('#af-em' + i).focus(); } });
+    inp.addEventListener('change', () => { saveDetails(); if (!inp.value) emailRows(emails()); });
+    row.append(lab, inp, ok);
+    box.append(row);
+  });
+}
+const emails = () => [...document.querySelectorAll('[data-em]')].map((i) => i.value.trim()).filter(Boolean);
+// v4: the phone tidied as he types, (416) 555-0142; a tick once it is a whole number.
+function tidyPhone(v) {
+  const d = v.replace(/\D/g, ''), n = d.length === 11 && d[0] === '1' ? d.slice(1) : d;
+  if (/[^\d\s()+.-]/.test(v) || d.length > 11 || (d.length === 11 && d[0] !== '1') || v.trim().startsWith('+') && d[0] !== '1') return v;
+  if (n.length <= 3) return n;
+  if (n.length <= 6) return `(${n.slice(0, 3)}) ${n.slice(3)}`;
+  return `${d.length === 11 ? '+1 ' : ''}(${n.slice(0, 3)}) ${n.slice(3, 6)}-${n.slice(6, 10)}`;
+}
+$('#af-phone').addEventListener('input', () => { const p = $('#af-phone'); const t = tidyPhone(p.value); if (t !== p.value) p.value = t; ticks(); });
+const picked = {};   // what the lookup filled in this time (those boxes get the tick while they are unchanged)
+function fillDetails() {
+  const d = data?.autofill?.details ?? {};
+  for (const k of AF) $('#af-' + k).value = d[k] ?? '';
+  emailRows(d.emails ?? []);
+  ticks();
+}
+function saveDetails() {
+  const v = { emails: emails() };
+  for (const k of AF) v[k] = $('#af-' + k).value;
+  S?.set('afDetails', v);
+}
+// A postal code that has the shape of one (Canada A1A 1A1, US 12345 or 12345-6789) gets its tick, typed or found.
+const POSTAL = /^([A-Za-z]\d[A-Za-z] ?\d[A-Za-z]\d|\d{5}(-\d{4})?)$/;
+function ticks() {
+  for (const t of document.querySelectorAll('[data-ok]')) {
+    const k = t.dataset.ok, v = $('#af-' + k).value.trim();
+    t.hidden = !v || !(picked[k] === v || (k === 'postal' && POSTAL.test(v)) || (k === 'phone' && v.replace(/\D/g, '').length >= 10));
+  }
+}
+for (const k of AF) {
+  const i = $('#af-' + k);
+  if (!i) continue;
+  i.addEventListener('change', () => { if (k === 'postal' && POSTAL.test(i.value.trim())) i.value = i.value.trim().toUpperCase().replace(/^([A-Z]\d[A-Z]) ?(\d[A-Z]\d)$/, '$1 $2'); saveDetails(); ticks(); });
+  i.addEventListener('input', ticks);
+}
+let lookWait = 0, lookSeq = 0, found = [], hi = 0;
+const sug = $('#sug');
+function sugDraw() {
+  sug.replaceChildren();
+  if (!found.length) { sug.hidden = true; return; }
+  found.forEach((a, i) => {
+    const d = Object.assign(document.createElement('div'), { textContent: a.line, className: i === hi ? 'hi' : '' });
+    d.addEventListener('mousedown', (e) => { e.preventDefault(); pick(i); });
+    sug.append(d);
+  });
+  sug.append(Object.assign(document.createElement('small'), { textContent: 'OPENSTREETMAP' }));
+  sug.hidden = false;
+}
+function pick(i) {
+  const a = found[i]; if (!a) return;
+  for (const k of ['street', 'city', 'region', 'postal', 'country']) { if (a[k]) { $('#af-' + k).value = a[k]; picked[k] = a[k]; } }
+  found = []; sugDraw(); saveDetails(); ticks();
+}
+$('#af-street').addEventListener('input', () => {
+  clearTimeout(lookWait);
+  const q = $('#af-street').value.trim();
+  if (q.length < 4) { found = []; sugDraw(); return; }
+  const seq = ++lookSeq;
+  lookWait = setTimeout(async () => {
+    const r = await S?.lookup?.(q).catch(() => null);
+    if (seq !== lookSeq) return;
+    found = Array.isArray(r) ? r.slice(0, 5) : []; hi = 0; sugDraw();
+  }, 350);
+});
+$('#af-street').addEventListener('keydown', (e) => {
+  if (sug.hidden) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); hi = (hi + (e.key === 'ArrowDown' ? 1 : -1) + found.length) % found.length; sugDraw(); }
+  if (e.key === 'Enter') { e.preventDefault(); pick(hi); }
+  if (e.key === 'Escape') { found = []; sugDraw(); }
+});
+$('#af-street').addEventListener('blur', () => setTimeout(() => { found = []; sugDraw(); }, 120));
+
+// ---- the PIN: he picks 4 to 8; one slot per number; the eye shows them; typed twice
+let pinLen = 6, pin1 = '', pin2 = '', eye = false;
+function pinReset() { pin1 = ''; pin2 = ''; eye = false; pinLen = data?.autofill?.pinLen || 6; $('#pinsay').textContent = ''; pinDraw(); setTimeout(() => $('#pin1').focus(), 0); }
+// The length: a segmented row of 4 to 8; a click goes on to the slots, the arrow keys stay on the row.
+const pinSeg = segRow('PIN length', [4, 5, 6, 7, 8].map((n) => [n, String(n)]), (v, byKey) => {
+  pinLen = v; pin1 = pin1.slice(0, pinLen); pin2 = pin2.slice(0, pinLen); pinDraw(); if (!byKey) $('#pin1').focus();
+});
+$('#pinlen').replaceWith(pinSeg);
+function pinDraw() {
+  segPaint(pinSeg, pinLen);
+  for (const [id, v] of [['pin1', pin1], ['pin2', pin2]]) {
+    const box = $('#' + id); box.replaceChildren();
+    for (let i = 0; i < pinLen; i++) box.append(Object.assign(document.createElement('i'), { className: i < v.length ? 'f' : '', textContent: i < v.length ? (eye ? v[i] : '●') : '' }));
+  }
+  $('#pinrow1').classList.toggle('lit', pin1.length < pinLen);
+  $('#pinrow2').classList.toggle('lit', pin1.length === pinLen);
+  $('#eye').classList.toggle('on', eye);
+  $('#eye').setAttribute('aria-label', eye ? 'Hide PIN' : 'Show PIN');
+}
+$('#eye').addEventListener('click', () => { eye = !eye; pinDraw(); $('#pin1').focus(); });
+for (const id of ['pin1', 'pin2']) $('#' + id).addEventListener('keydown', (e) => {
+  if (/^[0-9]$/.test(e.key)) { e.preventDefault(); if (pin1.length < pinLen) pin1 += e.key; else if (pin2.length < pinLen) pin2 += e.key; pinDraw(); if (pin2.length === pinLen) pinSet(); }
+  else if (e.key === 'Backspace') { e.preventDefault(); if (pin2) pin2 = pin2.slice(0, -1); else pin1 = pin1.slice(0, -1); pinDraw(); }
+  else if (e.key === 'Enter') { e.preventDefault(); pinSet(); }
+});
+function pinSet() { if (pin1.length !== pinLen) return; S?.set('afPin', { pin: pin1, again: pin2 }); }
+$('#pinset').addEventListener('click', pinSet);
+S?.onAfPin?.((r) => { $('#pinsay').textContent = r?.text ?? ''; if (!r?.ok) { pin1 = ''; pin2 = ''; pinDraw(); } });
+
+// ---- Your sites (sheet 37): one row per site, the same rules as the shield. Four are on/off, camera and mic allow / ask / block.
+const YS_COLS = [['ai', 'ai', 2, 'Claude'], ['login', 'key', 2, 'Use my login'], ['ads', 'ads', 2, 'Ad blocker'], ['popups', 'popup', 2, 'Popup blocker'], ['dark', 'moon', 2, 'Dark mode'], null, ['camera', 'camera', 3, 'Camera'], ['mic', 'mic', 3, 'Microphone']];
+const YS_WORD = { on: 'ON', off: 'OFF', allow: 'ALLOW', ask: 'ASK', block: 'BLOCK', never: 'NEVER' };
+function siteRows(list) {
+  const box = $('#yoursites');
+  const q = ($('#sitefind').value || '').trim().toLowerCase();
+  box.replaceChildren();
+  const shown = list.filter((s) => !q || s.host.includes(q));
+  if (!shown.length) { box.append(Object.assign(document.createElement('div'), { className: 'ysempty', textContent: list.length ? 'No site matches.' : 'None yet.' })); return; }
+  for (const s of shown) {
+    const r = Object.assign(document.createElement('div'), { className: 'ysgrid ysrow' });
+    const b = document.createElement('b');
+    // The site's own icon, the one Samara keeps; a pixel globe for a site whose icon it has not seen yet.
+    const globe = () => { const g = Object.assign(document.createElement('span'), { className: 'globe' }); const p = pixIcon('globe', 2); if (p) g.append(p); return g; };
+    let f = globe();
+    if (s.favicon) { f = Object.assign(document.createElement('img'), { className: 'fav', alt: '' }); f.onerror = () => f.replaceWith(globe()); f.src = s.favicon; }
+    b.append(f, Object.assign(document.createElement('span'), { className: 'nm', textContent: s.host }));
+    if (s.bank) b.append(Object.assign(document.createElement('small'), { textContent: 'BANK: CHROME ONLY' }));
+    r.append(b);
+    for (const c of YS_COLS) {
+      if (!c) { r.append(document.createElement('span')); continue; }
+      const [key, icon, kind, name] = c;
+      const st = s.bank && (key === 'ai' || key === 'login') ? 'never' : kind === 2 ? (s[key] ? 'on' : 'off') : (s[key] === 'allow' ? 'on' : s[key]);
+      if (s.bank && key !== 'ai' && key !== 'login') { r.append(document.createElement('span')); continue; }
+      const cell = Object.assign(document.createElement('span'), { className: 'yscell ' + (st === 'off' ? '' : st) });
+      const slot = Object.assign(document.createElement('button'), { type: 'button', className: 'slot ' + (st === 'off' ? '' : st), title: name });
+      slot.setAttribute('aria-label', `${name} on ${s.host}: ${YS_WORD[st === 'on' && kind === 3 ? 'allow' : st]}`);
+      if (st !== 'never') { const p = pixIcon(icon, 2.4); if (p) slot.append(p); }
+      else slot.disabled = true;
+      slot.addEventListener('click', () => {
+        if (st === 'never') return;
+        if (kind === 2) S?.siteRule(s.host, key, !s[key]);
+        else S?.siteRule(s.host, key, ({ allow: 'ask', ask: 'block', block: 'allow' })[s[key]] ?? 'ask');
+      });
+      cell.append(slot, Object.assign(document.createElement('i'), { textContent: YS_WORD[st === 'on' && kind === 3 ? 'allow' : st] }));
+      r.append(cell);
+    }
+    const x = Object.assign(document.createElement('button'), { className: 'x', type: 'button', textContent: 'x', title: 'Forget every rule for ' + s.host });
+    x.addEventListener('click', () => S?.siteClear(s.host));
+    r.append(x);
+    box.append(r);
+  }
+}
+for (const el of document.querySelectorAll('.yskey [data-pix]')) { const p = pixIcon(el.dataset.pix, 2); if (p) el.append(p); }
+$('#sitefind').addEventListener('input', () => siteRows(data?.sites ?? []));
+
+function chips(id, list, name) {
+  const box = $('#' + id);
+  box.replaceChildren();
+  if (!list.length) { box.append(Object.assign(document.createElement('span'), { className: 'empty', textContent: 'None yet.' })); return; }
+  for (const host of list) {
+    const c = Object.assign(document.createElement('span'), { className: 'chip' });
+    const x = Object.assign(document.createElement('button'), { className: 'x', type: 'button', textContent: 'x', title: 'Take ' + host + ' off this list' });
+    x.setAttribute('aria-label', 'Remove ' + host);
+    x.addEventListener('click', () => S?.remove(name, host));
+    c.append(host, x);
+    box.append(c);
+  }
+}
+
+const VAULT = { missing: 'NOT INSTALLED', 'signed-out': 'SIGNED OUT', locked: 'LOCKED', unlocked: 'UNLOCKED' };
+const n = (k, one, many) => (k ? `${k} ${k === 1 ? one : many}` : '');
+function paint(d) {
+  if (!d) return;
+  data = d;
+  paintCycles();
+  $('#homev').textContent = bare(d.homeNow);
+  // Sheet 99: his TV, the Mac only
+  $('#tvnav').hidden = !d.mac;
+  $('#tvv').textContent = d.tv?.linked ? `${d.tv.name} · linked` : d.tv?.name ? `${d.tv.name} · not linked` : 'Not linked';
+  $('#tvv').classList.toggle('dim', !d.tv?.linked);
+  $('#tvunlink').hidden = !d.tv?.linked;
+  // autofill
+  const det = d.autofill?.details ?? {};
+  const has = det.given || det.family || det.emails?.length || det.phone || det.street;
+  $('#detailsv').textContent = has ? 'Set' : 'Not set';
+  $('#detailsv').classList.toggle('dim', !has);
+  $('#pinv').textContent = d.autofill?.pin ? `${d.autofill.pinLen || 4} numbers` : 'Not set';
+  $('#pinv').classList.toggle('dim', !d.autofill?.pin);
+  $('#pinforget').hidden = !d.autofill?.pin;
+  $('#pinset').textContent = d.autofill?.pin ? 'Change' : 'Set';
+  const vw = VAULT[d.vault] ?? '';
+  $('#bwv').textContent = vw ? vw[0] + vw.slice(1).toLowerCase() : '';
+  $('#bwstate').textContent = vw;
+  $('#lockbtn').hidden = d.vault !== 'unlocked';
+  $('#signout').hidden = d.vault === 'missing' || d.vault === 'signed-out';
+  if (current === 'details' && !document.activeElement?.closest?.('section[data-sec="details"]')) fillDetails();
+  // privacy
+  const sb = Number(d.safeBrowsing ?? -2);
+  const ph = `${Number(d.phish || 0).toLocaleString()} known fake sites and addresses, refreshed every day.`
+    + (sb >= 0 ? ` Google Safe Browsing is on, in private mode: ${sb.toLocaleString()} fingerprints are kept and checked on this PC, and Google never sees the addresses you visit.`
+      : sb === -1 ? ' Google Safe Browsing is off (no key yet).' : '');
+  $('#phishsafe').dataset.help = ph;
+  $('#sitesv').textContent = n((d.sites ?? []).length, 'site', 'sites');
+  $('#excv').textContent = n((d.trusted ?? []).length + (d.httpOk ?? []).length, 'site', 'sites');
+  siteRows(d.sites ?? []);
+  chips('trusted', d.trusted ?? [], 'trusted');
+  chips('httpOk', d.httpOk ?? [], 'httpOk');
+  // about
+  $('#enginev').textContent = `CHROMIUM ${String(d.versions?.chrome ?? '').split('.')[0]}`;
+  $('#enginerow').dataset.help = `Chromium ${d.versions?.chrome ?? ''} (Electron ${d.versions?.electron ?? ''}).`;
+  // bookmarks (only from the ⋯ menu)
+  const ml = $('#marklist');
+  ml.replaceChildren();
+  for (const m of d.marks ?? []) {
+    const row = Object.assign(document.createElement('div'), { className: 'mark' });
+    if (m.favicon) { const i = document.createElement('img'); i.alt = ''; i.src = m.favicon; row.append(i); }
+    row.append(Object.assign(document.createElement('span'), { textContent: m.title || m.url }), Object.assign(document.createElement('small'), { textContent: m.url }));
+    const x = Object.assign(document.createElement('button'), { className: 'x', type: 'button', textContent: 'x', title: 'Remove this bookmark' });
+    x.addEventListener('click', () => S?.remove('marks', m.url));
+    row.append(x);
+    ml.append(row);
+  }
+  if (!(d.marks ?? []).length) ml.append(Object.assign(document.createElement('span'), { className: 'empty', textContent: 'None yet.' }));
+}
+S?.onData?.(paint);
+S?.get?.().then((d) => { paint(d); show(location.hash.slice(1) || current); }).catch(() => {});
+show(location.hash.slice(1));
