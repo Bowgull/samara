@@ -1,7 +1,8 @@
 # The real-window checks CI runs on every push (Phase 0, 2026-11-24). Each opens real Samara windows off screen and exits
 # 0 when every check in it passed. These 37 passed twice in a row on a clean machine with no network; the others need
 # the network, a Mac or a PC, a keychain, or a person, and still run by hand (tools/hidden-desktop-run.ps1).
-# Left out on purpose: curtain-click-check (failed once under load), tabcost-check (a timing budget, too slow for CI).
+# Left out on purpose: curtain-click-check (failed once under load), tabcost-check (real sites, too slow for CI), and
+# speed-check, which CI runs on its own after these (its timings would be slowed by the checks running beside it).
 # One per line; # starts a comment.
 autoplay-check.ts
 bank-check.ts

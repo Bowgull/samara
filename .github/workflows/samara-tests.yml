@@ -71,3 +71,11 @@ jobs:
         run: |
           if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a node tools/run-electron-checks.mjs --jobs 3
           else node tools/run-electron-checks.mjs --jobs 2; fi
+      # Phase 5: start, memory per page, idle processor and tab switch, against speed-budgets.json. Alone, after the
+      # other checks (which run three at a time and would slow it), and even when one of them failed.
+      - name: Speed budget
+        if: success() || failure()
+        run: |
+          echo speed-check.ts > "$RUNNER_TEMP/speed.txt"
+          if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a node tools/run-electron-checks.mjs "$RUNNER_TEMP/speed.txt" --jobs 1
+          else node tools/run-electron-checks.mjs "$RUNNER_TEMP/speed.txt" --jobs 1; fi

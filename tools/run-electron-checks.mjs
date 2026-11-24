@@ -70,6 +70,8 @@ const flaky = second.filter((r) => r.code === 0).map((r) => r.name);
 const broken = second.filter((r) => r.code !== 0);
 
 for (const r of first) console.log(`${r.code === 0 ? 'PASS ' : flaky.includes(r.name) ? 'FLAKY' : 'FAIL '} ${r.name} (${r.secs}s)`);
+// A check's measurements (lines starting "SPEED "), shown whether it passed or not, so the numbers are in every log.
+for (const r of [...first, ...second]) for (const l of r.out.split('\n')) if (l.startsWith('SPEED ')) console.log(`${r.name}: ${l}`);
 for (const r of broken) {
   const all = r.out.split('\n');
   const lines = [...all.filter((l) => /FAIL|HARNESS|RUNNER/.test(l)), ...all.filter((l) => /Error/.test(l) && !/No handler registered/.test(l))].slice(0, 15);
