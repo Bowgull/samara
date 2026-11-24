@@ -109,6 +109,9 @@ ${Array.from({ length: 30 }, () => '<button type="button">Play video</button>').
   // A plain read lists every field but only the first 40 links, with short addresses (measuring stick: 7x Chrome's tokens).
   const lp = Number(/page (\d+)/i.exec((await tool('browser_open', { url: base + '/links' })).text)?.[1]);
   const lr = await tool('browser_read', { page: lp });
+  // What size the page was laid out at: links below the screen are left out of a short read, so a page smaller than
+  // the driver's 1280 x 900 (a window frame, or a small screen clamping it) shows fewer than 40.
+  for (const w of BrowserWindow.getAllWindows()) if (/\/links$/.test(w.webContents.getURL())) console.log(`HARNESS NOTE links page ${w.getContentSize().join(' x ')} on a ${Object.values(screen.getPrimaryDisplay().workAreaSize).join(' x ')} screen`);
   const linksIn = (t: string) => (t.match(/\] link[^\n]*Story \d+/g) ?? []).length;
   check('a plain read keeps fields and 40 links, and says how to get the rest', /Search posts/.test(lr.text) && linksIn(lr.text) === 40 && /50 more links and buttons/.test(lr.text) && /-> \/post\/1\b/.test(lr.text), `${linksIn(lr.text)} links, ${lr.text.length} chars`);
   const lc = await tool('browser_read', { page: lp, controls: true });

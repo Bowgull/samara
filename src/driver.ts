@@ -734,7 +734,7 @@ export class Driver {
     while (this.pages.filter(mine).length >= MAX_PAGES) this.close(this.pages.find(mine)!.id);
     const tab = j.kind === 'claude' ? this.d.tabFor?.({ url, guest }) ?? null : null;
     const win = tab ? null : new BrowserWindow({
-      show: false, width: W, height: H, paintWhenInitiallyHidden: true, skipTaskbar: true, focusable: false,
+      show: false, width: W, height: H, useContentSize: true, paintWhenInitiallyHidden: true, skipTaskbar: true, focusable: false,
       webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, session: guest ? this.guestSession() : this.d.ses, preload: this.d.preload, offscreen: true, backgroundThrottling: false },
     });
     // Hidden pages paint slowly (2 a second): offscreen painting is all CPU, and twelve pages at 10 slowed his MacBook
