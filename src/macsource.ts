@@ -16,7 +16,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { download as ghDownload, latest as ghLatest, titleOf, withSection, type Manifest } from './ghrelease.ts';
 import { behindMs, behindWords, chromeStable, closesGap, downloadEngine, enginePlatform, latestEngine, type EngineManifest, type EnginePlatform } from './enginerelease.ts';
-import { Evs } from './evs.ts';
+import { Evs, type Signed } from './evs.ts';
+import { SwitchOrder, signWithSwitches } from './switchorder.ts';
+import { readRun } from './engineupdate.ts';
+import { fileURLToPath } from 'node:url';
 import { engineGroups } from './pcsource.ts';
 import { macUpdateScript } from './macupdate.ts';
 import { readJson, saveJson } from './store.ts';
@@ -301,6 +304,33 @@ function runningApp(): string | null {
   return app === path.join(os.homedir(), 'Applications', 'Samara.app') ? app : null;
 }
 const FRAMEWORK_SIG = ['Contents', 'Frameworks', 'Electron Framework.framework', 'Versions', 'A', 'Resources', 'Electron Framework.sig'];
+/** Where a Mac engine keeps its switches. */
+const FRAMEWORK_BIN = ['Contents', 'Frameworks', 'Electron Framework.framework', 'Versions', 'A', 'Electron Framework'];
+/** Samara's own folder (src/..), where the check scripts are. */
+const SHELL_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+/** Phase 2: the engine safety check (test/electron/engine-safety-check.ts) on a signed Mac engine, hidden, at most four
+ *  minutes: a page loads, Widevine plays a protected stream, the phishing block fires, a download is marked. */
+export type EngineCheck = (engineApp: string, version: string) => Promise<boolean>;
+const checkIt = (log: (s: string) => void): EngineCheck => async (engineApp, v) => {
+  const script = 'test/electron/engine-safety-check.ts';
+  if (!existsSync(path.join(SHELL_DIR, script))) { log(`update: engine ${v}: ${script} is missing from this Samara`); return false; }
+  const pics = path.join(os.tmpdir(), `samara-engine-test-${process.pid}-${Date.now()}`);
+  mkdirSync(pics, { recursive: true });
+  let out = '';
+  const code = await new Promise<number | null>((res) => {
+    const t = spawn(path.join(engineApp, 'Contents', 'MacOS', 'Electron'), [script, pics], { cwd: SHELL_DIR, stdio: ['ignore', 'pipe', 'pipe'] });
+    t.stdout?.on('data', (d) => { out = (out + String(d)).slice(-20_000); });
+    t.stderr?.on('data', () => { /* Chromium's own noise */ });
+    const kill = setTimeout(() => { try { t.kill(); } catch { /* gone */ } }, 4 * 60_000);
+    t.on('error', () => { clearTimeout(kill); res(null); });
+    t.on('exit', (c) => { clearTimeout(kill); res(c); });
+  });
+  try { rmSync(pics, { recursive: true, force: true }); } catch { /* temp */ }
+  const r = readRun(code, out);
+  if (!r.ok) log(`update: engine ${v} safety check said (exit ${code}): ${out.split('\n').filter((l) => /FAIL|HARNESS|passed/.test(l)).join(' | ').slice(0, 600)}`);
+  return r.ok;
+};
 
 /**
  * A new castLabs engine, on the Mac (2026-10-30): from the sealed engine release, signed for video here with
@@ -318,13 +348,13 @@ export class MacEngine implements Source {
   readonly lists: VersionLists;
   private readonly p: MacPaths;
   private readonly stage: MacStage;
-  private readonly o: { fetch: Fetch; log: (s: string) => void; changed: () => void; evs: Evs; have: () => string; chrome: () => string; unzip?: Unzip; pub?: string; plat: () => EnginePlatform | null; app: () => string | null };
+  private readonly o: { fetch: Fetch; log: (s: string) => void; changed: () => void; evs: Evs; have: () => string; chrome: () => string; unzip?: Unzip; pub?: string; plat: () => EnginePlatform | null; app: () => string | null; checkEngine: EngineCheck };
   /** Whether his Samara's own engine carries a real video signature (castLabs' check, once a run). */
   private vmpOk: boolean | null = null;
   private resign = false;
-  constructor(p: MacPaths, stage: MacStage, o: { fetch: Fetch; log: (s: string) => void; changed: () => void; evs?: Evs; have?: () => string; chrome?: () => string; unzip?: Unzip; pub?: string; plat?: () => EnginePlatform | null; app?: () => string | null }) {
+  constructor(p: MacPaths, stage: MacStage, o: { fetch: Fetch; log: (s: string) => void; changed: () => void; evs?: Evs; have?: () => string; chrome?: () => string; unzip?: Unzip; pub?: string; plat?: () => EnginePlatform | null; app?: () => string | null; checkEngine?: EngineCheck }) {
     this.p = p; this.stage = stage;
-    this.o = { ...o, evs: o.evs ?? new Evs({ log: o.log }), have: o.have ?? (() => plain(process.versions.electron)), chrome: o.chrome ?? (() => process.versions.chrome), plat: o.plat ?? (() => enginePlatform()), app: o.app ?? runningApp };
+    this.o = { ...o, evs: o.evs ?? new Evs({ log: o.log }), have: o.have ?? (() => plain(process.versions.electron)), chrome: o.chrome ?? (() => process.versions.chrome), plat: o.plat ?? (() => enginePlatform()), app: o.app ?? runningApp, checkEngine: o.checkEngine ?? checkIt(o.log) };
     this.lists = new VersionLists(path.join(p.br, 'failed-engines.txt'), path.join(p.br, 'filed-engines.txt'));
   }
   private get engines(): string { return path.join(this.p.br, 'engines'); }
@@ -337,9 +367,11 @@ export class MacEngine implements Source {
     if (!m) return null;
     const { version, since, title, groups } = this.words(m);
     const coming = this.stage.coming();
-    // Phase 2: red and "security fixes" on the Mac too. Not put in by itself here (no `tonight`): the Mac does not run
-    // The companion's engine checks on a new engine yet, and the rule is a PASSING engine (2026-11-17).
-    const sec = closesGap(this.o.chrome(), m.chrome, this.stable) ? { security: true } : {};
+    // Phase 2: red and "security fixes" on the Mac too, and (2026-11-24) in by itself tonight like the PC, once the
+    // engine passed its safety check here. A new major never goes in by itself.
+    const security = closesGap(this.o.chrome(), m.chrome, this.stable);
+    const major = m.version.split('.')[0] !== this.o.have().split('.')[0];
+    const sec = security ? { security: true, ...(this.passed.has(m.version) && !major ? { tonight: true } : {}) } : {};
     return { version, since, title, groups, canBack: existsSync(path.join(this.p.br, 'rollback', 'Samara.app')), ...(this.behindLine ? { behind: this.behindLine } : {}), ...(coming ? { coming } : {}), ...sec };
   }
   /** Each engine release seen this run, by version. */
@@ -385,14 +417,53 @@ export class MacEngine implements Source {
   /** castLabs signs it for video; then it joins the staged Samara. */
   private async sign(): Promise<void> {
     const p = this.pending; if (!p) return;
+    if (this.failedOn === `${p.m.version} ${new Date().toDateString()}`) return;
     // Every castLabs engine arrives with a development signature: only castLabs' own check says it is really signed.
-    const r = (await this.o.evs.verify(p.dir)) ? 'ok' : await this.o.evs.sign(p.dir);
-    if (r === 'signin') { this.signinState = 'ask'; this.o.changed(); return; }
+    let closed = false;
+    let r: Signed = 'ok';
+    if (!(await this.o.evs.verify(p.dir))) ({ r, closed } = await this.signEngine(p));
+    if (r === 'signin') {
+      // Told once (Phase 2): the card asks; a sign-in he does any way at all is noticed, and the engine is signed then.
+      if (this.signinState !== 'ask') { this.signinState = 'ask'; this.o.changed(); this.watchQuietly(); }
+      return;
+    }
+    this.stopQuiet?.(); this.stopQuiet = null;
     if (r !== 'ok') { this.o.log(`update: engine ${p.m.version} could not be signed for video (${r}); tried again later`); return; }
     this.signinState = null;
+    // Phase 2: the safety check on the signed engine. Back doors closed that then fail it: learned for the major here,
+    // signed again as castLabs shipped it, checked again. An engine that fails as shipped is not staged today.
+    const app = path.join(p.dir, 'Electron.app'), v = p.m.version;
+    let ok = await this.o.checkEngine(app, v);
+    if (!ok && closed) {
+      this.order.learn(v, 'the engine failed its safety check with its back doors closed');
+      const again = await this.signEngine(p);
+      if (again.r !== 'ok') { this.o.log(`update: engine ${v} could not be signed again as castLabs shipped it (${again.r})`); return; }
+      ok = await this.o.checkEngine(app, v);
+    }
+    if (!ok) { this.failedOn = `${v} ${new Date().toDateString()}`; this.o.log(`update: engine ${v} did not pass its safety check; not offered, tried again tomorrow`); return; }
+    this.passed.add(v);
     this.stage.engine = { version: p.m.version, app: path.join(p.dir, 'Electron.app') };
     this.o.changed();
     void this.stage.build();
+  }
+
+  /** Engines that passed the safety check here (this run). */
+  private readonly passed = new Set<string>();
+  /** "<version> <day>": failed its safety check today. */
+  private failedOn = '';
+  private get order(): SwitchOrder { return new SwitchOrder(path.join(this.engines, 'switch-order.json')); }
+  /** castLabs signs it, its back doors closed first unless this Mac learned otherwise (switchorder.ts). */
+  private signEngine(p: { m: EngineManifest; dir: string }): Promise<{ r: Signed; closed: boolean }> {
+    const app = path.join(p.dir, 'Electron.app');
+    return signWithSwitches({ v: p.m.version, fuseFile: path.join(app, ...FRAMEWORK_BIN), stockFile: path.join(p.dir, 'stock-fuses.txt'), order: this.order, sign: () => this.o.evs.sign(p.dir), log: (t) => this.o.log('update: ' + t) });
+  }
+  private stopQuiet: (() => void) | null = null;
+  private watchQuietly(): void {
+    this.stopQuiet?.();
+    this.stopQuiet = this.o.evs.watchSignin(this.o.evs.loginStamp(), (inNow) => {
+      this.stopQuiet = null;
+      if (inNow && this.signinState === 'ask') { this.signinState = null; void this.sign(); }
+    }, 7 * 24 * 60 * 60_000, 30_000);
   }
 
   /** Sheet 108: Terminal opens with castLabs' sign-in typed; once castLabs has him, the engine is signed. */
@@ -423,7 +494,7 @@ export class MacEngine implements Source {
   }
 
   go(): Promise<{ ok: boolean; why?: string }> { return this.stage.swap(); }
-  private drop(): void { this.pending = null; this.signinState = null; this.stage.engine = null; this.stage.forget(); void this.stage.build(); this.o.changed(); }
+  private drop(): void { this.pending = null; this.signinState = null; this.stopQuiet?.(); this.stopQuiet = null; this.stage.engine = null; this.stage.forget(); void this.stage.build(); this.o.changed(); }
   file(): void { const v = this.stage.readyEngine?.version ?? this.pending?.m.version; if (v) { this.lists.file(v); this.drop(); } }
   skip(): void { const v = this.stage.readyEngine?.version ?? this.pending?.m.version; if (v) { this.lists.skip(v); this.drop(); } }
   // Going back is Samara's (one rollback copy holds the whole app, engine and all).

@@ -1,0 +1,74 @@
+# Phase 2 (2026-11-24): the bump bot. Every day, after the engine release: when castLabs has a newer stable engine
+# than the one Samara's code is tested on, it moves package.json to it (stock Electron and castLabs' build, the same
+# version), opens a PR and runs the whole ship gate on it, real windows included. A new major is prepared the same
+# way and labelled; nothing merges by itself. Electron security releases castLabs has not built yet are listed in
+# the run's summary. Logic and tests: tools/release/engine-bump.ts, test/enginebump.test.ts.
+#
+# Needs "Allow GitHub Actions to create and approve pull requests" on (Settings > Actions > General). A PR opened with
+# the workflow's own token does not start other workflows by itself, so the gate is started by hand below
+# (workflow_dispatch is the one event that token may start); its checks show on the PR's commit.
+name: Engine bump
+on:
+  schedule:
+    - cron: '47 10 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+concurrency: engine-bump
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24' }
+      - name: Plan
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/release/engine-bump.ts
+      - name: Summary
+        env:
+          TO: ${{ steps.plan.outputs.to }}
+          AHEAD: ${{ steps.plan.outputs.ahead }}
+        run: |
+          { echo "### Engine bump"
+            if [ -n "$TO" ]; then echo "castLabs $TO is newer than what Samara is tested on."; else echo "Samara is tested on castLabs' newest engine."; fi
+            if [ -n "$AHEAD" ]; then echo; echo "Electron has security releases castLabs has not built yet: $AHEAD"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Already open?
+        id: open
+        if: steps.plan.outputs.to != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.plan.outputs.branch }}
+        run: |
+          n=$(gh pr list --head "$BRANCH" --state all --json number --jq length)
+          echo "exists=$([ "$n" != 0 ] && echo yes || echo '')" >> "$GITHUB_OUTPUT"
+      - name: Bump, open the PR and start the gate
+        if: steps.plan.outputs.to != '' && steps.open.outputs.exists != 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TO: ${{ steps.plan.outputs.to }}
+          MAJOR: ${{ steps.plan.outputs.major }}
+          BRANCH: ${{ steps.plan.outputs.branch }}
+          TITLE: ${{ steps.plan.outputs.title }}
+        run: |
+          node tools/release/engine-bump.ts --write
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898+github-actions[bot]@users.noreply.github.com'
+          git checkout -b "$BRANCH"
+          git commit -am "$TITLE"
+          git push -u origin "$BRANCH"
+          {
+            echo "castLabs shipped **$TO+wvcus**. This moves the engine Samara's code is tested on (stock Electron $TO and castLabs' build) to it, so the real-window gate runs before the machines take the engine."
+            echo
+            if [ -n "$MAJOR" ]; then echo "**This is a new major.** It needs a look before merging, and the machines still wait for a click before installing it."; echo; fi
+            echo "Opened by the bump bot (.github/workflows/engine-bump.yml). Nothing merges by itself."
+          } > body.md
+          [ -n "$MAJOR" ] && { gh label create engine-major --color B60205 --description 'A new Electron major' 2>/dev/null || true; }
+          gh pr create --base main --head "$BRANCH" --title "$TITLE" --body-file body.md ${MAJOR:+--label engine-major}
+          gh workflow run samara-tests.yml --ref "$BRANCH"

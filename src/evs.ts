@@ -5,8 +5,9 @@
 // card shows ONE key: it opens the computer's own Terminal with castLabs' sign-in command already typed, and he types
 // his password there. Samara, Claude and the companion never see it. Samara notices the sign-in and signs by itself.
 //
-// Never with the safety switches flipped (proved 2026-10-23: "Binary signature denied"):, video wins, so the
-// engine is signed exactly as castLabs shipped it.
+// The switches (2026-10-23 castLabs said "Binary signature denied" to an engine with them flipped): since Phase 2
+// (2026-11-24) each machine tries the back doors closed BEFORE castLabs signs, and signs the engine exactly as castLabs
+// shipped it when castLabs refuses that (switchorder.ts). Video always wins.
 import { spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
