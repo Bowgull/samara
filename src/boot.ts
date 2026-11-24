@@ -26,6 +26,7 @@ import { sched } from './sched.ts';
 import { describeJobs } from './scheduler.ts';
 import { mockHomeDir } from './mockhome.ts';
 import { hyruleHomeDir } from './hyrulehome.ts';
+import { Canary, helperCrashed, ownPage } from './canary.ts';
 
 type Box = { x: number; y: number; width: number; height: number };
 type MockDrop = NonNullable<ReturnType<BootDeps['takeMockupFile']>>;
@@ -35,7 +36,10 @@ type WebContentsLike = Parameters<SamaraBrowser['isFrame']>[0];
 
 /** What the boot needs from Electron and the disk. bootdeps.ts makes the real ones; the tests make stand-ins. */
 export interface BootDeps {
-  startFlight(dir: string, log: (s: string) => void): void;
+  /** Returns what the flight recorder said about the last run, or null when it closed cleanly. */
+  startFlight(dir: string, log: (s: string) => void): string | null | void;
+  /** Phase 4: trouble as the flight recorder sees it (a page gone or hung, with its address; a helper process died). */
+  onTrouble?(fn: (kind: 'gone' | 'hang' | 'helper', url: string, reason?: string) => void): void;
   /** The default session (the pop-out, the companion's cards): no camera, mic, location. */
   denyPermissions(): void;
   servePages(dir: string): Promise<PageServer>;
@@ -120,6 +124,8 @@ export interface BrowserPlatform {
     inGame(): boolean;
     beforeGo?: EngineOptions['beforeGo'];
     restart: EngineOptions['restart'];
+    /** Phase 4 (canary): the version running and how to turn it back, once the sources exist; null when not a release. */
+    canary?(): { version: string; rollback(why: string): boolean; macWaits: boolean } | null;
     /** Go back worked: the PC restarts; the Mac's script does it itself. */
     wentBack?(): void;
     /** He saw the "what it did" note. */
@@ -140,6 +146,8 @@ export interface SamaraBase {
   /** Set once the browser is up. */
   browser(): SamaraBrowser | null;
   popTab(id: number): void;
+  /** Phase 4: the flight recorder found the last run did not close cleanly. */
+  unclean?: boolean;
 }
 
 export interface SamaraBooted extends SamaraBase {
@@ -155,7 +163,7 @@ export interface SamaraBooted extends SamaraBase {
  * the browser (they share the page server), so the two parts are separate calls.
  */
 export async function samaraBase(p: Platform, d: BootDeps): Promise<SamaraBase> {
-  d.startFlight(p.stateDir, (s) => p.log(s));
+  const unclean = Boolean(d.startFlight(p.stateDir, (s) => p.log(s)));
   // The scheduler engine (2026-10-30): catch-up times kept with Samara's state; idle from the system.
   sched.useFile(path.join(p.stateDir, 'scheduler.json'));
   sched.idleSeconds = () => d.idleSeconds();
@@ -197,7 +205,7 @@ export async function samaraBase(p: Platform, d: BootDeps): Promise<SamaraBase> 
   });
   const base: Inner = {
     pages, popout, drm, ads: () => ads, openPop, browser: () => browser, popTab: (id) => pop.popTab(id),
-    setBrowser: (b) => { browser = b; },
+    setBrowser: (b) => { browser = b; }, unclean,
   };
   d.onQuit(() => { popout.close(); drm.close(); ads?.stop(); });
   return base;
@@ -307,5 +315,24 @@ export function samaraBrowser(base: SamaraBase, p: Platform, bp: BrowserPlatform
   ue.start();
 
   d.onQuit(() => { browser.closeAll(); pages.close(); sched.stop(); });
+  // Phase 4: canary releases (canary.ts). A new version is watched for its first day here; bad, it is turned back and
+  // the other machine is told; good, the other machine may take it at once.
+  const cv = u.canary?.();
+  if (cv?.version) {
+    const canary = new Canary({ file: path.join(p.stateDir, 'canary.json'), version: cv.version, unclean: base.unclean === true });
+    d.onTrouble?.((kind, url, reason) => { if (kind === 'helper' ? helperCrashed(reason ?? '') : ownPage(url)) canary.record(kind === 'helper' ? 'helper' : 'own'); });
+    const settle = () => {
+      const r = canary.settle();
+      if (!r) return;
+      browser.sync?.canary(r.version, r.v);
+      if (r.v === 'good') { p.log(`update: Samara ${r.version} ran a quiet day here`); return; }
+      p.log(`update: Samara ${r.version} is turned back: ${r.why}`);
+      if (cv.rollback(r.why ?? '')) browser.say('Samara', `Samara ${r.version} is being turned back (${r.why}). The version before comes back the next time Samara starts.`);
+    };
+    const had = canary.given();
+    if (had) browser.sync?.canary(cv.version, had);
+    settle();
+    sched.every('canary.settle', 10 * 60_000, settle, { first: 60_000 });
+  }
   return { ...base, browserNow: browser, plans, updates: ue, takeDrops };
 }

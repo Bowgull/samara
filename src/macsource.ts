@@ -19,6 +19,7 @@ import { behindMs, behindWords, chromeStable, closesGap, downloadEngine, engineP
 import { Evs, type Signed } from './evs.ts';
 import { SwitchOrder, signWithSwitches } from './switchorder.ts';
 import { readRun } from './engineupdate.ts';
+import { macMayTake } from './canary.ts';
 import { fileURLToPath } from 'node:url';
 import { engineGroups } from './pcsource.ts';
 import { macUpdateScript } from './macupdate.ts';
@@ -190,8 +191,8 @@ export class MacSamara implements Source {
   readonly lists: VersionLists;
   private readonly p: MacPaths;
   private readonly stage: MacStage;
-  private readonly o: { fetch: Fetch; log: (s: string) => void; changed: () => void; pub?: string };
-  constructor(p: MacPaths, stage: MacStage, o: { fetch: Fetch; log: (s: string) => void; changed: () => void; pub?: string }) {
+  private readonly o: { fetch: Fetch; log: (s: string) => void; changed: () => void; pub?: string; peer?: (v: string) => 'good' | 'bad' | null };
+  constructor(p: MacPaths, stage: MacStage, o: { fetch: Fetch; log: (s: string) => void; changed: () => void; pub?: string; peer?: (v: string) => 'good' | 'bad' | null }) {
     this.p = p; this.stage = stage; this.o = o;
     this.lists = new VersionLists(path.join(p.br, 'failed-updates.txt'), path.join(p.br, 'filed-updates.txt'));
     const i = readInstalled(p.installed); this.startedAs = `${i.version}|${i.commit}|${i.engine ?? ''}`;
@@ -241,6 +242,14 @@ export class MacSamara implements Source {
       // The version he is on is in "Every version" too (however it was put in).
       if (m.version === i.version) this.changelog(m);
       if (!newer(m.version, i.version) || this.lists.blocked(m.version)) { if (this.stage.samara) { this.stage.samara = null; void this.stage.build(); this.o.changed(); } return 'none'; }
+      // Phase 4 (canary.ts): the PC takes a new Samara first. The Mac waits a day for it, or less when the PC says it ran
+      // a quiet day; never one the PC turned back. His own check skips the wait, never the turned back.
+      const peer = this.o.peer?.(m.version) ?? null;
+      if (peer === 'bad') { this.lists.skip(m.version); this.o.log(`update: Samara ${m.version} was turned back on the PC; not offered here`); return 'none'; }
+      if (!macMayTake(peer, Date.parse(m.at), Date.now(), this.report !== null)) {
+        if (this.waitSaid !== m.version) { this.waitSaid = m.version; this.o.log(`update: Samara ${m.version} is on GitHub; the Mac takes it after the PC's quiet day`); }
+        return 'none';
+      }
       const title = titleOf(m);
       if (this.stage.samara?.m.version === m.version || this.tried.has(m.version)) {
         // already on its way: a watched check waits for it to be set up
@@ -269,6 +278,14 @@ export class MacSamara implements Source {
   file(): void { const s = this.stage.readySamara ?? this.stage.samara; if (s) { this.lists.file(s.m.version); this.drop(s.m.version); } }
   skip(): void { const s = this.stage.readySamara ?? this.stage.samara; if (s) { this.lists.skip(s.m.version); this.drop(s.m.version); } }
   canBack(): boolean { return existsSync(path.join(this.p.br, 'rollback', 'Samara.app')); }
+  private waitSaid = '';
+  /** Phase 4 (canary): the version running is turned back, never offered again; the version before comes back. */
+  turnBack(): boolean {
+    const i = this.installed();
+    if (!i.version || !this.canBack()) return false;
+    this.lists.skip(i.version);
+    return this.back();
+  }
   /** The version before comes back; the one he left is put away (not offered again until he checks). */
   back(): boolean {
     if (!this.canBack()) return false;

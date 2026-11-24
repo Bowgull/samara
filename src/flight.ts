@@ -52,7 +52,7 @@ export function memoryLine(metrics: Metric[]): string {
 export const trouble = new EventEmitter();
 
 /** Wire it into a running Samara. `log` is the app's own log line writer. */
-export function startFlight(app: Electron.App, dir: string, log: (s: string) => void): void {
+export function startFlight(app: Electron.App, dir: string, log: (s: string) => void): string | null {
   const was = lastRun(dir);
   if (was) log('flight: ' + was);
   app.on('will-quit', () => closedCleanly(dir));
@@ -62,7 +62,7 @@ export function startFlight(app: Electron.App, dir: string, log: (s: string) => 
     log(`flight: page gone (${d.reason}, code ${d.exitCode}) on ${site}`);
     if (d.reason !== 'clean-exit') trouble.emit('gone', wc);
   });
-  app.on('child-process-gone', (_e, d) => log(`flight: ${d.name || d.serviceName || d.type} process gone (${d.reason}, code ${d.exitCode})`));
+  app.on('child-process-gone', (_e, d) => { log(`flight: ${d.name || d.serviceName || d.type} process gone (${d.reason}, code ${d.exitCode})`); trouble.emit('helper', d.reason); });
   app.on('web-contents-created', (_e, wc) => {
     let since = 0;
     wc.on('unresponsive', () => { since = Date.now(); log(`flight: page not answering on ${where(wc)}`); trouble.emit('hang', wc); });
@@ -73,4 +73,5 @@ export function startFlight(app: Electron.App, dir: string, log: (s: string) => 
   // Phase 0 (2026-11-24): the first failure of each place we carry on past, then once an hour how many there were.
   setSwallowSink((s) => log('flight: ' + s));
   sched.every('flight.swallowed', 60 * 60_000, () => { const s = swallowSummary(); if (s) log('flight: ' + s); }, { first: 60 * 60_000 });
+  return was;
 }

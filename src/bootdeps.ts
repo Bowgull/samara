@@ -3,7 +3,7 @@
 import { app, ipcMain, net, powerMonitor, session } from 'electron';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, watch } from 'node:fs';
 import type { BootDeps } from './boot.ts';
-import { startFlight } from './flight.ts';
+import { startFlight, trouble } from './flight.ts';
 import { denyPermissions } from './safety.ts';
 import { servePages } from './pageserver.ts';
 import { Popout, popoutFile } from './popout.ts';
@@ -25,6 +25,11 @@ import { onCastlabs } from './engineupdate.ts';
 export function bootDeps(log: (s: string) => void): BootDeps {
   return {
     startFlight: (dir, say) => startFlight(app, dir, say),
+    onTrouble: (fn) => {
+      trouble.on('gone', (wc: Electron.WebContents) => { try { fn('gone', wc.getURL()); } catch { fn('gone', ''); } });
+      trouble.on('hang', (wc: Electron.WebContents) => { try { fn('hang', wc.getURL()); } catch { fn('hang', ''); } });
+      trouble.on('helper', (reason: string) => fn('helper', '', reason));
+    },
     denyPermissions: () => denyPermissions(session.defaultSession, []),
     servePages,
     newPopout: (o) => new Popout(o),

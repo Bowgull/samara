@@ -21,6 +21,7 @@ import { bootDeps } from './bootdeps.ts';
 import { planDoorClient } from './plandoor.ts';
 import type { DrmRuntime } from './drmrunner.ts';
 import { onCastlabs } from './engineupdate.ts';
+import { PeerVerdicts } from './canary.ts';
 import { readSettings } from './settings.ts';
 import { DEFAULT_SKIPS, withDefaults, type SkipSettings } from './skip/settings.ts';
 import { holdHotkey } from './hotkey.ts';
@@ -130,6 +131,7 @@ app.whenReady().then(async () => {
   // The update engine's Mac half (macsource.ts): Samara's code from GitHub and new castLabs engines, built into one new
   // Samara in the background. The Mac's script closes and restarts Samara itself.
   const paths = new MacPaths(LISTENER);
+  const peer = new PeerVerdicts(path.join(paths.br, 'canary-peer.json'));
   let samara = null as MacSamara | null;
   // Sheet 37 on the Mac: plan cards go to the companion's bubble (the plan door, plandoor.ts), else Samara's band.
   const plans = planDoorClient({ keyFile: path.join(stateDir, 'plan-door.key'), log: (s) => console.log(s) });
@@ -143,9 +145,11 @@ app.whenReady().then(async () => {
     updates: {
       sources: (changed) => {
         const stage = new MacStage(paths, { log, changed });
-        samara = new MacSamara(paths, stage, { fetch: net.fetch as never, log, changed });
+        samara = new MacSamara(paths, stage, { fetch: net.fetch as never, log, changed, peer: (v) => peer.get(v) });
         return [samara, new MacEngine(paths, stage, { fetch: net.fetch as never, log, changed })];
       },
+      // Phase 4: the Mac takes a new Samara after the PC's quiet day (canary.ts), and is watched for a day itself.
+      canary: () => { const v = samara?.installed().version ?? ''; return samara && v ? { version: v, rollback: () => samara!.turnBack(), macWaits: true } : null; },
       prefsFile: paths.prefs, changelog: paths.changelog,
       inGame: () => false,
       // The script closes Samara itself; what to say the next time it opens is kept first (overnight only).
@@ -161,6 +165,8 @@ app.whenReady().then(async () => {
   browser.onPaid = (url) => paidAway(drm, url);
   browser.onPaidFallback = (url) => paidWindow(drm, url);
   const sync = browser.sync!;
+  // Phase 4: what the PC said about a version it ran first (good: the Mac may take it now; bad: never).
+  sync.onCanary = (v, verdict) => { peer.set(v, verdict); if (verdict === 'good') void samara?.check('the PC ran it a quiet day'); };
 
   // The pop-out's keys: Ctrl+Shift+V hides and shows it; Ctrl+Alt+P pins it while it is up.
   const hk = holdHotkey(stateDir, () => popout.toggleHidden());

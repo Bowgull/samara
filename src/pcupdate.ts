@@ -163,6 +163,14 @@ export class SamaraUpdates {
     console.log(`shell: Samara ${p.version} is good`);
   }
   canBack(): boolean { const p = this.pointer(); return Boolean(p && existsSync(path.join(this.o.root, 'versions'))) && (p!.previous ? existsSync(this.file(`${p!.previous.dir}/src/main.ts`)) : true); }
+  /** Phase 4 (canary): the version running is turned back. Only when it is the one the pointer names and there is a
+   *  version before it to go to; it is never offered again (failed, not just put away). Takes effect at the next start. */
+  turnBack(): boolean {
+    const p = this.pointer();
+    if (!p || p.version !== this.running() || !p.previous || !existsSync(this.file(`${p.previous.dir}/src/main.ts`))) return false;
+    this.add('failed.txt', p.version);
+    return this.goBack();
+  }
   /** Go back: the version before (or the code folder, before the first release); the one he left is put away. */
   goBack(): boolean {
     const p = this.pointer();
