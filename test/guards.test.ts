@@ -32,14 +32,22 @@ test('no window or view turns off one of Electron\'s safety switches', () => {
 });
 
 test('every Samara page has a strict content security policy', () => {
+  // Source lists are read whole, not searched for a token: 'none' means nothing only when it stands alone, and a
+  // missing script-src falls back to default-src.
   const bad: string[] = [];
   for (const f of files(path.join(ROOT, 'pages'), /\.html$/)) {
     const csp = /http-equiv="Content-Security-Policy"\s+content="([^"]*)"/i.exec(readFileSync(f, 'utf8'))?.[1];
     if (!csp) { bad.push(`${rel(f)}: no policy`); continue; }
-    const dir = (name: string) => new RegExp(`(^|;)\\s*${name}\\s+([^;]*)`).exec(csp)?.[2] ?? null;
-    if (!/'none'/.test(dir('default-src') ?? '')) bad.push(`${rel(f)}: default-src is not 'none'`);
-    if (/'unsafe-eval'|'unsafe-inline'|\*|https?:|data:/.test(dir('script-src') ?? '')) bad.push(`${rel(f)}: script-src allows more than 'self'`);
-    if (dir('base-uri') === null) bad.push(`${rel(f)}: no base-uri`);
+    const dirs = new Map<string, string[]>();
+    for (const part of csp.split(';')) {
+      const [name, ...list] = part.trim().split(/\s+/);
+      if (name && !dirs.has(name.toLowerCase())) dirs.set(name.toLowerCase(), list);
+    }
+    const def = dirs.get('default-src');
+    if (!def || def.length !== 1 || def[0] !== "'none'") bad.push(`${rel(f)}: default-src is not exactly 'none'`);
+    const script = dirs.get('script-src') ?? def ?? [];
+    if (!(script.length === 1 && (script[0] === "'self'" || script[0] === "'none'"))) bad.push(`${rel(f)}: script-src is not exactly 'self' or 'none'`);
+    if (!dirs.has('base-uri')) bad.push(`${rel(f)}: no base-uri`);
   }
   assert.deepEqual(bad, []);
 });
