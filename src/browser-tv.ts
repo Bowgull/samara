@@ -445,7 +445,10 @@ export const TvPart = {
     // The panels' layer sooner: the ⋯ menu is often the first thing he clicks. Until it has loaded, the band opens its
     // panels the old way (on a picture of the page).
     w.once('ready-to-show', () => setTimeout(() => { if (w.isDestroyed() || p.win !== w) return; const was = this.pane; this.pane = p; this.floatView(); this.pane = was; }, 600));
-    w.webContents.once('did-finish-load', () => {
+    // Phase 5 (2026-11-24, measured in CI): his tabs start loading as soon as the band's page and its script are in,
+    // not after every one of its pictures, styles and fonts has loaded too. On the Mac and Windows runners the band's
+    // full load took ~1.5 s against ~0.3 s on Linux, and the front tab waited for all of it.
+    w.webContents.once('dom-ready', () => {
       this.pane = p;
       // Made by dragging a tab out: that tab moves in, live.
       if (bring) {

@@ -68,6 +68,10 @@ app.whenReady().then(async () => {
     thingsPreloadPath: path.join(HERE, '..', '..', 'src', 'thingspreload.cjs') } as any);
   wireBrowser(() => b);
   b.open();
+  // The band's own page: when its document was in, and when everything it loads was.
+  let frameReady = 0, frameLoaded = 0;
+  b.win?.webContents.once('dom-ready', () => { frameReady = Math.round(performance.now() - t0); });
+  b.win?.webContents.once('did-finish-load', () => { frameLoaded = Math.round(performance.now() - t0); });
   let startMs = NaN;
   for (let i = 0; i < 400 && Number.isNaN(startMs); i++) {
     const wc = b.cur()?.view?.webContents;
@@ -75,7 +79,7 @@ app.whenReady().then(async () => {
     if (typeof r === 'number') startMs = Math.round(r - (performance.timeOrigin + t0));
     else await wait(25);
   }
-  console.log(`start: first page drawn ${startMs} ms after Samara began (asked for at ${asked} ms)`);
+  console.log(`start: first page drawn ${startMs} ms after Samara began (asked for at ${asked} ms; band ready ${frameReady} ms, fully loaded ${frameLoaded} ms)`);
 
   // Wake every saved tab (a restored session keeps them asleep until visited), then leave the first in front.
   const ids: number[] = b.tabs.map((t: any) => t.id);
@@ -112,7 +116,7 @@ app.whenReady().then(async () => {
   console.log(`switch: median ${switchMs} ms (${times.join(', ')})`);
 
   const m: Speed = { startMs, pageMB, idleCpu, switchMs };
-  console.log('SPEED ' + JSON.stringify({ ...m, askedMs: asked, system: process.platform, machine: `${os.cpus()[0]?.model} x${os.cpus().length}` }));
+  console.log('SPEED ' + JSON.stringify({ ...m, askedMs: asked, frameReady, frameLoaded, system: process.platform, machine: `${os.cpus()[0]?.model} x${os.cpus().length}` }));
   const budgets: Budgets = JSON.parse(readFileSync(path.join(HERE, 'speed-budgets.json'), 'utf8'));
   const over = budgets[process.platform] ? overBudget(m, budgets[process.platform]!) : [`no budget for ${process.platform}`];
   for (const o of over) console.log((process.env.RECORD === '1' ? 'OVER (recorded only) ' : 'FAIL  over budget: ') + o);
