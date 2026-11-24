@@ -78,11 +78,15 @@ export function toPutAway(tabs: readonly RailTab[], now: number, activeId: numbe
   return tabs.filter((t) => fading(t, now, activeId)).sort((a, b) => a.lastSeen - b.lastSeen).map((t) => t.id);
 }
 
-/** The rail's order: pinned (as he arranged them), then today's tabs newest first; Claude's are drawn apart. */
+/**
+ * The rail's order: pinned (as he arranged them), then today's tabs newest opened first; Claude's are drawn apart.
+ * `tabs` is in the order they were opened (a link's tab right after its page), so newest first is that order reversed.
+ * Never by when he last looked: a tab must not jump to the top because he clicked it.
+ */
 export function railOrder(tabs: readonly RailTab[]): { pinned: number[]; today: number[]; claude: number[] } {
   const pinned = tabs.filter((t) => t.pinned && t.claudeJob == null).map((t) => t.id);
   const claude = tabs.filter((t) => t.claudeJob != null).map((t) => t.id);
-  const today = tabs.filter((t) => !t.pinned && t.claudeJob == null).sort((a, b) => b.lastSeen - a.lastSeen).map((t) => t.id);
+  const today = tabs.filter((t) => !t.pinned && t.claudeJob == null).map((t) => t.id).reverse();
   return { pinned, today, claude };
 }
 

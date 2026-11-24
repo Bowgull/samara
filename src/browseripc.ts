@@ -83,6 +83,14 @@ export function wireBrowser(get: () => SamaraBrowser | null): void {
   ipcMain.on('browser:planreply', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && typeof a.id === 'string') b(e).planReply(a.id.slice(0, 40), a); });
   // Sheet 37: a rule for the site he is on, from the shield. Only these keys.
   ipcMain.on('browser:siterule', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && ['ai', 'login', 'ads', 'popups', 'dark', 'camera', 'mic'].includes(a.key)) b(e).setSiteRule(a.key, a.value); });
+  // Phase R (2026-11-24): Earlier, from the rail: its list, open one, remove one. Keys are short strings only.
+  ipcMain.handle('browser:earlier', (e, a) => {
+    if (!(top(e) && b(e)?.isFrame(e.sender)) || !a || !['list', 'open', 'remove'].includes(a.act)) return null;
+    if (a.act !== 'list' && (typeof a.key !== 'string' || a.key.length > 40)) return null;
+    let out: unknown = null;
+    b(e).earlierAct({ act: a.act, key: a.key }, (d: unknown) => { out = d; });
+    return out;
+  });
   ipcMain.on('browser:trail', (e, a) => {
     if (!(top(e) && b(e)?.isFrame(e.sender)) || !a || typeof a !== 'object') return;
     if (a.act === 'new') b(e).newTrail();

@@ -332,12 +332,14 @@
         <p class="ptitle">TABS</p>
         <button class="key sm newtab ink" id="newtab" type="button">+ New tab<span class="k">Ctrl T</span></button>
         <div id="tabs"></div>
+        <!-- Phase R (2026-11-24): the tabs moved out of the way overnight, and what trails and the Stash held. -->
+        <button class="earlierkey" id="earlierkey" type="button" hidden><span class="nm">Earlier</span><span class="n" id="earliern"></span></button>
       </div>
-      <div class="stash" id="stash" hidden>
-        <button class="chest" id="chest" type="button" aria-label="Open the Stash"></button>
-        <div><div class="s1">Stash</div><div class="s2" id="stashn"></div></div>
+      <div class="tabpanel earlier" id="earlier" hidden>
+        <div class="ehead"><button class="eback" id="earlierback" type="button" aria-label="Back to your tabs">&#8249; Tabs</button><p class="ptitle">EARLIER</p></div>
+        <input class="eq" id="earlierq" type="search" placeholder="Search Earlier" spellcheck="false" autocomplete="off" aria-label="Search Earlier">
+        <div id="earlierlist" class="elist"></div>
       </div>
-      <div class="stashlist" id="stashlist" hidden></div>
       <!-- Sheet 107 (2026-10-30; at the bottom of the tray, a size smaller: the same day): the one way to Mockups, the sealed scroll on FFX blue with gold trim. -->
       <!-- 2026-11-03 : the way to the Hyrule map, Mockups' own shape in Hyrule green, a folded map with a pin. -->
       <button type="button" class="mq hy" id="hykey" aria-label="Hyrule" hidden><span class="pic"><canvas width="16" height="14"></canvas></span><span class="nm">Hyrule</span></button>

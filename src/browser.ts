@@ -116,6 +116,8 @@ import { createRequire } from 'node:module';
 import { pageMenuItems, sendKindFor } from './pagemenu.ts';
 import { WATCH_CSS, WATCH_HOSTS } from './watchmode.ts';
 import { GOOGLE_WORDS_JS, googleRefused, refusalTarget } from './passkeys.ts';
+import { EarlierStore } from './earlier.ts';
+import { afterClose, entryKey, fading, migrateV1, tidyDue as railTidyDue, toPutAway, type EarlierEntry, type RailTab, type V1File } from './rail.ts';
 
 /**
  * Dark mode for web pages (X, 2026-10-14): Dark Reader's own engine (darkreader 4.9.133,
@@ -212,6 +214,8 @@ interface Tab {
   pageBg?: string;
   zoom: number;
   lastSeen: number;
+  /** Phase R: pinned to the top of the rail; never put away overnight. */
+  pinned?: boolean;
   /** 6.24: a call is live in this tab (he allowed its camera, mic or a screen share): never slowed, never put to sleep. */
   call?: boolean;
   /** 6.22: stopped before loading because a list names it: which lists. */
@@ -806,6 +810,8 @@ export class SamaraBrowser {
   /** The Stash (Tidy and the trail menu put trails here). Kept between runs. */
   private stash: Stashed[] = [];
   private stashSeq = 0;
+  /** Phase R (2026-11-24): the tabs put away overnight, and what trails, the done shelf and the Stash held before. */
+  private earlier!: EarlierStore;
   private readonly stashFile: string;
   /** The tidy in progress or waiting for Keep or Undo. */
   private tidy: TidyRun | null = null;
@@ -990,6 +996,8 @@ export class SamaraBrowser {
         .map((s: Stashed) => ({ id: s.id, name: s.name.slice(0, 24), at: Number(s.at) || 0, tabs: s.tabs.filter((t) => typeof t?.url === 'string' && isWeb(t.url)).slice(0, 80).map((t) => ({ url: t.url, title: String(t.title ?? t.url).slice(0, 200) })) }));
     } catch { /* none yet */ }
     this.stashSeq = this.stash.reduce((m, s) => Math.max(m, s.id), 0);
+    this.earlier = new EarlierStore(path.join(o.stateDir, 'browser-earlier.json'), () => { if (this.restored) { this.sync?.changed('prefs'); this.sendTabs(); } });
+    this.railMove(o.stateDir);
     setSearch(this.prefs.search, this.prefs.aiBox);
     this.vault = new Vault();
     this.sitesFile = path.join(o.stateDir, 'vault-sites.json');
@@ -1756,12 +1764,10 @@ export class SamaraBrowser {
       this.ads?.pauseMany([...next].filter((h) => !this.paused.has(h)), true);
       this.paused = next; put(this.pausedFile, this.paused);
     }
-    if (Array.isArray(L.stash)) {
-      this.stash = L.stash.filter((x: any) => Number.isInteger(x?.id) && typeof x?.name === 'string' && Array.isArray(x?.tabs)).slice(0, 50)
-        .map((x: any) => ({ id: x.id, name: String(x.name).slice(0, 24), at: Number(x.at) || 0,
-          tabs: x.tabs.filter((t: any) => typeof t?.url === 'string' && isWeb(t.url) && urlKept(t.url)).slice(0, 80).map((t: any) => ({ url: t.url, title: String(t.title ?? t.url).slice(0, 200) })) }));
-      this.stashSeq = Math.max(this.stashSeq, ...this.stash.map((x) => x.id));
-      try { writeFileAtomic(this.stashFile, JSON.stringify(this.stash)); } catch { /* best effort */ }
+    // Phase R: the Stash no longer travels (each machine moved its own into Earlier); Earlier is joined, never replaced.
+    const E = (L as { earlier?: { entries?: unknown; gone?: unknown } }).earlier;
+    if (E && typeof E === 'object' && Array.isArray(E.entries)) {
+      this.earlier.join(E.entries.filter((e: any) => typeof e?.url === 'string' && urlKept(e.url)), E.gone && typeof E.gone === 'object' ? E.gone as Record<string, number> : {});
     }
     this.sendTabs(); this.pushSettings();
   }
@@ -2884,6 +2890,9 @@ export class SamaraBrowser {
       sched.every(this.jobNames[1]!, 60_000, () => this.sleepIdle());
       sched.every(this.jobNames[2]!, FORM_EVERY_MS, () => this.grabForms());
       this.timers.push(setInterval(() => { void this.lookForLogin(); }, 1500));
+      // Phase R: the overnight tidy, checked every minute (and a few seconds after start, for a night Samara was shut).
+      this.timers.push(setInterval(() => { this.railTidy(); }, 60_000));
+      setTimeout(() => { this.railTidy(); }, 5000);
     }
   }
 
@@ -3868,22 +3877,13 @@ export class SamaraBrowser {
     const url = isWeb(address) ? address : addressFor(address);
     if (!url) return null;
     if (this.toPaid(url)) return null;
-    // "You don't have to start a trail. A link you open from a page joins that page's trail" (sheet 3). A loose
-    // page that opens a link starts one, named after its site; nothing is ever sorted by guesswork here.
-    let trail: number | null = null;
+    // Phase R (2026-11-24): trails are retired; a tab opened from a link remembers its opener (closing it goes back
+    // there) and sits in Today like any other.
+    const trail: number | null = null;
     const from = opener !== null ? this.tabs.find((x) => x.id === opener) : undefined;
-    if (from) {
-      if (from.trail === null && !from.done) { from.trail = this.addTrail(trailNameFor(from.url)); }
-      trail = from.done ? null : from.trail;
-    } else if (this.pendingTrail !== null) { trail = this.pendingTrail; }
     this.pendingTrail = null;
     const tab: Tab = { id: ++this.seq, view: null, opener, title: 'New tab', url, favicon: '', loading: true, audible: false, muted: false, crashed: false, scrollY: 0, zoom: 0, lastSeen: Date.now(), blocked: null, trail, done: false, lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id, ...(this.nextTab ? { claude: true, guest: this.nextTab.guest } : {}) };
-    // A child sits right under the last tab of its trail, so the trail reads top to bottom.
-    if (from) {
-      let at = this.tabs.indexOf(from);
-      while (at + 1 < this.tabs.length && this.tabs[at + 1]!.opener !== null && this.tabs[at + 1]!.trail === trail && trail !== null) at++;
-      this.tabs.splice(at + 1, 0, tab);
-    } else this.tabs.push(tab);
+    if (from) this.tabs.splice(this.tabs.indexOf(from) + 1, 0, tab); else this.tabs.push(tab);
     tab.pending = url;
     // 2026-10-25 (: a tab opened from a link while the list is
     // closed counts on the tab arrow (it breathes and shows +1) until he opens the list.
@@ -3903,7 +3903,7 @@ export class SamaraBrowser {
     if (!this.inTab(t)) return;
     const w = this.win;
     const prev = this.cur();
-    if (prev) this.scrollDue.add(prev.id);             // its scroll is saved at the next save
+    if (prev) { this.scrollDue.add(prev.id); prev.lastSeen = Date.now(); }   // its scroll is saved at the next save; leaving it counts as seen
     if (!w || w.isDestroyed()) return;
     if (other) w.focus();
     const mine = this.paneTabs();
@@ -3969,7 +3969,9 @@ export class SamaraBrowser {
     this.tidyTrails();
     if (this.active === id) {
       const rest = this.paneTabs();
-      const next = rest[Math.min(Math.max(0, at), rest.length - 1)];
+      // Phase R: back to the tab that opened it, else the one he used last (Firefox's rule), never just the neighbour.
+      const back = afterClose(this.railTab(t!), rest.map((x) => this.railTab(x)));
+      const next = rest.find((x) => x.id === back) ?? rest[Math.min(Math.max(0, at), rest.length - 1)];
       this.active = null;
       if (next) this.activate(next.id);
       else if (lastClosesWindow && this.win && !this.win.isDestroyed()) {
@@ -3997,6 +3999,9 @@ export class SamaraBrowser {
     else if (act === 'newwindow') this.newWindowFor(id);
     else if (act === 'tvwindow') void this.tvWindow(t);
     else if (act === 'tvvideo') void this.tvVideo(t);
+    else if (act === 'pin' || act === 'unpin') { t.pinned = act === 'pin'; t.lastSeen = Date.now(); this.changed(); }
+    // TONIGHT on a faded tab: he wants it kept, so it counts as seen now.
+    else if (act === 'keep') { t.lastSeen = Date.now(); this.changed(); }
     else if (act === 'done') this.markDone(id, true);
     else if (act === 'undone') this.markDone(id, false);
   }
@@ -5017,7 +5022,8 @@ export class SamaraBrowser {
     // His details travel to his other machine only (2026-10-23), with the rest of his settings.
     prefs: () => ({ sounds: this.sounds, ...this.prefs, ...(this.details.empty() ? {} : { autofill: this.details.get() }), lists: {
       popupOk: [...this.popupOk], trusted: [...this.trusted, ...this.peerTrusted], httpOk: [...this.httpOk, ...this.peerHttp], adsPaused: [...this.paused], siteRules: this.rules.all(),
-      stash: this.stash.map((x) => ({ ...x, tabs: x.tabs.filter((t) => urlKept(t.url)) })),
+      // Phase R: Earlier travels (money sites never do); a page he removed on one machine is removed on both.
+      earlier: { entries: this.earlier.entries.filter((e) => urlKept(e.url)), gone: this.earlier.gone },
     } }) as Record<string, unknown>,
     setPrefs: (p: Record<string, unknown>) => {
       const adsWas = this.prefs.ads;
@@ -5656,6 +5662,106 @@ export class SamaraBrowser {
 
   // ------------------------------------------------------------------ trails and the done shelf (sheet 3 section 3)
   /** "+ New trail": the next tab he opens starts it. */
+  // ------------------------------------------------------------------ Phase R (2026-11-24): the rail
+  /** What the rail's rules (rail.ts) need of a tab. A tab in front of any window, in a split or lent stays put. */
+  private railTab(t: Tab): RailTab {
+    const front = this.panes.some((p) => p.active === t.id || p.split?.left === t.id || p.split?.right === t.id);
+    const job = (() => { const p = this.driver.pageOfTab(t.id); return p && this.driver.job(p.job)?.kind === 'claude' ? p.job : null; })();
+    return { id: t.id, lastSeen: t.lastSeen, opener: t.opener, pinned: t.pinned || front || t.lent, audible: t.audible, call: t.call,
+      claudeJob: job ?? (t.claude ? -1 : null), internal: t.internal ?? (t.mock || !isWeb(t.url) ? 'own' : undefined) };
+  }
+  /** One tab as Earlier keeps it. */
+  private entryOf(t: Tab, at: number, from?: string): EarlierEntry {
+    return { key: entryKey(t.url, at), url: t.url, title: t.title || t.url, at,
+      ...(t.favicon && /^(https:|data:image\/)/.test(t.favicon) && t.favicon.length < 4000 ? { favicon: t.favicon } : {}),
+      ...(t.scrollY > 0 ? { scrollY: Math.round(t.scrollY) } : {}), ...(t.zoom ? { zoom: t.zoom } : {}), ...(from ? { from } : {}) };
+  }
+  /**
+   * The one-time move (Phase R): trails, the done shelf and the Stash go to Earlier, so nothing he had is lost when trails
+   * go. The files as they were are copied aside first (browser-tabs.v1.json, browser-stash.v1.json) and never touched
+   * again. It runs once (Earlier remembers), and running it twice changes nothing: Earlier keys repeat, so they merge.
+   */
+  private railMove(dir: string): void {
+    if (this.earlier.migrated) return;
+    try {
+      const s = this.session.peek() as (Partial<SessionData> & { tabs?: any[] }) | null;
+      const tabs = Array.isArray(s?.tabs) ? s!.tabs : [];
+      const trails = (Array.isArray(s?.trails) ? s!.trails : []) as V1File['trails'];
+      const own = (trails ?? []).filter((x) => x?.id !== MOCK_TRAIL);
+      const needs = own.length > 0 || tabs.some((t) => t?.done === true) || this.stash.length > 0;
+      if (!needs) { this.earlier.markMigrated(); return; }
+      const aside = (from: string, to: string) => { const a = path.join(dir, from), b = path.join(dir, to); if (existsSync(a) && !existsSync(b)) copyFileSync(a, b); };
+      aside('browser-tabs.json', 'browser-tabs.v1.json');
+      aside('browser-stash.json', 'browser-stash.v1.json');
+      const v1: V1File = { tabs: tabs.filter((t) => typeof t?.url === 'string'), trails, stash: this.stash.map((x) => ({ name: x.name, at: x.at, tabs: x.tabs })) };
+      const { keep, earlier } = migrateV1(v1, Date.now());
+      this.earlier.add(earlier);
+      if (s && tabs.length) {
+        // Indexes in the file (opener, the tab in front, splits) point at the old list: they follow the tabs that stay.
+        const kept = v1.tabs;
+        const map = new Map<number, number>(); keep.forEach((old, i) => map.set(tabs.indexOf(kept[old]), i));
+        const at = (n: unknown) => (Number.isInteger(n) ? map.get(n as number) : undefined);
+        const next: SessionData = { v: 1, closed: Array.isArray(s.closed) ? s.closed : [], trails: [],
+          active: at(s.active) ?? 0,
+          fronts: (Array.isArray(s.fronts) ? s.fronts : []).map((n) => at(n) ?? -1),
+          tabs: keep.map((i) => { const t = { ...kept[i] } as Record<string, unknown>; t.opener = at(t.opener) ?? null; delete t.trail; delete t.done; return t as SessionData['tabs'][number]; }),
+          splits: (Array.isArray(s.splits) ? s.splits : []).flatMap((x: any) => { const l = at(x?.left), r = at(x?.right); return l !== undefined && r !== undefined ? [{ ...x, left: l, right: r }] : []; }) };
+        this.session.write(next, { now: true, force: true, why: 'rail-move' });
+      }
+      this.stash = [];
+      try { writeFileAtomic(this.stashFile, '[]'); } catch { /* the copy aside holds it */ }
+      this.earlier.markMigrated();
+      console.log(`shell: browser: trails retired: ${earlier.length} page${earlier.length === 1 ? '' : 's'} moved to Earlier, ${keep.length} tab${keep.length === 1 ? '' : 's'} stay open`);
+    } catch (e) { console.error('shell: browser: the move to Earlier did not run (nothing changed): ' + (e as Error).message); }
+  }
+  /** The overnight tidy, when it is due (at 3 AM, or on the next start after a night Samara was shut). */
+  railTidy(now = Date.now()): number {
+    if (!this.restored || !railTidyDue(this.earlier.lastTidy, now)) return 0;
+    const ids = toPutAway(this.tabs.map((t) => this.railTab(t)), now, null);
+    this.earlier.tidied(now);
+    if (!ids.length) return 0;
+    const put = this.putAway(ids, now);
+    if (put.length) {
+      this.note('', { from: 'tabs', icon: 'tabs', kick: 'Overnight', title: `${put.length} tab${put.length === 1 ? '' : 's'} moved to Earlier`,
+        rows: [{ g: 'Why', v: 'Not opened in 12 hours. Nothing was closed for good.' }], keys: [{ label: 'Bring them back', act: 'back' }, { label: 'Got it', act: 'ok' }] },
+      (act) => { if (act === 'back') this.earlierBack(put.map((e) => e.key)); });
+    }
+    return put.length;
+  }
+  /** Close these tabs into Earlier (their address, scroll and zoom kept). The tab in front of a window never goes. */
+  private putAway(ids: number[], at: number): EarlierEntry[] {
+    const out: EarlierEntry[] = [];
+    for (const id of ids) {
+      const t = this.tabs.find((x) => x.id === id);
+      if (!t || !isWeb(t.url) || this.panes.some((p) => p.active === id)) continue;
+      out.push(this.entryOf(t, at + out.length));
+      this.closeView(t);
+      this.tabs.splice(this.tabs.indexOf(t), 1);
+    }
+    this.earlier.add(out);
+    this.changed();
+    return out;
+  }
+  /** Bring entries back from Earlier as tabs, asleep (each loads when he opens it), where they were. */
+  private earlierBack(keys: string[], show = false): void {
+    let last: Tab | null = null;
+    for (const k of keys) {
+      const e = this.earlier.take(k);
+      if (!e || !isWeb(e.url)) continue;
+      last = { id: ++this.seq, view: null, opener: null, title: e.title, url: e.url, favicon: e.favicon ?? '', loading: false, audible: false, muted: false, crashed: false,
+        scrollY: e.scrollY ?? 0, zoom: e.zoom ?? 0, lastSeen: Date.now(), blocked: null, trail: null, done: false, lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id };
+      this.tabs.push(last);
+    }
+    if (show && last) this.activate(last.id); else this.changed();
+  }
+  /** Earlier, from the rail: the list (to the tray that asked), open one, or remove one for good. */
+  earlierAct(a: { act: string; key?: string }, reply?: (data: unknown) => void): void {
+    if (a.act === 'list') { reply?.({ entries: this.earlier.entries, now: Date.now() }); return; }
+    if (!a.key) return;
+    if (a.act === 'open') this.earlierBack([a.key], true);
+    else if (a.act === 'remove') { this.earlier.take(a.key); this.sendTabs(); }
+    reply?.({ entries: this.earlier.entries, now: Date.now() });
+  }
   private pendingTrail: number | null = null;
   private addTrail(name: string): number { const id = ++this.trailSeq; this.trails.push({ id, name, named: false }); return id; }
   /** A trail with nothing left in it goes. */
@@ -5738,7 +5844,8 @@ export class SamaraBrowser {
       }
     }
     for (const t of moving as Tab[]) {
-      if (!mock) t.opener = parent === null && trail !== null && t.opener !== null && set.has(t.opener) ? t.opener : parent;
+      // Phase R: moving a tab in the rail keeps where it came from (closing it still goes back there).
+      if (!mock && (trail !== null || parent !== null)) t.opener = parent === null && trail !== null && t.opener !== null && set.has(t.opener) ? t.opener : parent;
       t.trail = trail;
       t.done = false;
     }
@@ -6685,7 +6792,9 @@ export class SamaraBrowser {
       fronts,
       tabs: keep.map((t) => ({
         url: t.url, title: t.title, opener: t.opener === null ? null : keep.findIndex((x) => x.id === t.opener),
-        scrollY: Math.round(t.scrollY), zoom: t.zoom, muted: t.muted, trail: t.trail, done: t.done, win: winOf.get(t.pane) ?? 0,
+        scrollY: Math.round(t.scrollY), zoom: t.zoom, muted: t.muted, win: winOf.get(t.pane) ?? 0,
+        // Phase R: when he last had it in front (a tab in front counts as now), and pinned.
+        lastSeen: this.panes.some((p) => p.active === t.id) ? Date.now() : t.lastSeen, ...(t.pinned ? { pinned: true } : {}),
         ...(t.mock ? { mock: { ...t.mock } } : {}),
         ...(t.pageBg ? { pageBg: t.pageBg } : {}),
         ...(t.pageState && !t.mock ? { pageState: t.pageState } : {}),
@@ -6734,8 +6843,9 @@ export class SamaraBrowser {
       for (const t of list) {
         const fav = typeof t.favicon === 'string' && /^(https:|data:image\/)/.test(t.favicon) && t.favicon.length < 4000 ? t.favicon : '';
         const tab: Tab = { id: ++this.seq, view: null, opener: null, title: String(t.title ?? t.url).slice(0, 300), url: t.url, favicon: fav,
-          loading: false, audible: false, muted: t.muted === true, crashed: false, scrollY: Number(t.scrollY) || 0, zoom: Number(t.zoom) || 0, lastSeen: Date.now(), blocked: null,
-          trail: Number.isInteger(t.trail) ? t.trail : null, done: false, lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id };
+          loading: false, audible: false, muted: t.muted === true, crashed: false, scrollY: Number(t.scrollY) || 0, zoom: Number(t.zoom) || 0,
+          lastSeen: Number.isFinite(t.lastSeen) && t.lastSeen > 0 && t.lastSeen <= Date.now() ? t.lastSeen : Date.now(), blocked: null,
+          trail: null, done: false, ...(t.pinned === true ? { pinned: true } : {}), lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id };
         if (typeof t.pageBg === 'string' && /^#[0-9a-f]{6}$/.test(t.pageBg)) tab.pageBg = t.pageBg;
         if (typeof t.pageState === 'string' && t.pageState.length <= PAGE_STATE_MAX && /^[A-Za-z0-9+/=]+$/.test(t.pageState)) tab.pageState = t.pageState;
         ids.push(tab.id);
@@ -6820,12 +6930,15 @@ export class SamaraBrowser {
       P.trayNext = data;
       P.trayNextT ??= setTimeout(() => { P.trayNextT = null; this.trayFlush(P); }, 150);
     };
+    const now = Date.now();
     send({
       active: this.active,
+      // Phase R: how many pages are in Earlier (its button shows the count).
+      earlierN: this.earlier.entries.length,
       update: this.update, updated: this.updated, checking: this.checking, inCall: this.inCall, canQuit: this.onQuit !== null,
       canBack: Boolean(wc?.navigationHistory.canGoBack()), canForward: Boolean(wc?.navigationHistory.canGoForward()),
       // A sleeping tab keeps its logo (2026-10-20): its last one, else the site's from bookmarks.
-      tabs: mine.map((x) => ({ id: x.id, opener: x.opener, title: x.title, url: x.url, favicon: x.favicon || this.iconOf(x.url), loading: x.loading, phase: x.phase ?? (x.loading ? 'loading' : 'idle'), prog: x.prog ?? 0, pending: x.pending ?? null, audible: x.audible, muted: x.muted, crashed: x.crashed, asleep: !x.view, blocked: x.blocked, failed: x.failed, trail: x.trail, done: x.done, lent: x.lent, popup: x.blockedPopup?.url ?? null, mock: x.mock ? this.mockTab(x) : null, internal: x.internal ? true : undefined, mocklog: x.internal === 'mocklog' ? true : undefined, hyrule: x.internal === 'hyrule' ? true : undefined,
+      tabs: mine.map((x) => ({ id: x.id, opener: x.opener, title: x.title, url: x.url, favicon: x.favicon || this.iconOf(x.url), loading: x.loading, phase: x.phase ?? (x.loading ? 'loading' : 'idle'), prog: x.prog ?? 0, pending: x.pending ?? null, audible: x.audible, muted: x.muted, crashed: x.crashed, asleep: !x.view, blocked: x.blocked, failed: x.failed, trail: x.trail, done: x.done, lent: x.lent, pinned: x.pinned === true, lastSeen: x.lastSeen, fade: fading(this.railTab(x), now, this.active), popup: x.blockedPopup?.url ?? null, mock: x.mock ? this.mockTab(x) : null, internal: x.internal ? true : undefined, mocklog: x.internal === 'mocklog' ? true : undefined, hyrule: x.internal === 'hyrule' ? true : undefined,
         // Sheet 111: a tab a Claude job has shows in Claude's group, not in his list.
         claudeJob: (() => { const p = this.driver.pageOfTab(x.id); return p && this.driver.job(p.job)?.kind === 'claude' ? p.job : undefined; })() })),
       // Sheet 47: the MOCKUPS trail's history (the whole list only while it is open), or null where mockups are off.

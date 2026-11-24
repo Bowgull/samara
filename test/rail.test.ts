@@ -30,7 +30,7 @@ test('the overnight move: 3 AM local, once a night, and on the next start if Sam
 
 test('the rail: pinned as arranged, today newest first, Claude\'s apart', () => {
   const o = railOrder([tab(1, 10, { pinned: true }), tab(2, 30), tab(3, 20), tab(4, 50, { claudeJob: 1 }), tab(5, 5, { pinned: true }), tab(6, 40)]);
-  assert.deepEqual(o, { pinned: [1, 5], today: [6, 2, 3], claude: [4] });
+  assert.deepEqual(o, { pinned: [1, 5], today: [6, 3, 2], claude: [4] }, 'newest opened first, never by last looked');
 });
 
 test('closing goes back to the tab that opened it, else the last one used', () => {
