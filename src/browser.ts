@@ -269,6 +269,9 @@ interface Pane {
   trayNextT: ReturnType<typeof setTimeout> | null;
   /** Its page has loaded (an open before that is ignored, never a late slide). */
   trayReady: boolean;
+  /** Which opening this is (a timer from an earlier one must not run during a later slide), and when it last shut. */
+  traySeq?: number;
+  trayShutAt?: number;
   trayAt: { x: number; y: number; hy?: number };
   /** Claude's rune panel, in its own see-through layer over the live page (2026-10-21, runeView). */
   runeV?: WebContentsView | null;
@@ -1975,6 +1978,7 @@ export class SamaraBrowser {
       void this.tabPeek(null);
       if (!this.trayOn) { v?.setVisible(false); return; }
       this.trayOn = false;
+      this.pane.traySeq = (this.pane.traySeq ?? 0) + 1; this.pane.trayShutAt = Date.now();
       v?.webContents.send('browser:tray', { open: false });
       setTimeout(() => {
         if (this.trayOn || w.isDestroyed()) return;
@@ -1991,8 +1995,8 @@ export class SamaraBrowser {
     this.newSince = 0;
     // Phase R (2026-11-24, measured): nothing but the slide runs while the rail moves. The page picture for the hover
     // card (a capture and a JPEG, ~9 ms) waits until the slide is over; the hover layer was built at start.
-    const P0 = this.pane;
-    setTimeout(() => { if (P0.trayOn) { const was = this.pane; this.pane = P0; void this.cardOf(this.cur()); this.pane = was; } }, TRAY_SLIDE_MS + 40);
+    const P0 = this.pane, seq = P0.traySeq = (P0.traySeq ?? 0) + 1;
+    setTimeout(() => { if (P0.trayOn && P0.traySeq === seq) { const was = this.pane; this.pane = P0; void this.cardOf(this.cur()); this.pane = was; } }, TRAY_SLIDE_MS + 40);
     const n = (x: unknown, d: number) => (Number.isFinite(Number(x)) ? Math.max(0, Math.round(Number(x))) : d);
     this.trayAt = { x: n(at?.x, this.trayAt.x), y: n(at?.y, this.trayAt.y), hy: n((at as { hy?: unknown })?.hy, this.trayAt.hy ?? 80) };
     this.trayOn = true;
@@ -6654,7 +6658,8 @@ export class SamaraBrowser {
       if (!tray) return;
       if (this.trayOn) { tray.send('browser:tabs', data); return; }
       P.trayNext = data;
-      P.trayNextT ??= setTimeout(() => { P.trayNextT = null; this.trayFlush(P); }, 150);
+      // Not while it is still sliding shut either: the list waits until the close is over.
+      P.trayNextT ??= setTimeout(() => { P.trayNextT = null; this.trayFlush(P); }, Math.max(150, (P.trayShutAt ?? 0) + TRAY_SLIDE_MS + 20 - Date.now()));
     };
     const now = Date.now();
     send({

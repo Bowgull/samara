@@ -94,7 +94,8 @@ app.whenReady().then(async () => {
   const hidden2 = await band.executeJavaScript(`document.querySelector('.slot .edit').matches('.allsel')`, true) as boolean;
   check('moving in the text paints the selection again', hidden2 === false);
   await band.executeJavaScript(`document.querySelector('.slot .edit').select(); 1`, true);
-  band.sendInputEvent({ type: 'char', keyCode: 'w' });
+  // A whole key press, as a keyboard sends it (macOS ignores a lone char event).
+  band.sendInputEvent({ type: 'keyDown', keyCode: 'W' }); band.sendInputEvent({ type: 'char', keyCode: 'w' }); band.sendInputEvent({ type: 'keyUp', keyCode: 'W' });
   await wait(150);
   const typed = await band.executeJavaScript(`document.querySelector('.slot .edit').value`, true) as string;
   check('typing replaces the address', typed === 'w', JSON.stringify(typed));
