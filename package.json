@@ -10,7 +10,8 @@
     "start": "electron src/pc.ts",
     "start:mac": "electron src/mac.ts",
     "check": "tsc -p .",
-    "test": "node --no-warnings --test --test-force-exit --test-timeout=30000 test/*.test.ts"
+    "test": "node --no-warnings --test --test-force-exit --test-timeout=30000 test/*.test.ts",
+    "check:windows": "node tools/run-electron-checks.mjs"
   },
   "dependencies": {
     "@duckduckgo/autoconsent": "16.53.0",

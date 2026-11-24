@@ -21,6 +21,7 @@ import { engineGroups } from './pcsource.ts';
 import { macUpdateScript } from './macupdate.ts';
 import { readJson, saveJson } from './store.ts';
 import { VersionLists, isVersion, newer, plain, type CardGroup, type CheckOutcome, type CheckProgress, type Offer, type Source } from './updateengine.ts';
+import { swallowed } from './swallow.ts';
 
 type Fetch = Parameters<typeof ghLatest>[0];
 export interface Installed { version: string; commit: string; status: string; engine?: string }
@@ -204,7 +205,7 @@ export class MacSamara implements Source {
     if (saveJson(this.p.installed, { ...i, status: 'good' })) this.o.log(`update: ${i.version}${i.engine ? ' on engine ' + i.engine : ''} is good`);   // failed: next start
   }
   private changelog(m: Manifest): void {
-    try { let had = ''; try { had = readFileSync(this.p.changelog, 'utf8'); } catch { /* first */ } const now = withSection(had, m); if (now !== had) writeFileSync(this.p.changelog, now); } catch { /* best effort */ }
+    try { let had = ''; try { had = readFileSync(this.p.changelog, 'utf8'); } catch { /* first */ } const now = withSection(had, m); if (now !== had) writeFileSync(this.p.changelog, now); } catch (e) { swallowed('update.changelog', e); }
   }
   ready(): Offer | null {
     const s = this.stage.readySamara, coming = this.stage.coming();

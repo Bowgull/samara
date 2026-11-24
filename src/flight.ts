@@ -11,6 +11,7 @@ import { existsSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { readJson, saveJson } from './store.ts';
 import { sched } from './sched.ts';
+import { setSwallowSink, swallowSummary } from './swallow.ts';
 
 /** "www.youtube.com/watch?v=..." -> "www.youtube.com"; anything that is not a web page -> its kind only. */
 export function siteOf(url: string): string {
@@ -69,4 +70,7 @@ export function startFlight(app: Electron.App, dir: string, log: (s: string) => 
   });
   const mem = () => { try { log('flight: ' + memoryLine(app.getAppMetrics() as Metric[])); } catch { /* not now */ } };
   sched.every('flight.memory', 10 * 60_000, mem, { first: 60_000 });
+  // Phase 0 (2026-11-24): the first failure of each place we carry on past, then once an hour how many there were.
+  setSwallowSink((s) => log('flight: ' + s));
+  sched.every('flight.swallowed', 60 * 60_000, () => { const s = swallowSummary(); if (s) log('flight: ' + s); }, { first: 60 * 60_000 });
 }

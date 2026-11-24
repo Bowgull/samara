@@ -3,3 +3,4 @@ engines/
 out/
 *.log
 .gitleaks.local.toml
+test/electron/*.png

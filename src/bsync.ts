@@ -15,6 +15,7 @@ import { writeFileAtomic, writeFileAtomicSoon } from './atomic.ts';
 import { readJson } from './store.ts';
 import { neverKeep, type Visit } from './visits.ts';
 import type { Mark } from './bookmarks.ts';
+import { swallowed } from './swallow.ts';
 
 /** One tab as it travels: where it is and which trail it belongs to. Scroll, zoom and sound stay per machine. */
 export interface SyncTab { url: string; title: string; trail: number | null; done: boolean }
@@ -164,7 +165,7 @@ export class BrowserSync {
     const cookies: Record<string, { at: number; c: SyncCookie | null }> = {};
     for (const [k, v] of Object.entries(this.s.cookies)) cookies[k] = { at: v.at, c: v.c ? ({} as SyncCookie) : null };
     const text = JSON.stringify({ ...this.s, cookies });
-    if (now) { try { writeFileAtomic(this.file, text); } catch { /* next change */ } } else void writeFileAtomicSoon(this.file, text).catch(() => { /* next change */ });
+    if (now) { try { writeFileAtomic(this.file, text); } catch (e) { swallowed('bsync.save', e); } } else void writeFileAtomicSoon(this.file, text).catch((e: unknown) => swallowed('bsync.save', e));
   }
   private log(s: string) { this.o.log?.(s); }
   private send(m: SyncMsg) { if (this.connected) this.o.send(m); }

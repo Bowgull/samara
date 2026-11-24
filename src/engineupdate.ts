@@ -30,6 +30,7 @@ export interface Ready { version: string; since: number; castlabs?: boolean; cho
   look?: string[] }
 import { newer, plain } from './updateengine.ts';
 import { sched } from './sched.ts';
+import { swallowed } from './swallow.ts';
 export { newer, plain };
 export interface UpdateOptions {
   shellDir: string; stateDir: string;
@@ -170,7 +171,7 @@ export class EngineUpdates {
   private filedFile(): string { return path.join(this.o.stateDir, 'engine-filed.json'); }
   private filed(): Set<string> { try { return new Set(readJson<Iterable<string>>(this.filedFile(), [])); } catch { return new Set(); } }
   /** Put away: kept on file, not offered until the user checks for updates themselves. */
-  file(): void { const r = this.ready; if (!r) return; const f = this.filed(); f.add(plain(r.version)); try { writeFileAtomic(this.filedFile(), JSON.stringify([...f])); } catch { /* best effort */ } this.set(null); }
+  file(): void { const r = this.ready; if (!r) return; const f = this.filed(); f.add(plain(r.version)); try { writeFileAtomic(this.filedFile(), JSON.stringify([...f])); } catch (e) { swallowed('engine.filed', e); } this.set(null); }
   /** Skip for good: never offered again (the same list a version that failed its checks goes on). */
   skip(): void {
     const r = this.ready; if (!r) return;
@@ -225,7 +226,7 @@ export class EngineUpdates {
         const full = path.join(this.engines, d);
         if (!keep.has(d) && (VERSION.test(d) || /^castlabs-\d+\.\d+\.\d+$/.test(d)) && statSync(full).isDirectory()) rmSync(full, { recursive: true, force: true });
       }
-    } catch { /* next time */ }
+    } catch (e) { swallowed('engine.tidy', e); }
   }
 
   /** Is there a newer engine? Get it ready, quietly. */
@@ -353,7 +354,7 @@ export class EngineUpdates {
 
   private set(r: Ready | null): void {
     this.ready = r;
-    try { if (r) writeFileAtomic(this.stateFile, JSON.stringify(r)); else if (existsSync(this.stateFile)) unlinkSync(this.stateFile); } catch { /* best effort */ }
+    try { if (r) writeFileAtomic(this.stateFile, JSON.stringify(r)); else if (existsSync(this.stateFile)) unlinkSync(this.stateFile); } catch (e) { swallowed('engine.state', e); }
     this.o.changed(r);
   }
 

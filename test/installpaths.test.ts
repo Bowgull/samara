@@ -303,9 +303,12 @@ test('castLabs\' tool is installed once, then signs; on the PC Terminal falls ba
   assert.ok(!/(^|[^\\]);/.test(cmd), cmd);
 });
 
-test('castLabs sign-in is noticed by its own file changing, never by reading it', async () => {
+test('castLabs sign-in is noticed by its own file changing, never by reading it', async (t) => {
   const f = path.join(mkdtempSync(path.join(os.tmpdir(), 'ip-cfg-')), 'config.json'); writeFileSync(f, '{}');
   const evs = new Evs({ loginFile: f, log: () => {} });
+  // watchSignin's timer is unref'd on purpose (it must never keep Samara open); this keeps the test itself alive.
+  const hold = setInterval(() => {}, 1000);
+  t.after(() => clearInterval(hold));
   const since = evs.loginStamp();
   const got = await new Promise<boolean>((res) => { evs.watchSignin(since, res, 2000, 20); setTimeout(() => { const t = new Date(Date.now() + 5000); utimesSync(f, t, t); }, 60); });
   assert.equal(got, true);

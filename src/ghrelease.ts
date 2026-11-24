@@ -46,6 +46,7 @@ export function checkManifest(text: string, sigB64: string, pub: string = RELEAS
 // One comparison for every source (updateengine.ts).
 import { isVersion, newer } from './updateengine.ts';
 import { longDate } from './clock.ts';
+import { swallowed } from './swallow.ts';
 export { isVersion, newer };
 
 type Fetch = (url: string, init?: { signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; text(): Promise<string>; arrayBuffer(): Promise<ArrayBuffer>; body?: ReadableStream<Uint8Array> | null }>;
@@ -88,7 +89,7 @@ export async function download(fetchFn: Fetch, m: Manifest, dest: string, base =
     if (n !== m.bundle.bytes || hash.digest('hex') !== m.bundle.sha256) throw new Error('fingerprint');
     renameSync(part, dest);
     return true;
-  } catch { try { rmSync(part, { force: true }); } catch { /* gone */ } return false; }
+  } catch (e) { swallowed('update.download', e); try { rmSync(part, { force: true }); } catch { /* gone */ } return false; }
 }
 
 /** "Version 1.22.0: Gojo" (his rule's name), as the key's title says it. */

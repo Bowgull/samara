@@ -1,0 +1,42 @@
+# The real-window checks CI runs on every push (Phase 0, 2026-11-24). Each opens real Samara windows off screen and exits
+# 0 when every check in it passed. These 37 passed twice in a row on a clean machine with no network; the others need
+# the network, a Mac or a PC, a keychain, or a person, and still run by hand (tools/hidden-desktop-run.ps1).
+# Left out on purpose: curtain-click-check (failed once under load), tabcost-check (a timing budget, too slow for CI).
+# One per line; # starts a comment.
+autoplay-check.ts
+bank-check.ts
+dark-check.ts
+dark-native-check.ts
+digest-check.ts
+driver2-check.ts
+driver3-check.ts
+driver4-check.ts
+drm-check.ts
+dropdown-fill-check.ts
+engine-check.ts
+forms-check.ts
+frame-address-check.ts
+hyrule-check.ts
+keychain-order-check.ts
+listener-leak-check.ts
+look-features-check.ts
+mockhome-check.ts
+mockups-anywhere-check.ts
+notices-check.ts
+peerlists-check.ts
+persist-check.ts
+plan-in-samara-check.ts
+popout-anyplayer-check.ts
+popout-drag-check.ts
+popout-return-check.ts
+realload-check.ts
+restart-check.ts
+startup-check.ts
+stremio-clean-check.ts
+stuck-layer-check.ts
+svgicon-check.ts
+tearout-check.ts
+tray-motion-check.ts
+twitch-resync-check.ts
+update-check-check.ts
+wake-check.ts
