@@ -41,11 +41,14 @@ ${Array.from({ length: 40 }, (_, i) => `<p>Paragraph ${i} of page ${n}. ${'Words
 const SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="160"><rect width="640" height="160" fill="#8ab"/></svg>`;
 
 app.whenReady().then(async () => {
+  // When the front page was asked for, from Samara's start: splits a slow start into Samara's part and the page's.
+  let asked = 0, t0 = performance.now();
   (screen as any).getCursorScreenPoint = () => ({ x: -20000, y: 500 });
   http.createServer((q, r) => {
     const u = q.url ?? '/';
     // Pictures arrive slowly, as on a real site, so a page that waits for them before drawing shows up as a slow start.
     if (u.startsWith('/img/')) { setTimeout(() => r.writeHead(200, { 'Content-Type': 'image/svg+xml' }).end(SVG), 300 + (Number(u.split('/')[2]?.split('.')[0]) % 7) * 100); return; }
+    if (u === '/p/0' && !asked) asked = Math.round(performance.now() - t0);
     r.writeHead(200, { 'Content-Type': 'text/html' }).end(PAGE(u.slice(3) || '0'));
   }).listen(PORT, '127.0.0.1');
   const { servePages } = await import('../../src/pageserver.ts');
@@ -59,7 +62,7 @@ app.whenReady().then(async () => {
     trails: [], closed: [] }));
 
   // 1. Start.
-  const t0 = performance.now();
+  t0 = performance.now();
   const b: any = new SamaraBrowser({ origin: pages.origin, stateDir, preloadPath: path.join(HERE, '..', '..', 'src', 'samarapreload.cjs'),
     tabPreloadPath: path.join(HERE, '..', '..', 'src', 'tabpreload.cjs'), settingsPreloadPath: path.join(HERE, '..', '..', 'src', 'settingspreload.cjs'),
     thingsPreloadPath: path.join(HERE, '..', '..', 'src', 'thingspreload.cjs') } as any);
@@ -72,7 +75,7 @@ app.whenReady().then(async () => {
     if (typeof r === 'number') startMs = Math.round(r - (performance.timeOrigin + t0));
     else await wait(25);
   }
-  console.log(`start: first page drawn ${startMs} ms after Samara began`);
+  console.log(`start: first page drawn ${startMs} ms after Samara began (asked for at ${asked} ms)`);
 
   // Wake every saved tab (a restored session keeps them asleep until visited), then leave the first in front.
   const ids: number[] = b.tabs.map((t: any) => t.id);
@@ -109,7 +112,7 @@ app.whenReady().then(async () => {
   console.log(`switch: median ${switchMs} ms (${times.join(', ')})`);
 
   const m: Speed = { startMs, pageMB, idleCpu, switchMs };
-  console.log('SPEED ' + JSON.stringify({ ...m, system: process.platform, machine: `${os.cpus()[0]?.model} x${os.cpus().length}` }));
+  console.log('SPEED ' + JSON.stringify({ ...m, askedMs: asked, system: process.platform, machine: `${os.cpus()[0]?.model} x${os.cpus().length}` }));
   const budgets: Budgets = JSON.parse(readFileSync(path.join(HERE, 'speed-budgets.json'), 'utf8'));
   const over = budgets[process.platform] ? overBudget(m, budgets[process.platform]!) : [`no budget for ${process.platform}`];
   for (const o of over) console.log((process.env.RECORD === '1' ? 'OVER (recorded only) ' : 'FAIL  over budget: ') + o);
