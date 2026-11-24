@@ -77,7 +77,6 @@
         <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-newtab"><span>New tab</span><kbd class="wkbd">CTRL T</kbd></button>
         <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-reopen"><span>Reopen closed tab</span><kbd class="wkbd">CTRL SHIFT T</kbd></button>
         <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-split"><span>Side by side</span></button>
-        <button type="button" role="menuitem" tabindex="-1" class="mrow" id="m-tidy"><span>Trail clean up</span></button>
       </div>
       <div class="grp" role="group" aria-labelledby="mg3">
         <div class="gh" id="mg3">YOUR THINGS</div>
@@ -344,17 +343,8 @@
       <!-- 2026-11-03 : the way to the Hyrule map, Mockups' own shape in Hyrule green, a folded map with a pin. -->
       <button type="button" class="mq hy" id="hykey" aria-label="Hyrule" hidden><span class="pic"><canvas width="16" height="14"></canvas></span><span class="nm">Hyrule</span></button>
       <button type="button" class="mq plum" id="mqkey" aria-label="Mockups" hidden><span class="pic"><canvas width="16" height="14"></canvas></span><span class="nm">Mockups</span><span class="gem" hidden></span></button>
-      <!-- Trail clean up: the panel and the broom live together at the bottom of the drawer (2026-10-12). -->
-      <div class="tidyfoot">
-        <div class="tidypanel" id="tidypanel" hidden><i class="caps"></i>
-          <div class="cap-title" id="tidytitle">TIDYING</div>
-          <div class="cap-line" id="tidyline"></div>
-          <div class="prog" id="tidyprog"><i></i></div>
-          <div class="ffxw" id="tidykeys" hidden><button class="on" type="button" id="tidykeep">Keep</button><button type="button" id="tidyundo">Undo</button></div>
-          <div class="cap-dim" id="tidydim"></div>
-        </div>
-        <div class="tidyrow"><span class="cap-dim" id="tabcount"></span><button class="broom" id="broom" type="button" title="Tidy my tabs" aria-label="Tidy my tabs"></button></div>
-      </div>
+      <!-- The tab count at the foot of the drawer (Phase R: the broom and trail clean up are retired). -->
+      <div class="tidyfoot"><div class="tidyrow"><span class="cap-dim" id="tabcount"></span></div></div>
     </nav>
   </div>
 </div>

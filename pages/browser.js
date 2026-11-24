@@ -379,7 +379,6 @@ el('m-tvwin').addEventListener('click', () => { closeMenu(); if (state.active !=
 el('m-tvvid').addEventListener('click', () => { closeMenu(); if (state.active != null) window.samara?.browserTab?.({ id: state.active, act: 'tvvideo' }); });
 el('m-other').addEventListener('click', () => { closeMenu(); if (state.active != null) window.samara?.browserToMac?.(state.active); });
 el('m-split').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('split'); });
-el('m-tidy').addEventListener('click', () => { closeMenu(); onBand('drawer', openDrawer); window.samara?.browserAct?.('tidy'); });
 el('m-marks').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('bookmarks'); });
 el('m-settings').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('settings'); });
 el('m-quit').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('quit'); });
@@ -388,38 +387,10 @@ el('m-history').addEventListener('click', () => { closeMenu(); window.samara?.br
 el('mqkey').addEventListener('click', () => window.samara?.browserMockup?.({ act: 'log' }));
 el('hykey').addEventListener('click', () => window.samara?.browserGo?.('samara:hyrule'));
 el('m-downloads').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('downloads'); });
-// ---- Trail clean up: the broom at the bottom of the drawer, the panel just above it
-el('broom').addEventListener('click', () => window.samara?.browserAct?.('tidy'));
-el('tidykeep').addEventListener('click', () => window.samara?.browserAct?.('tidykeep'));
-el('tidyundo').addEventListener('click', () => window.samara?.browserAct?.('tidyundo'));
-el('tidypanel').addEventListener('click', (e) => { if (state.tidy?.phase === 'working' && !e.target.closest('button')) window.samara?.browserAct?.('tidyundo'); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.tidy?.phase === 'working') window.samara?.browserAct?.('tidyundo'); });
-let tidyTick = null;
+// The tab count at the foot of the drawer (Phase R: trail clean up is retired; the overnight tidy does it).
 function paintTidy() {
-  const td = state.tidy;
-  el('tidypanel').hidden = !td;
-  el('broom').disabled = Boolean(td);
-  const live = state.tabs.filter((t) => !t.done && !String(t.url).startsWith('samara:')).length;
+  const live = state.tabs.filter((t) => !String(t.url).startsWith('samara:')).length;
   el('tabcount').textContent = `${live} TAB${live === 1 ? '' : 'S'}`;
-  document.getElementById('tabs').classList.toggle('tidying', td?.phase === 'working');
-  clearInterval(tidyTick);
-  if (!td) return;
-  const working = td.phase === 'working';
-  el('tidytitle').textContent = working ? 'TIDYING' : 'TIDIED';
-  el('tidyprog').hidden = !working;
-  el('tidykeys').hidden = working;
-  if (working) {
-    el('tidyline').textContent = (td.text || 'Sorting your tabs.') + ' Keep browsing: nothing closes until you keep it.';
-    el('tidydim').textContent = td.waiting ? 'WAITING FOR WOW TO CLOSE' : 'ESC OR CLICK HERE TO STOP';
-  } else {
-    const parts = [];
-    if (td.created) parts.push(`${td.created} trail${td.created === 1 ? '' : 's'} made`);
-    if (td.doubles) parts.push(`${td.doubles} double${td.doubles === 1 ? '' : 's'} closing`);
-    if (td.stashed) parts.push(`${td.stashed} old trail${td.stashed === 1 ? '' : 's'} put in the Stash`);
-    el('tidyline').textContent = (parts.length ? parts.join(', ') + '.' : 'Already tidy: nothing to change.') + (td.text ? ' ' + td.text : '');
-    const tick = () => { const s = Math.max(0, Math.ceil((td.keepAt - Date.now()) / 1000)); el('tidydim').textContent = `KEEPS ITSELF IN ${s} SECOND${s === 1 ? '' : 'S'}`; };
-    tick(); tidyTick = setInterval(tick, 500);
-  }
 }
 // ---- Phase R (2026-11-24): Earlier. The key under the list says how many pages it holds; opening it shows them by
 // day, newest first, with a search. A click brings the page back as a tab where he left it; × lets it go for good.
@@ -1048,12 +1019,10 @@ function paintTabs() {
   const pinned = live.filter((t) => t.pinned);
   const today = live.filter((t) => !t.pinned).reverse();
   const rowFor = (t, sec) => {
-    const dup = Boolean(state.tidy?.dup?.includes(t.id));
-    const sig = JSON.stringify([t.id === state.active, t.crashed, t.asleep, t.loading, t.phase, t.favicon, t.title, t.url, t.audible, t.muted, t.lent, dup, t.pinned === true, t.fade === true, t.mock?.v ?? null, t.mock?.stage ?? null, t.mock?.unseen === true]);
+    const sig = JSON.stringify([t.id === state.active, t.crashed, t.asleep, t.loading, t.phase, t.favicon, t.title, t.url, t.audible, t.muted, t.lent, t.pinned === true, t.fade === true, t.mock?.v ?? null, t.mock?.stage ?? null, t.mock?.unseen === true]);
     let r = rows.get(t.id);
     if (!r || r.sig !== sig) {
       const fresh = buildRow(t, false);
-      if (dup) { fresh.classList.add('dup'); fresh.append(Object.assign(document.createElement('span'), { className: 'dupchip', textContent: 'X2 CLOSING' })); }
       fresh.dataset.tab = String(t.id);
       if (r) r.el.replaceWith(fresh); r = { sig, el: fresh }; rows.set(t.id, r);
     }
@@ -1078,31 +1047,6 @@ function paintTabs() {
   afterPaint(flipWas);
 }
 let pinDiv = null;
-/** A trail's carved heading. Click the name to rename it; his name is kept for good (Qwen never renames it). */
-function headFor(tr, n) {
-  let h = heads.get(tr.id);
-  if (!h) { h = document.createElement('div'); h.className = 'th'; heads.set(tr.id, h); }
-  if (h.querySelector('input')) return h;               // he is typing its name: leave it be
-  const nm = Object.assign(document.createElement('span'), { className: 'nm', textContent: tr.name, title: 'Click to rename' });
-  nm.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const box = Object.assign(document.createElement('input'), { value: tr.name, maxLength: 24, spellcheck: false });
-    box.setAttribute('aria-label', 'Trail name');
-    const done = (save) => { if (save && box.value.trim()) window.samara?.browserTrail?.({ act: 'rename', id: tr.id, name: box.value }); box.replaceWith(nm); };
-    box.addEventListener('keydown', (k) => { if (k.key === 'Enter') done(true); if (k.key === 'Escape') { k.stopPropagation(); done(false); } });
-    box.addEventListener('blur', () => done(true));
-    nm.replaceWith(box); box.focus(); box.select();
-  });
-  const grip = Object.assign(document.createElement('i'), { className: 'grip', title: 'Drag to move this trail' });
-  const more = Object.assign(document.createElement('button'), { type: 'button', className: 'thm', textContent: '\u00b7\u00b7\u00b7', title: 'Trail options' });
-  more.addEventListener('click', (e) => { e.stopPropagation(); trailMenu(tr, e.clientX, e.clientY); });
-  h.classList.toggle('fresh', tr.fresh === true);
-  h.classList.toggle('shut', tr.collapsed === true);
-  h.dataset.trail = String(tr.id);
-  h.replaceChildren(grip, nm, Object.assign(document.createElement('span'), { className: 'n', textContent: `${n} TAB${n === 1 ? '' : 'S'}` }), more);
-  return h;
-}
-
 // ---- the tab's own menu (right-click), sheet 3 section 7
 function closeTabMenu() { document.getElementById('tabmenu')?.remove(); }
 /** A bookmark's own menu (2026-10-20): the same wood menu as a tab's. */
@@ -1210,14 +1154,6 @@ function tabMenu(t, x, y) {
   m.style.top = Math.max(4, Math.min(y, innerHeight - r.height - 4)) + 'px';
   setTimeout(() => document.addEventListener('pointerdown', (e) => { if (!m.contains(e.target)) closeTabMenu(); }, { once: true }), 0);
 }
-/** "QUEST COMPLETE" over the tab for a moment, then it drops to the DONE shelf with a quiet tick (sheet 3). */
-function turnIn(id) {
-  const r = rows.get(id)?.el;
-  if (r) r.append(Object.assign(document.createElement('span'), { className: 'quest', textContent: 'QUEST COMPLETE' }));
-  setTimeout(() => { tap(1.25); window.samara?.browserTab?.({ id, act: 'done' }); }, 850);
-}
-
-
 /** A tab's icon slot when the site has no icon: its first letter. */
 function tileFor(t) {
   const s = document.createElement('span'); s.className = 'fi letter';
@@ -1651,39 +1587,6 @@ window.samara?.onBrowserTabs?.((s) => {
   if (crashed) el('crashtitle').textContent = `${(t.title || 'This page').slice(0, 60)} stopped working`;
 });
 
-
-// ---- the trail menu (the ··· on a trail's name): wood, like the tab's menu, the glove on what you point at
-function trailMenu(tr, x, y) {
-  closeTabMenu();
-  const m = document.createElement('div'); m.id = 'tabmenu'; m.className = 'tabmenu'; m.setAttribute('role', 'menu');
-  const item = (label, go, cls = '') => {
-    const b = Object.assign(document.createElement('button'), { type: 'button', className: cls, textContent: label });
-    b.setAttribute('role', 'menuitem');
-    b.addEventListener('click', () => { closeTabMenu(); go(); });
-    m.append(b);
-  };
-  const sep = () => m.append(Object.assign(document.createElement('div'), { className: 'sep' }));
-  const n = state.tabs.filter((t) => t.trail === tr.id).length;
-  // Sheet 47: the MOCKUPS trail folds or closes; its history is kept either way.
-  if (tr.mock) {
-    item(tr.collapsed ? 'Open it up' : 'Collapse', () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'collapse' }));
-    sep();
-    item(`Close the mockups (${n} tab${n === 1 ? '' : 's'})`, () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'close' }), 'danger');
-    placeMenu(m, x, y);
-    return;
-  }
-  item('Rename', () => heads.get(tr.id)?.querySelector('.nm')?.click());
-  item(tr.collapsed ? 'Open it up' : 'Collapse', () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'collapse' }));
-  item('Move to the Stash', () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'stash' }));
-  item('Ungroup (keep the tabs)', () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'ungroup' }));
-  sep();
-  item(`Close the trail and its ${n} tab${n === 1 ? '' : 's'}`, () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'close' }), 'danger');
-  document.body.append(m);
-  const r = m.getBoundingClientRect();
-  m.style.left = Math.max(4, Math.min(x, innerWidth - r.width - 4)) + 'px';
-  m.style.top = Math.max(4, Math.min(y, innerHeight - r.height - 4)) + 'px';
-  setTimeout(() => document.addEventListener('pointerdown', (e) => { if (!m.contains(e.target)) closeTabMenu(); }, { once: true }), 0);
-}
 
 // ---- Sheet 47 (2026-10-21): the MOCKUPS trail. Claude's icon and FROM CLAUDE on its head; each mockup wears
 // its version; the family tree (branch > mockup > children, all his to move); HISTORY at the bottom with every version,

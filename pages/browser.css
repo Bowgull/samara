@@ -466,8 +466,7 @@ body.drawer-open .drawer{transform:none;visibility:visible;transition:transform 
 /* ---- Phase R (2026-11-24): pinned, TONIGHT, and Earlier ---- */
 .drawer .tabpanel[hidden]{display:none}
 /* Pinned: a gold edge on the left, and a carved line under the pinned group. */
-.tp.pin{box-shadow:0 3px 0 var(--outline),inset 4px 0 0 var(--gold),inset 0 2px 0 rgba(150,110,200,.4)}
-.tp.on.pin{box-shadow:0 3px 0 var(--outline),inset 4px 0 0 var(--gold-deep),inset 0 3px 0 rgba(255,255,255,.55)}
+.drawer #tabs .tp.pin::before{content:"";position:absolute;left:-1px;top:5px;bottom:5px;width:4px;border-radius:0 3px 3px 0;background:var(--gold);box-shadow:1px 0 0 var(--outline)}
 .pindiv{height:4px;margin:4px 2px 10px;border-radius:2px;background:linear-gradient(180deg,rgba(0,0,0,.6) 0 2px,rgba(255,224,150,.2) 2px 4px)}
 /* Not opened in 12 hours: faded, and TONIGHT says when it moves. Pointing at it brings it back to full. */
 .tp.fade:not(.on){opacity:.55;transition:opacity .15s ease-out}

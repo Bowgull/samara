@@ -40,7 +40,6 @@ import { CastSession, DEFAULT_PLAYER, airplayNames, findRemoteTvs, findTvs } fro
 import { KEY, ensureCert, remote, startPairing, type TvTarget } from './tvremote.ts';
 import { PAGE_VIDEO_JS, PAUSE_PAGE_JS, YOUTUBE_APP, YOUTUBE_NS, copyProtected, plainMedia, seekPageJs, tvAppLink, tvSteps, twitchMedia, twitchOf, youTubeId, youTubeOnTv, type TvAppLink } from './tvmedia.ts';
 import { addressFor, engineHome, guessesUrl, parseGuesses, searchFor, setSearch, type Engine } from './address.ts';
-import { TIDY_SYSTEM, bySite, doubles, readTidy, staleTrails, tidyPrompt, type TidyTab } from './tidy.ts';
 import { writeFileAtomic, writeFileAtomicSoon } from './atomic.ts';
 import { SessionStore, type SessionData } from './sessionstore.ts';
 import { SPLIT_EDGE, SPLIT_GAP, SPLIT_HEAD, clampSplit, splitLeftWidth } from './splitview.ts';
@@ -324,24 +323,8 @@ const newPane = (id: number): Pane => ({ id, win: null, active: null, inset: { l
 interface Trail { id: number; name: string; named: boolean; collapsed?: boolean; fresh?: boolean; /** sheet 47: the MOCKUPS trail */ mock?: boolean }
 /** Sheet 47: the MOCKUPS trail always has this id, so it is the same trail across restarts and never mixed with his. */
 const MOCK_TRAIL = -1;
-/** A trail put away in the Stash (by Tidy or by him): its pages, ready to come back. Never closed for good by the companion. */
+/** A trail put away in the Stash, before Phase R: read once, to move its pages into Earlier (railMove). */
 interface Stashed { id: number; name: string; tabs: { url: string; title: string }[]; at: number }
-/** Everything Tidy changed, so Undo can put it all back exactly. */
-interface TidyRun {
-  id: number; phase: 'working' | 'review'; text: string; waiting: boolean;
-  trails: Trail[]; order: { id: number; trail: number | null }[];
-  dup: number[]; stashed: number[]; created: number[]; keepAt: number;
-  timer: NodeJS.Timeout | null; retry: NodeJS.Timeout | null;
-}
-
-/** A trail's first name, from the site it started on: "wowhead.com" becomes "WOWHEAD". He can rename it. */
-function trailNameFor(url: string): string {
-  try {
-    const h = new URL(url).hostname.replace(/^www\./, '');
-    const parts = h.split('.');
-    return (parts.length > 1 ? parts[parts.length - 2] : parts[0]).toUpperCase().slice(0, 24);
-  } catch { return 'TRAIL'; }
-}
 
 const isWeb = (u: string) => /^https?:\/\//i.test(u);
 /** A view whose page is still there (a view's page can be gone, or missing, once its window has closed). */
@@ -807,19 +790,11 @@ export class SamaraBrowser {
   prefs = { ads: true, popups: true, home: DEFAULT_HOME, search: 'brave' as Engine, aiBox: true, startup: 'tabs' as 'tabs' | 'home', dark: true, darkOff: [] as string[], afSounds: true, lockAfter: '30m' };
   /** His home page, or his search engine's front page. Web pages only. */
   private get HOME(): string { return isWeb(this.prefs.home) && this.prefs.home !== DEFAULT_HOME ? this.prefs.home : engineHome(); }
-  /** The Stash (Tidy and the trail menu put trails here). Kept between runs. */
+  /** The Stash of before Phase R, read once so railMove can put its pages in Earlier; empty after that. */
   private stash: Stashed[] = [];
-  private stashSeq = 0;
   /** Phase R (2026-11-24): the tabs put away overnight, and what trails, the done shelf and the Stash held before. */
   private earlier!: EarlierStore;
   private readonly stashFile: string;
-  /** The tidy in progress or waiting for Keep or Undo. */
-  private tidy: TidyRun | null = null;
-  private tidySeq = 0;
-  /** Set by main: ask Qwen (through the companion) to sort the tabs. The answer comes back to tidyAnswer(). */
-  onTidyAsk: ((id: number, prompt: string, system: string) => void) | null = null;
-  /** Set by main: the browser is closing a trail's tabs, keep them a moment for Undo. */
-  private lastClosed: { trail: Trail; tabs: { url: string; title: string }[] } | null = null;
   /** Sites he let open popups by themselves ("Allow popups on this site"). Kept between runs. */
   private popupOk = new Set<string>();
   private readonly popupOkFile: string;
@@ -995,7 +970,6 @@ export class SamaraBrowser {
       if (Array.isArray(a)) this.stash = a.filter((s: Partial<Stashed>) => Number.isInteger(s?.id) && typeof s?.name === 'string' && Array.isArray(s?.tabs)).slice(0, 50)
         .map((s: Stashed) => ({ id: s.id, name: s.name.slice(0, 24), at: Number(s.at) || 0, tabs: s.tabs.filter((t) => typeof t?.url === 'string' && isWeb(t.url)).slice(0, 80).map((t) => ({ url: t.url, title: String(t.title ?? t.url).slice(0, 200) })) }));
     } catch { /* none yet */ }
-    this.stashSeq = this.stash.reduce((m, s) => Math.max(m, s.id), 0);
     this.earlier = new EarlierStore(path.join(o.stateDir, 'browser-earlier.json'), () => { if (this.restored) { this.sync?.changed('prefs'); this.sendTabs(); } });
     this.railMove(o.stateDir);
     setSearch(this.prefs.search, this.prefs.aiBox);
@@ -4002,8 +3976,6 @@ export class SamaraBrowser {
     else if (act === 'pin' || act === 'unpin') { t.pinned = act === 'pin'; t.lastSeen = Date.now(); this.changed(); }
     // TONIGHT on a faded tab: he wants it kept, so it counts as seen now.
     else if (act === 'keep') { t.lastSeen = Date.now(); this.changed(); }
-    else if (act === 'done') this.markDone(id, true);
-    else if (act === 'undone') this.markDone(id, false);
   }
 
   reopen(): void { const u = this.closed.pop(); if (u) this.newTab(u); }
@@ -5075,7 +5047,8 @@ export class SamaraBrowser {
    */
   private takeTabs(snap: TabSnap): void {
     const want = (snap?.tabs ?? []).filter((t) => typeof t?.url === 'string' && isWeb(t.url)).slice(0, 80);
-    const trails = (snap?.trails ?? []).filter((x) => Number.isInteger(x?.id)).map((x) => ({ id: x.id, name: String(x.name ?? '').slice(0, 24) || 'Trail', named: true }));
+    // Phase R: trails are retired; a machine still on an older Samara may send them, and they are ignored here.
+    const trails: Trail[] = [];
     const home = this.panes.find((p) => this.alive(p));
     if (home) this.pane = home;
     if (!home) {
@@ -5121,7 +5094,7 @@ export class SamaraBrowser {
       const k = left.findIndex((w) => w.url === t.url);
       if (k < 0) continue;
       const [w] = left.splice(k, 1);
-      t.trail = w!.trail !== null && trails.some((x) => x.id === w!.trail) ? w!.trail : null; t.done = w!.done;
+      t.trail = null; t.done = false;
     }
     this.tidyTrails();
     // Any window left without a tab in front shows its first one; a window left with no tabs at all closes.
@@ -5763,54 +5736,10 @@ export class SamaraBrowser {
     reply?.({ entries: this.earlier.entries, now: Date.now() });
   }
   private pendingTrail: number | null = null;
-  private addTrail(name: string): number { const id = ++this.trailSeq; this.trails.push({ id, name, named: false }); return id; }
   /** A trail with nothing left in it goes. */
   private tidyTrails(): void {
     // Sheet 107 (2026-10-30): no MOCKUPS trail any more; Mockups is its one plaque in the tray.
     this.trails = this.trails.filter((tr) => !tr.mock && (tr.id === this.pendingTrail || this.tabs.some((t) => t.trail === tr.id && !t.done)));
-  }
-  newTrail(): void {
-    this.pendingTrail = this.addTrail('NEW TRAIL');
-    this.newTab(this.HOME);
-    this.win?.webContents.send('browser:focusslot');
-  }
-  renameTrail(id: number, name: string): void {
-    const tr = this.trails.find((x) => x.id === id);
-    const n = String(name).replace(/\s+/g, ' ').trim().slice(0, 24).toUpperCase();
-    if (!tr || !n || tr.mock) return;
-    tr.name = n; tr.named = true;          // his name: Qwen never renames it
-    this.changed();
-  }
-  /** Move a tab into a trail, out to loose (null), or into a brand-new trail ('new'). */
-  moveTab(tabId: number, to: number | null | 'new'): void {
-    const t = this.tabs.find((x) => x.id === tabId);
-    // Sheet 47: the MOCKUPS trail holds Claude's mockups only, and a mockup stays in it.
-    if (!t || t.mock || to === MOCK_TRAIL) return;
-    t.trail = to === 'new' ? this.addTrail(trailNameFor(t.url)) : (to !== null && this.trails.some((x) => x.id === to) ? to : null);
-    t.done = false;
-    this.tidyTrails();
-    this.changed();
-  }
-  /** Drag a tab: into a trail (or loose, null), placed before another tab (or at the end of its group). */
-  placeTab(tabId: number, trail: number | null, before: number | null): void {
-    this.takeFromClaude([tabId]);
-    const i = this.tabs.findIndex((x) => x.id === tabId);
-    if (i < 0) return;
-    const t = this.tabs[i]!;
-    if (Boolean(t.mock) !== (trail === MOCK_TRAIL)) return;
-    t.trail = trail !== null && this.trails.some((x) => x.id === trail) ? trail : null;
-    t.done = false;
-    this.tabs.splice(i, 1);
-    const j = before !== null ? this.tabs.findIndex((x) => x.id === before) : -1;
-    if (j >= 0) this.tabs.splice(j, 0, t);
-    else {
-      // the end of its group: after the last tab already in that trail (or after the last loose tab)
-      let k = -1;
-      this.tabs.forEach((x, n) => { if (x.trail === t.trail) k = n; });
-      this.tabs.splice(k + 1, 0, t);
-    }
-    this.tidyTrails();
-    this.changed();
   }
   /**
    * Drag one tab or several (2026-10-21): into a trail (or loose, null), in their order, before another tab (or
@@ -5863,91 +5792,6 @@ export class SamaraBrowser {
     this.changed();
     return true;
   }
-  /** Drag a trail by its heading: put it before another trail (or last). */
-  moveTrail(id: number, before: number | null): void {
-    const i = this.trails.findIndex((x) => x.id === id);
-    if (i < 0 || id === before) return;
-    const [tr] = this.trails.splice(i, 1);
-    const j = before !== null ? this.trails.findIndex((x) => x.id === before) : -1;
-    if (j >= 0) this.trails.splice(j, 0, tr!); else this.trails.push(tr!);
-    this.changed();
-  }
-  /** The trail menu: collapse, put in the Stash, ungroup (tabs stay), or close it with its tabs (Undo for a while). */
-  trailAct(id: number, act: string): void {
-    const tr = this.trails.find((x) => x.id === id);
-    if (!tr) return;
-    const own = this.tabs.filter((t) => t.trail === id);
-    if (act === 'collapse') { tr.collapsed = !tr.collapsed; this.changed(); return; }
-    // Sheet 47: the MOCKUPS trail can only be closed (its history stays in mockups.json, the ... menu brings it back).
-    if (tr.mock) {
-      if (act !== 'close') return;
-      for (const t of own) this.close(t.id, false);
-      this.trails = this.trails.filter((x) => x.id !== id);
-      this.changed();
-      this.note('Closed the mockups. Their history is kept: Mockups in the ... menu brings them back.');
-      return;
-    }
-    if (act === 'ungroup') { for (const t of own) t.trail = null; this.trails = this.trails.filter((x) => x.id !== id); this.changed(); return; }
-    if (act === 'stash') { this.stashTrail(id); this.changed(); this.note('', { from: 'tabs', small: true, icon: 'tabs', kick: 'In the Stash', title: tr.name }); return; }
-    if (act === 'close') {
-      this.lastClosed = { trail: { ...tr }, tabs: own.filter((t) => isWeb(t.url)).map((t) => ({ url: t.url, title: t.title })) };
-      for (const t of own) this.close(t.id, false);
-      this.trails = this.trails.filter((x) => x.id !== id);
-      this.changed();
-      this.note('', { from: 'tabs', small: true, icon: 'tabs', kick: `Closed with ${own.length} tab${own.length === 1 ? '' : 's'}`, title: tr.name, keys: [{ label: 'Undo', act: 'undo' }] }, (act) => { if (act === 'undo') this.undoTrailClose(); });
-    }
-  }
-  /** Undo for "close the trail": its pages come back, asleep, in a trail of the same name. */
-  undoTrailClose(): void {
-    const c = this.lastClosed;
-    this.lastClosed = null;
-    if (!c) return;
-    this.reviveTrail(c.trail.name, c.tabs, c.trail.named);
-  }
-  private reviveTrail(name: string, pages: { url: string; title: string }[], named = false): number {
-    const id = ++this.trailSeq;
-    this.trails.push({ id, name, named });
-    for (const p of pages) {
-      if (!isWeb(p.url)) continue;
-      this.tabs.push({ id: ++this.seq, view: null, opener: null, title: p.title, url: p.url, favicon: '', loading: false, audible: false, muted: false, crashed: false,
-        scrollY: 0, zoom: 0, lastSeen: Date.now(), blocked: null, trail: id, done: false, lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id });
-    }
-    this.changed();
-    return id;
-  }
-  /** Put a trail away: its tabs close (their pages kept in the Stash), never lost. */
-  private stashTrail(id: number): number | null {
-    const tr = this.trails.find((x) => x.id === id);
-    if (!tr) return null;
-    const own = this.tabs.filter((t) => t.trail === id && !t.lent);
-    const s: Stashed = { id: ++this.stashSeq, name: tr.name, tabs: own.filter((t) => isWeb(t.url)).map((t) => ({ url: t.url, title: t.title })), at: Date.now() };
-    this.stash.unshift(s);
-    this.stash = this.stash.slice(0, 50);
-    for (const t of own) { const i = this.tabs.indexOf(t); if (i >= 0) { this.closeView(t); this.tabs.splice(i, 1); } }
-    this.trails = this.trails.filter((x) => x.id !== id);
-    const was = this.pane;
-    for (const p of this.panes) {
-      if (!this.alive(p) || this.tabs.some((t) => t.id === p.active)) continue;
-      this.pane = p;
-      p.active = null;
-      const n = this.paneTabs(p)[0];
-      if (n) this.activate(n.id); else this.newTab(this.HOME);
-    }
-    this.pane = was;
-    this.saveStash();
-    return s.id;
-  }
-  private saveStash(): void { try { writeFileAtomic(this.stashFile, JSON.stringify(this.stash)); } catch { /* best effort */ } this.sync?.changed('prefs'); }
-  /** Bring a stashed trail back (its pages wake when he opens them), or let it go. */
-  stashAct(id: number, act: 'restore' | 'forget'): void {
-    const i = this.stash.findIndex((s) => s.id === id);
-    if (i < 0) return;
-    const [s] = this.stash.splice(i, 1);
-    if (act === 'restore') this.reviveTrail(s!.name, s!.tabs, true);
-    this.saveStash();
-    this.changed();
-  }
-
   // ------------------------------------------------------------------ Sheet 47: the MOCKUPS trail (2026-10-21)
   /** Mockups are on here: there is a git repo beside the Shell (not on his Mac). */
   get mockupsOn(): boolean { return Boolean(this.mockServer && this.mockStore); }
@@ -6471,118 +6315,6 @@ export class SamaraBrowser {
   mockLogSend(id: number): void { this.mockAct('send', { id }); }
 
 
-  // ------------------------------------------------------------------ Trail clean up (Tidy)
-  private tidyTabs(): TidyTab[] {
-    return this.tabs.filter((t) => isWeb(t.url) && !t.internal && !t.mock).map((t) => ({ id: t.id, url: t.url, title: t.title, trail: t.trail, lastSeen: t.lastSeen, active: this.panes.some((p) => p.active === t.id), audible: t.audible, lent: t.lent }));
-  }
-  /**
-   * The broom (or Trail clean up in the menu). The instant part happens at once: doubles are marked (closed only on
-   * Keep), trails untouched for two weeks go into the Stash. Then Qwen sorts the loose tabs and names the companion's trails;
-   * while WoW is in front it waits, and says so. Everything is undoable until he keeps it.
-   */
-  tidyStart(): void {
-    if (this.tidy) return;
-    const run: TidyRun = { id: ++this.tidySeq, phase: 'working', text: '', waiting: false, trails: this.trails.map((x) => ({ ...x })),
-      order: this.tabs.map((t) => ({ id: t.id, trail: t.trail })), dup: [], stashed: [], created: [], keepAt: 0, timer: null, retry: null };
-    this.tidy = run;
-    const tabs = this.tidyTabs();
-    run.dup = doubles(tabs);
-    for (const id of staleTrails(this.trails.filter((x) => !x.mock), tabs, Date.now())) { const s = this.stashTrail(id); if (s !== null) run.stashed.push(s); }
-    this.askQwen(run);
-    this.changed();
-  }
-  private askQwen(run: TidyRun): void {
-    const tabs = this.tidyTabs().filter((t) => t.trail === null && !run.dup.includes(t.id));
-    const unnamed = this.trails.filter((tr) => !tr.named).map((tr) => ({ trail: tr, titles: this.tabs.filter((t) => t.trail === tr.id).map((t) => t.title) }));
-    run.text = `Sorting ${tabs.length} loose tab${tabs.length === 1 ? '' : 's'}.`;
-    if (!tabs.length && !unnamed.length) { this.tidyApply(run, { groups: [], names: [] }); return; }
-    (run as TidyRun & { loose?: TidyTab[]; unnamed?: Trail[] }).loose = tabs;
-    (run as TidyRun & { loose?: TidyTab[]; unnamed?: Trail[] }).unnamed = unnamed.map((u) => u.trail);
-    if (!this.onTidyAsk) { this.tidyApply(run, { groups: bySite(tabs), names: [] }, 'Qwen is not connected, so tabs were grouped by site.'); return; }
-    this.onTidyAsk(run.id, tidyPrompt(tabs, unnamed), TIDY_SYSTEM);
-  }
-  /** Qwen's answer (or why there is none). */
-  tidyAnswer(id: number, r: { ok: boolean; text?: string; why?: string }): void {
-    const run = this.tidy;
-    if (!run || run.id !== id || run.phase !== 'working') return;
-    const x = run as TidyRun & { loose?: TidyTab[]; unnamed?: Trail[] };
-    if (r.ok) { this.tidyApply(run, readTidy(String(r.text ?? ''), x.loose ?? [], x.unnamed ?? [])); return; }
-    if (r.why === 'game') {
-      // The card belongs to the game: wait, and try again every 30 seconds until he is out.
-      run.waiting = true; run.text = 'Qwen waits until you are out of WoW.';
-      if (run.retry) clearTimeout(run.retry);
-      run.retry = setTimeout(() => { if (this.tidy === run && run.phase === 'working') { run.waiting = false; this.askQwen(run); this.changed(); } }, 30_000);
-      this.changed();
-      return;
-    }
-    this.tidyApply(run, { groups: bySite(x.loose ?? []), names: [] }, 'Qwen was not available, so tabs were grouped by site.');
-  }
-  private tidyApply(run: TidyRun, plan: { groups: { name: string; tabs: number[] }[]; names: { trail: number; name: string }[] }, note = ''): void {
-    if (this.tidy !== run) return;
-    for (const g of plan.groups) {
-      const tid = ++this.trailSeq;
-      this.trails.push({ id: tid, name: g.name, named: false, fresh: true });
-      run.created.push(tid);
-      for (const id of g.tabs) { const t = this.tabs.find((x) => x.id === id); if (t && t.trail === null) t.trail = tid; }
-    }
-    for (const n of plan.names) { const tr = this.trails.find((x) => x.id === n.trail); if (tr && !tr.named) { tr.name = n.name; tr.fresh = true; } }
-    run.phase = 'review';
-    run.waiting = false;
-    run.text = note;
-    run.keepAt = Date.now() + 10_000;
-    run.timer = setTimeout(() => this.tidyKeep(), 10_000);
-    this.changed();
-  }
-  /** Keep: the doubles close now; the NEW marks fade. */
-  tidyKeep(): void {
-    const run = this.tidy;
-    if (!run) return;
-    if (run.timer) clearTimeout(run.timer);
-    if (run.retry) clearTimeout(run.retry);
-    this.tidy = null;
-    for (const id of run.dup) if (this.tabs.some((t) => t.id === id)) this.close(id);
-    setTimeout(() => { for (const tr of this.trails) tr.fresh = false; this.changed(); }, 8000);
-    this.changed();
-  }
-  /** Undo (or Stop): everything goes back exactly as it was, stashed trails included. */
-  tidyUndo(): void {
-    const run = this.tidy;
-    if (!run) return;
-    if (run.timer) clearTimeout(run.timer);
-    if (run.retry) clearTimeout(run.retry);
-    this.tidy = null;
-    for (const sid of run.stashed) {
-      const i = this.stash.findIndex((s) => s.id === sid);
-      if (i < 0) continue;
-      const [s] = this.stash.splice(i, 1);
-      const old = run.trails.find((x) => x.name === s!.name);
-      const tid = this.reviveTrail(s!.name, s!.tabs, old?.named ?? false);
-      if (old) { const tr = this.trails.find((x) => x.id === tid); if (tr) tr.id = old.id; for (const t of this.tabs) if (t.trail === tid) t.trail = old.id; }
-    }
-    this.saveStash();
-    const pos = new Map(run.order.map((o, n) => [o.id, n]));
-    for (const t of this.tabs) { const o = run.order.find((x) => x.id === t.id); if (o) t.trail = o.trail; }
-    this.tabs.sort((a, b) => (pos.get(a.id) ?? 1e9) - (pos.get(b.id) ?? 1e9));
-    const revived = this.trails.filter((x) => !run.trails.some((y) => y.id === x.id) && !run.created.includes(x.id));
-    this.trails = [...run.trails.map((x) => ({ ...x })), ...revived];
-    this.tidyTrails();
-    this.changed();
-  }
-  private tidyState(): Record<string, unknown> | null {
-    const r = this.tidy;
-    if (!r) return null;
-    return { phase: r.phase, text: r.text, waiting: r.waiting, dup: r.dup, created: r.created.length, stashed: r.stashed.length, doubles: r.dup.length, keepAt: r.keepAt };
-  }
-
-  /** "Done is a quest turn-in": it drops to the DONE shelf. It is not closed, so he can always look back. */
-  markDone(tabId: number, done: boolean): void {
-    const t = this.tabs.find((x) => x.id === tabId);
-    if (!t) return;
-    t.done = done;
-    this.tidyTrails();
-    this.changed();
-  }
-
   private cur(): Tab | undefined { return this.tabs.find((x) => x.id === this.active); }
 
   go(address: string): void {
@@ -6637,11 +6369,8 @@ export class SamaraBrowser {
       case 'history': this.openThings('history'); break;
       case 'downloads': this.openThings('downloads'); break;
       case 'print': if (wc && t && !t.internal) wc.print({}); break;
-      // ONE broom (2026-10-22: "isn't there already a broom somewhere?"): it tidies the tabs AND the mockups.
-      case 'tidy': this.tidyStart(); void this.mockTidy(true); break;
-      case 'tidykeep': this.tidyKeep(); break;
-      case 'tidyundo': this.tidyUndo(); break;
-      case 'trailundo': this.undoTrailClose(); break;
+      // The mockups' broom (Phase R, 2026-11-24: tab clean up is retired; the overnight tidy moves old tabs to Earlier).
+      case 'tidy': void this.mockTidy(true); break;
       case 'mockups': this.reopenMockups(); break;
       // The blue shield: open the popup he was looking for (as a tab, beside the page), or allow the site from now on.
       case 'popupopen': case 'popupallow': if (t?.blockedPopup) {
@@ -6783,7 +6512,7 @@ export class SamaraBrowser {
     const winOf = new Map(windows.map((p, i) => [p.id, i]));
     const front = (this.lastPane() ?? this.pane).active;
     const fronts = windows.map((p) => keep.findIndex((t) => t.id === p.active));
-    const trails = this.trails.map((x) => ({ ...x }));
+    const trails: Trail[] = [];
     const closed = this.closed.slice(-25);
     const make = () => ({
       v: 1,
@@ -6853,10 +6582,7 @@ export class SamaraBrowser {
       }
       list.forEach((t: { opener?: unknown }, i: number) => { const o = Number(t.opener); if (Number.isInteger(o) && o >= 0 && o < ids.length && o !== i) this.tabs[at0 + i]!.opener = ids[o]!; });
       if (Array.isArray(s.closed)) this.closed = s.closed.filter((u: unknown) => typeof u === 'string' && isWeb(u as string)).slice(-25);
-      if (Array.isArray(s.trails)) this.trails = s.trails.filter((x: Partial<Trail>) => Number.isInteger(x?.id) && typeof x?.name === 'string')
-        .filter((x: Trail) => x.id !== MOCK_TRAIL).map((x: Trail) => ({ id: x.id, name: x.name.slice(0, 24), named: x.named === true, collapsed: x.collapsed === true }));
-      this.trailSeq = this.trails.reduce((m, x) => Math.max(m, x.id), 0);
-      for (const t of this.tabs) if (t.trail !== null && !this.trails.some((x) => x.id === t.trail)) t.trail = null;
+      // Phase R: no trails come back (railMove already put their pages in Earlier).
       this.tidyTrails();
       // Every window he had open comes back with its own tabs (2026-10-14). The first one is this window.
       const wins = new Map<number, Tab[]>();
@@ -6957,7 +6683,6 @@ export class SamaraBrowser {
       // Sheet 109: and whether he has it back for now (YOU HAVE IT): Take over and STOP make way while he does.
       driving: (() => { const w = t?.view?.webContents; const d = w ? this.driver.drivingTab(w) : null; return d ? { ...d, hand: this.hands.get(d.page)?.mode ?? null } : null; })(),
       watching: this.watching === null ? null : (() => { const p = this.driver.page(this.watching!); const j = p ? this.driver.job(p.job) : undefined; return p && j ? { page: p.id, job: j.id, kind: j.kind, working: j.working, url: p.url, title: p.title } : null; })(),
-      tidy: this.tidyState(),
       stash: this.stash.map((s) => ({ id: s.id, name: s.name, count: s.tabs.length })),
       adsPaused: (() => { try { return this.paused.has(new URL(t?.url ?? '').hostname.replace(/^www\./, '')); } catch { return false; } })(),
       adsOn: Boolean(this.ads),

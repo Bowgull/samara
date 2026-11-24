@@ -91,25 +91,15 @@ export function wireBrowser(get: () => SamaraBrowser | null): void {
     b(e).earlierAct({ act: a.act, key: a.key }, (d: unknown) => { out = d; });
     return out;
   });
+  // Dragging a tab in the rail (2026-10-21; Phase R 2026-11-24: trails are retired, so only placing is left): several
+  // tabs at once, before another tab. Every field is checked here and again in placeTabs: ids are whole numbers (1 to 60
+  // of them, no repeats), the rest a whole number or null.
   ipcMain.on('browser:trail', (e, a) => {
-    if (!(top(e) && b(e)?.isFrame(e.sender)) || !a || typeof a !== 'object') return;
-    if (a.act === 'new') b(e).newTrail();
-    else if (a.act === 'rename' && Number.isInteger(a.id) && typeof a.name === 'string') b(e).renameTrail(a.id, a.name);
-    else if (a.act === 'move' && Number.isInteger(a.tab)) b(e).moveTab(a.tab, a.to === 'new' ? 'new' : Number.isInteger(a.to) ? a.to : null);
-    // Dragging (2026-10-12): a tab into a trail or loose, before another tab; a whole trail before another trail.
-    // Dragging, smoother (2026-10-21): several tabs at once, and under a parent tab. Every field is checked here and
-    // again in placeTabs: ids are whole numbers (1 to 60 of them, no repeats), the rest a whole number or null.
-    else if (a.act === 'place' && Array.isArray(a.tabs)) {
-      const idOrNull = (v: unknown) => v === null || v === undefined || (Number.isInteger(v) && Math.abs(v as number) < 1e9);
-      if (a.tabs.length < 1 || a.tabs.length > 60 || !a.tabs.every((x: unknown) => Number.isInteger(x) && (x as number) > 0 && (x as number) < 1e9)) return;
-      if (!idOrNull(a.trail) || !idOrNull(a.before) || !idOrNull(a.parent)) return;
-      b(e).placeTabs(a.tabs.slice(), a.trail ?? null, a.before ?? null, a.parent ?? null);
-    }
-    else if (a.act === 'place' && Number.isInteger(a.tab)) b(e).placeTab(a.tab, Number.isInteger(a.trail) ? a.trail : null, Number.isInteger(a.before) ? a.before : null);
-    else if (a.act === 'movetrail' && Number.isInteger(a.id)) b(e).moveTrail(a.id, Number.isInteger(a.before) ? a.before : null);
-    // The trail menu, and the Stash.
-    else if (a.act === 'trail' && Number.isInteger(a.id) && ['collapse', 'stash', 'ungroup', 'close'].includes(a.what)) b(e).trailAct(a.id, a.what);
-    else if (a.act === 'stash' && Number.isInteger(a.id) && (a.what === 'restore' || a.what === 'forget')) b(e).stashAct(a.id, a.what);
+    if (!(top(e) && b(e)?.isFrame(e.sender)) || !a || typeof a !== 'object' || a.act !== 'place' || !Array.isArray(a.tabs)) return;
+    const idOrNull = (v: unknown) => v === null || v === undefined || (Number.isInteger(v) && Math.abs(v as number) < 1e9);
+    if (a.tabs.length < 1 || a.tabs.length > 60 || !a.tabs.every((x: unknown) => Number.isInteger(x) && (x as number) > 0 && (x as number) < 1e9)) return;
+    if (!idOrNull(a.trail) || !idOrNull(a.before) || !idOrNull(a.parent)) return;
+    b(e).placeTabs(a.tabs.slice(), a.trail ?? null, a.before ?? null, a.parent ?? null);
   });
   // Sheet 47: the MOCKUPS trail. A version to show, the history list, the broom, and the family tree (branches, children).
   ipcMain.on('browser:mockup', (e, a) => {
