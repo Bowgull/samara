@@ -46,7 +46,7 @@ app.whenReady().then(async () => {
   (screen as any).getCursorScreenPoint = () => ({ x: -20000, y: 500 });
   const site = http.createServer((q, r) => {
     const body = q.url === '/second' ? '<!doctype html><title>Second posting</title><body>UX Lead</body>'
-      : q.url === '/links' ? `<!doctype html><title>Many links</title><body><input aria-label="Search posts"><main>${Array.from({ length: 90 }, (_, i) => `<a href="/post/${i + 1}">Story ${i + 1}</a><br>`).join('')}</main></body>`
+      : q.url === '/links' ? `<!doctype html><title>Many links</title><body><input aria-label="Search posts"><main style="font-size:10px;line-height:12px">${Array.from({ length: 90 }, (_, i) => `<a href="/post/${i + 1}">Story ${i + 1}</a><br>`).join('')}</main></body>`
       : q.url === '/form' ? `<!doctype html><title>Apply</title><body><h1>Apply</h1><p>${'About the role. '.repeat(400)}</p>
 <div style="height:3000px"></div><form><label>Full name <input name="name" required></label><label>Email <input type="email" name="email"></label>
 <label><input type="checkbox" name="agree"> I agree</label><label><input type="radio" name="w" value="r"> Remote</label>
@@ -106,6 +106,8 @@ ${Array.from({ length: 30 }, () => '<button type="button">Play video</button>').
   const back = await tool('browser_back', { page });
   check('back works and says where it went', /Second posting/.test(go.text) && /moved to/.test(back.text), back.text);
 
+  // The links are 12 px apart: the first 40 are on screen even where Windows fits the page to a 1024 x 720 screen (CI),
+  // and the last ones are still below it. The 40 is the cap, not the screen's height.
   // A plain read lists every field but only the first 40 links, with short addresses (measuring stick: 7x Chrome's tokens).
   const lp = Number(/page (\d+)/i.exec((await tool('browser_open', { url: base + '/links' })).text)?.[1]);
   const lr = await tool('browser_read', { page: lp });
