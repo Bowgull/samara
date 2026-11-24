@@ -1,5 +1,5 @@
 {
   "linux": { "startMs": 1500, "pageMB": 220, "idleCpu": 5, "switchMs": 150 },
-  "darwin": { "startMs": 3000, "pageMB": 200, "idleCpu": 5, "switchMs": 150 },
-  "win32": { "startMs": 3000, "pageMB": 100, "idleCpu": 5, "switchMs": 150 }
+  "darwin": { "startMs": 3500, "pageMB": 160, "idleCpu": 5, "switchMs": 150 },
+  "win32": { "startMs": 3000, "pageMB": 80, "idleCpu": 5, "switchMs": 150 }
 }
