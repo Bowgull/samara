@@ -283,3 +283,13 @@ test('Phase 3: the same change time settles the same way on both machines', asyn
   joinWire(two as never, f2, { k: { at: 5, v: 'mac' } });
   assert.equal(f1.k, f2.k);
 });
+
+test('Phase 3: a bookmark moved (order only) reaches the other machine', async () => {
+  const { a, b, sa, up } = pairApart();
+  await up();
+  a.m = [mk('https://1.com/'), mk('https://2.com/'), mk('https://3.com/')]; sa.changed('marks');
+  await wait(20);
+  a.m = [mk('https://3.com/'), mk('https://1.com/'), mk('https://2.com/')]; sa.changed('marks');
+  await wait(20);
+  assert.deepEqual(b.m.map((x) => x.url), ['https://3.com/', 'https://1.com/', 'https://2.com/']);
+});

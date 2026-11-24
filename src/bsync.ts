@@ -181,9 +181,12 @@ export class BrowserSync {
   /** The other machine's bookmarks joined here item by item; true when anything changed. `theirOrder` wins when newer. */
   private joinMarks(w: Wire, theirAt: number, theirList: Mark[]): boolean {
     const items = this.markItems(), mine = this.o.target.marks(), flat = flatMarks(mine);
-    if (!joinWire(items, flat, w)) return false;
+    const changed = joinWire(items, flat, w);
     const order = (theirAt > this.s.marksAt ? theirList : mine).map((m) => m?.url).filter((u): u is string => typeof u === 'string');
-    this.o.target.setMarks(unflatMarks(flat, order));
+    const next = unflatMarks(flat, order);
+    // A bookmark moved (order only, no item changed) still travels when their list is the newer one.
+    if (!changed && next.map((m) => m.url).join('\n') === mine.map((m) => m.url).join('\n')) return false;
+    this.o.target.setMarks(next);
     return true;
   }
   /** The other machine's settings joined here item by item; Earlier comes along to its own join. */
