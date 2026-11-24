@@ -94,9 +94,10 @@ app.whenReady().then(async () => {
   const hidden2 = await band.executeJavaScript(`document.querySelector('.slot .edit').matches('.allsel')`, true) as boolean;
   check('moving in the text paints the selection again', hidden2 === false);
   await band.executeJavaScript(`document.querySelector('.slot .edit').select(); 1`, true);
-  // Text arriving at the focused box, as a keyboard's does. insertText, not synthetic key events: GitHub's Mac never
-  // gives an off-screen window keyboard focus, so key events there are dropped (2026-11-24, macos-latest).
-  await band.insertText('w');
+  // Text arriving at the selected box the way typing does (the editor's own insertText). Not synthetic key events or
+  // webContents.insertText: GitHub's Mac never gives an off-screen window keyboard focus, so both are dropped there
+  // (2026-11-24, macos-latest).
+  await band.executeJavaScript(`(() => { const e = document.querySelector('.slot .edit'); e.focus(); return document.execCommand('insertText', false, 'w'); })()`, true);
   await wait(150);
   const typed = await band.executeJavaScript(`document.querySelector('.slot .edit').value`, true) as string;
   check('typing replaces the address', typed === 'w', JSON.stringify(typed));
