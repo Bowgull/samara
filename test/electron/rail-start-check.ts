@@ -4,6 +4,8 @@
 //   2. A real move onto the handle opens it (after the usual 0.25 s rest).
 //   3. A tab opened while the rail is shut is already in its list before the next open (no rebuild on open).
 //   4. An open asked for before the rail's page has loaded is refused, not slid out late.
+//   5. A click in the address bar selects the whole address (typing replaces it) without painting the selection;
+//      arrow keys bring the normal selection back.
 //
 // Run:  npx electron test/electron/rail-start-check.ts
 import { app, BrowserWindow } from 'electron';
@@ -81,6 +83,23 @@ app.whenReady().then(async () => {
   check('opening sends no list (nothing rebuilt mid-slide)', msgs === 0, `${msgs} list messages during the open`);
   b.tray(false);
   await wait(500);
+  // (5) The address bar: no highlight on click, typing still replaces.
+  await band.executeJavaScript(`document.getElementById('slot').click(); 1`, true);
+  await wait(300);
+  const sel = await band.executeJavaScript(`(() => { const e = document.querySelector('.slot .edit'); return { all: e.selectionStart === 0 && e.selectionEnd === e.value.length && e.value.length > 0, bg: getComputedStyle(e, '::selection').backgroundColor }; })()`, true) as { all: boolean; bg: string };
+  check('a click selects the whole address, unpainted', sel.all && /rgba\(0, 0, 0, 0\)|transparent/.test(sel.bg), JSON.stringify(sel));
+  band.sendInputEvent({ type: 'keyDown', keyCode: 'Left' }); band.sendInputEvent({ type: 'keyUp', keyCode: 'Left' });
+  await wait(150);
+  // (Chromium reports an unstyled ::selection as transparent, so the rule that hides it is what is checked.)
+  const hidden2 = await band.executeJavaScript(`document.querySelector('.slot .edit').matches('.allsel')`, true) as boolean;
+  check('moving in the text paints the selection again', hidden2 === false);
+  await band.executeJavaScript(`document.querySelector('.slot .edit').select(); 1`, true);
+  band.sendInputEvent({ type: 'char', keyCode: 'w' });
+  await wait(150);
+  const typed = await band.executeJavaScript(`document.querySelector('.slot .edit').value`, true) as string;
+  check('typing replaces the address', typed === 'w', JSON.stringify(typed));
+  band.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+  await wait(200);
   console.log(bad ? `FAILED ${bad}` : 'ALL PASSED');
   app.exit(bad ? 1 : 0);
 });

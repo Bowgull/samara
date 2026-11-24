@@ -705,6 +705,10 @@ function editSlot(keepList = false) {
   }
   slot.classList.add('editing');                 // sheet 88 B: out wider while he types (sheet 102: to 1280)
   edit.value = t?.url ?? '';
+  // Phase R (2026-11-24, his ask: "no yellow highlight, just let me type"): the whole address is still selected, so
+  // typing replaces it as in Chrome, but the selection is not painted (on a Mac it takes the system's bright
+  // highlight). It shows normally again once he moves in the text, selects with the mouse, or types.
+  edit.classList.add('allsel');
   edit.focus(); edit.select();
   window.samara?.browserSlot?.(true);              // Samara keeps the keyboard here while tabs come back
   // What he typed while Samara was still opening (early.js) goes in now (2026-11-20).
@@ -716,7 +720,11 @@ function editSlot(keepList = false) {
   }
   zeroSuggest();
 }
-function closeSlot() { if (!edit.hidden) window.samara?.browserSlot?.(false); edit.placeholder = ''; edit.hidden = true; urlEl.hidden = false; el('slot').classList.remove('editing'); slotTo = null; }
+const plainSel = () => edit.classList.remove('allsel');
+edit.addEventListener('pointerdown', plainSel);
+edit.addEventListener('input', plainSel);
+edit.addEventListener('keydown', (e) => { if (e.key.length > 1 && e.key !== 'Enter' && e.key !== 'Escape' && e.key !== 'Tab') plainSel(); });
+function closeSlot() { plainSel(); if (!edit.hidden) window.samara?.browserSlot?.(false); edit.placeholder = ''; edit.hidden = true; urlEl.hidden = false; el('slot').classList.remove('editing'); slotTo = null; }
 addEventListener('resize', () => { slotTo = null; if (sugg.length) paintSuggest(); });
 el('slot').addEventListener('click', (e) => { if (finding || lock.contains(e.target)) return; if (edit.hidden) editSlot(); });
 // ---- address suggestions (6.22b item 6; sheet 88; sheet 102). The list is drawn on its own layer over the live page

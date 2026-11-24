@@ -176,6 +176,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--wood2);font:500 
 .pg3{overflow:hidden}
 .slot .edit{flex:1;min-width:0;font:500 15px var(--body);color:#F0E6FF;background:none;border:none;outline:none;caret-color:var(--gold)}
 .slot .edit[hidden]{display:none}
+/* Phase R: the whole address selected on click, but not painted (browser.js editSlot). */
+.slot .edit.allsel::selection{background:transparent;color:inherit}
 /* 6.23: the vault key, beside the star, only on a page with a password box. */
 .slot .vkey{flex:0 0 auto;display:grid;place-items:center;width:26px;height:24px;padding:0;border:none;border-radius:6px;background:none;cursor:pointer}
 .slot .vkey[hidden]{display:none}
