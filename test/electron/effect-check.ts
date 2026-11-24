@@ -28,6 +28,9 @@ const PAGE = `<!doctype html><title>Form</title><body>
 <form role="search" action="/find"><input type="search" name="q" value="zora"><button type="button" id="go" aria-label="→" onclick="this.form.requestSubmit()">→</button></form>
 <button type="button" id="more" aria-label="More">More</button><div id="out"></div>
 <script>
+// The old way round the guard (a page claiming it is already in): it must not work.
+window.__samaraGuard = { on: true, armed: false, hit: null };
+for (const k of Object.getOwnPropertyNames(window)) if (k.startsWith('__s')) try { window[k] = null; } catch {}
 document.getElementById('ajax').onclick = () => fetch('/api/star', { method: 'POST', body: '{}' }).catch(() => {});
 document.getElementById('more').onclick = () => { fetch('/api/track', { method: 'POST', body: '{}' }).catch(() => {}); document.getElementById('out').textContent = 'more shown'; };
 </script></body>`;

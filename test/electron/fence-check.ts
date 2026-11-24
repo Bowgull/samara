@@ -11,7 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PORT = 47934;
-app.commandLine.appendSwitch('host-resolver-rules', `MAP www.linkedin.com 127.0.0.1:${PORT}, MAP boards.greenhouse.io 127.0.0.1:${PORT}, MAP evil.example.com 127.0.0.1:${PORT}`);
+app.commandLine.appendSwitch('host-resolver-rules', `MAP www.linkedin.com 127.0.0.1:${PORT}, MAP boards.greenhouse.io 127.0.0.1:${PORT}, MAP evil.example.com 127.0.0.1:${PORT}, MAP www.indeed.com 127.0.0.1:${PORT}`);
 process.on('uncaughtException', (e) => { console.log('HARNESS NOTE ' + String((e as Error).message).split('\n')[0]); });
 process.on('unhandledRejection', (e) => { console.log('HARNESS REJECTION ' + String((e as Error)?.stack ?? e)); app.exit(2); });
 setTimeout(() => { console.log('HARNESS TIMEOUT'); app.exit(3); }, 90_000).unref();
@@ -67,6 +67,11 @@ app.whenReady().then(async () => {
   await wait(800);
   check('a pop-up outside the plan is refused', !/evil/.test(p.wc.getURL()) && d.pagesOf(j).every((x: any) => !/evil/.test(x.wc.getURL())), `blocked ${p.blocked}`);
   check('the site outside the plan was never reached', evilHits === 0, `${evilHits} requests`);
+  // Renaming the job to a job hunt adds the job sites to its logins, never to its fence.
+  d.rename(j.id, 'Job hunt');
+  let err2 = '';
+  try { await d.open(j.id, `http://www.indeed.com:${PORT}/`); } catch (e) { err2 = (e as Error).message; }
+  check('renaming a planned job never widens its fence', /not in the plan the user allowed/.test(err2), err2);
   // A session with no plan keeps the older rule: off its sites, logged out.
   const k = d.startJob('claude', 'Quick look');
   await d.open(k.id, `http://boards.greenhouse.io:${PORT}/`);

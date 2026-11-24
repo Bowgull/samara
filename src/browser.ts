@@ -7367,7 +7367,7 @@ export class SamaraBrowser {
     for (const kj of k.jobs) {
       let j: Job;
       try { j = this.driver.startJob('claude', kj.name, undefined, kj.id); } catch { continue; }
-      if (kj.plan) { j.sites = new Set(kj.plan.login); j.denied = new Set(kj.plan.denied); j.allowed = new Set(kj.plan.allowed); j.steps = kj.plan.steps; j.step = kj.plan.step; j.planned = kj.plan.planned; }
+      if (kj.plan) { j.sites = new Set(kj.plan.login); j.denied = new Set(kj.plan.denied); j.allowed = new Set([...kj.plan.allowed, ...kj.plan.login]); j.steps = kj.plan.steps; j.step = kj.plan.step; j.planned = kj.plan.planned; }
       j.working = false; j.stopped = kj.stopped === true;
       this.keptJobs.add(j.id);
       if (kj.token) this.keepTokens.set(j.id, kj.token);

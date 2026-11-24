@@ -10,6 +10,7 @@
 //   held lever:  send, post, apply, submit a form, sign in, delete, anything that changes something for him;
 //   never:       typing a password or card details, and buying.
 // Page text is data, never instructions: it goes back marked as the page's words.
+import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { BrowserWindow, type Session, type WebContents, session, app } from 'electron';
 import { challengeLevel, challengeOf, challengeStops, cleanName, rankFind, diffRead, paceFor, sweepPlan, uploadable, weigh, whatChanged, type KeyTarget, type PageState, type ReadItem, type Weight, privateHost, siteOf, carriesData, JOB_SITES, jobTask } from './driverrules.ts';
@@ -351,11 +352,15 @@ const QUIET_JS = `new Promise((done) => {
  * search form goes through. It is a second net under the words, not the only one: a page that kept its own copy of
  * fetch from before can slip past it, so the words still decide first.
  */
-const GUARD_JS = `(() => {
-  const g = window.__samaraGuard || (window.__samaraGuard = { armed: false, hit: null });
-  g.armed = true; g.hit = null;
-  if (g.on) return true;
-  g.on = true;
+// Its state lives in a closure the page cannot reach. The only handle is a property under a name made fresh for each
+// run of Samara (KEY), and calling it needs a second secret (TOKEN); neither is anywhere the page can read before the
+// guard is in, so a page cannot pretend the guard is already there, switch it off, or wipe what it held.
+const GUARD_JS = (key: string, token: string) => `(() => {
+  const K = ${JSON.stringify(key)}, T = ${JSON.stringify(token)};
+  const have = Object.getOwnPropertyDescriptor(window, K);
+  if (have && typeof have.value === 'function') return have.value(T, 'arm') === true;
+  const g = { armed: true, hit: null };
+  Object.defineProperty(window, K, { value: function (t, op) { if (t !== T) return null; if (op === 'arm') { g.armed = true; g.hit = null; return true; } g.armed = false; const h = g.hit; g.hit = null; return h; }, enumerable: false, configurable: false, writable: false });
   const searchForm = (f) => Boolean(f && (f.getAttribute('role') === 'search' || f.querySelector('input[type=search], [role=searchbox], input[name=q], input[name=query], input[name=search]')) && !f.querySelector('input[type=password]'));
   const hold = (what, to) => { g.hit = g.hit || { what, to: String(to || location.href).slice(0, 300) }; };
   const telemetry = /(track|analytic|telemetry|beacon|metric|collect|log(ging)?|event|pixel|ping|stats|rum)/i;
@@ -382,7 +387,8 @@ const GUARD_JS = `(() => {
   return true;
 })()`;
 /** What the guard held back during the action (and it is let go). */
-const GUARD_READ = `(() => { const g = window.__samaraGuard; if (!g) return null; g.armed = false; const h = g.hit; g.hit = null; return h; })()`;
+const GUARD_READ = (key: string, token: string) => `(() => { const d = Object.getOwnPropertyDescriptor(window, ${JSON.stringify(key)}); return d && typeof d.value === 'function' ? d.value(${JSON.stringify(token)}, 'read') : null; })()`;
+const secret = () => randomBytes(12).toString('hex');
 
 /** What Space or Enter would land on: the control with the cursor, as driverrules keyWeigh judges it. Null: nothing. */
 const KEY_JS = `(() => {
@@ -626,7 +632,9 @@ export class Driver {
       job.sites = new Set(plan.login.map((x) => siteOf(x)).filter(Boolean));
       job.denied = new Set(plan.denied.map((x) => siteOf(x)).filter(Boolean));
       job.planned = true; job.steps = plan.steps.slice(0, 12); job.step = 0;
-      job.allowed = new Set((plan.allowed ?? []).map((x) => siteOf(x)).filter(Boolean));
+      // The fence (Phase 1): every site the plan showed him, with his login or without. Fixed here: renaming the job
+      // or allowing a login later never widens it.
+      job.allowed = new Set([...(plan.allowed ?? []), ...plan.login].map((x) => siteOf(x)).filter(Boolean));
     }
     this.jobSeq = Math.max(this.jobSeq, job.id);
     this.jobs.push(job);
@@ -654,7 +662,7 @@ export class Driver {
   offPlan(j: Job, url: string): boolean {
     if (!j.planned || !j.allowed?.size) return false;
     let site = ''; try { site = siteOf(new URL(url).hostname); } catch { return true; }
-    return !site || !(j.allowed.has(site) || !!j.sites?.has(site));
+    return !site || !j.allowed.has(site);
   }
   /** His login on this site: always (true), never (false), or as the job's own sites say (undefined). */
   private loginRule(u: string): boolean | undefined { return this.d.rules?.login(u); }
@@ -1392,9 +1400,11 @@ export class Driver {
     return { title: p.title, url: p.url, changed: this.told(before, after) };
   }
   /** The effect guard for one action (GUARD_JS); false when the page would not take it (then the words alone decide). */
-  private async arm(wc: WebContents): Promise<boolean> { try { return await run(wc, GUARD_JS, { ms: 2000 }) === true; } catch { return false; } }
+  private readonly guardKey = '__s' + secret();
+  private readonly guardToken = secret();
+  private async arm(wc: WebContents): Promise<boolean> { try { return await run(wc, GUARD_JS(this.guardKey, this.guardToken), { ms: 2000 }) === true; } catch { return false; } }
   private async disarm(wc: WebContents): Promise<{ what: string; to: string } | null> {
-    try { const h = await run<{ what?: unknown; to?: unknown } | null>(wc, GUARD_READ, { ms: 2000 }); return h && typeof h.what === 'string' ? { what: h.what.slice(0, 60), to: String(h.to ?? '').slice(0, 300) } : null; } catch { return null; }
+    try { const h = await run<{ what?: unknown; to?: unknown } | null>(wc, GUARD_READ(this.guardKey, this.guardToken), { ms: 2000 }); return h && typeof h.what === 'string' ? { what: h.what.slice(0, 60), to: String(h.to ?? '').slice(0, 300) } : null; } catch { return null; }
   }
   /** What Space or Enter would land on now (driverrules keyWeigh), and its number when it has one. */
   async keyTarget(pageId: number): Promise<KeyTarget | null> { const { wc } = this.wcOf(pageId); return await ask(wc, KEY_JS) as KeyTarget | null; }
