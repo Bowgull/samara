@@ -8,6 +8,7 @@ import { app, globalShortcut, Menu, nativeImage, net } from 'electron';
 import { existsSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import { MacEngine, MacPaths, MacSamara, MacStage } from './macsource.ts';
 import { secureDns } from './privacy.ts';
+import { checkIntegrity, sayIntegrity } from './integrity.ts';
 import os from 'node:os';
 import path from 'node:path';
 import { WebSocket } from 'ws';
@@ -154,6 +155,8 @@ app.whenReady().then(async () => {
     },
   }, deps);
   const browser = boot.browserNow;
+  // Phase 1 (2026-11-24): a little after start, Samara's code is checked against its release's sealed list.
+  setTimeout(() => { const r = checkIntegrity(app.getAppPath()); ((s: string) => console.log('samara: ' + s))(sayIntegrity(r)); if (r.state === 'changed' || r.state === 'unsealed') browser.say('Samara', sayIntegrity(r)); }, 20_000).unref?.();
   const { popout, drm } = base;
   browser.onPaid = (url) => paidAway(drm, url);
   browser.onPaidFallback = (url) => paidWindow(drm, url);

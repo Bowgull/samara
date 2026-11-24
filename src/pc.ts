@@ -17,6 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { samaraBase, samaraBrowser, type Platform, type SamaraBooted } from './boot.ts';
 import { secureDns } from './privacy.ts';
+import { checkIntegrity, sayIntegrity } from './integrity.ts';
 import { bootDeps } from './bootdeps.ts';
 import { CompanionLink } from './companion.ts';
 import { catchStrays, openLog } from './log.ts';
@@ -265,6 +266,8 @@ app.whenReady().then(async () => {
     },
   }, deps);
   const b = boot.browserNow;
+  // Phase 1 (2026-11-24): a little after start, Samara's code is checked against its release's sealed list.
+  setTimeout(() => { const r = checkIntegrity(app.getAppPath()); (log)(sayIntegrity(r)); if (r.state === 'changed' || r.state === 'unsealed') b.say('Samara', sayIntegrity(r)); }, 20_000).unref?.();
   // The browser's news for the companion, as main.ts wires it.
   b.onNoteSave = (n) => link.send({ t: 'notes.save', note: n } as never);
   // Ctrl and + zooms the page while Samara is in front (his rule): the companion's talk key steps aside then (main.ts samaraInFront).
