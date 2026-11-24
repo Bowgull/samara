@@ -200,7 +200,10 @@ window.samara?.onBrowserTray?.((s) => {
       document.body.classList.remove('out');
       // Next frame; a short timer too, so a window that is not drawing right now still ends up with the rail out.
       let gone = false;
-      const go = () => { if (gone) return; gone = true; void document.body.offsetWidth; document.body.classList.add('out'); };
+      // Phase R (2026-11-24): no forced layout here (it laid out the whole list on the slide's first frame, 18 ms
+      // measured). Two frames have passed since the fold, so the slide has its start; the timer path is for a
+      // layer that is not drawing, where there is no frame to drop.
+      const go = () => { if (gone) return; gone = true; document.body.classList.add('out'); };
       requestAnimationFrame(() => requestAnimationFrame(go));
       setTimeout(go, 40);
     } else document.body.classList.remove('out');
@@ -638,7 +641,20 @@ el('drawerkey').addEventListener('animationend', (e) => { if (e.animationName ==
 // passing over it on the way somewhere does nothing; dragging a tab onto it opens it too.
 let hoverOpen = 0;
 const handle = el('drawerkey');
-handle.addEventListener('pointerenter', () => { window.samara?.browserAct?.('peek'); clearTimeout(hoverOpen); if (!drawerOpen) hoverOpen = setTimeout(openDrawer, 250); });   // 0.25 s (2026-10-20; was 0.4)
+// Phase R (2026-11-24): the rail stays shut at start. A mouse that was already resting on the left edge when Samara
+// opened does not count: Chromium sends an enter and a move when the page lays out under a still pointer. Only a move
+// to a different spot does (by position in the page: movementX and screenX are 0 on some systems and for synthetic moves).
+let movedSinceStart = false, firstAt = null;
+const realMove = (e) => {
+  if (movedSinceStart) return true;
+  if (!firstAt) { firstAt = [e.clientX, e.clientY]; return false; }
+  if (e.clientX !== firstAt[0] || e.clientY !== firstAt[1]) movedSinceStart = true;
+  return movedSinceStart;
+};
+const handleHover = () => { window.samara?.browserAct?.('peek'); clearTimeout(hoverOpen); if (!drawerOpen) hoverOpen = setTimeout(openDrawer, 250); };
+handle.addEventListener('pointerenter', () => { if (movedSinceStart) handleHover(); });
+handle.addEventListener('pointermove', (e) => { if (movedSinceStart) return; if (realMove(e)) handleHover(); });
+document.addEventListener('pointermove', realMove, { passive: true });   // 0.25 s (2026-10-20; was 0.4)
 handle.addEventListener('pointerleave', () => clearTimeout(hoverOpen));
 handle.addEventListener('pointerdown', () => clearTimeout(hoverOpen));
 handle.addEventListener('dragenter', () => { if (!drawerOpen) openDrawer(); });

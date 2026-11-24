@@ -261,6 +261,11 @@ interface Pane {
   hideTimer: NodeJS.Timeout | null;
   trayV: WebContentsView | null;
   trayOn: boolean;
+  /** The list's newest state, held while it is shut and sent a moment later, so an open never rebuilds it mid-slide. */
+  trayNext: Record<string, unknown> | null;
+  trayNextT: ReturnType<typeof setTimeout> | null;
+  /** Its page has loaded (an open before that is ignored, never a late slide). */
+  trayReady: boolean;
   trayAt: { x: number; y: number; hy?: number };
   /** Claude's rune panel, in its own see-through layer over the live page (2026-10-21, runeView). */
   runeV?: WebContentsView | null;
@@ -309,7 +314,7 @@ interface Pane {
 /** Sheet 60 section 4: a note as Samara's notes rail needs it (only notes that came from a page carry `src`). */
 export interface RailNote { id: string; title: string; html: string; cat?: string; src?: { url: string; site: string }; updated: number }
 const newPane = (id: number): Pane => ({ id, win: null, active: null, inset: { left: 30, top: 66, right: 8, bottom: 8 }, drawerOpen: false, peekShot: null, peeking: false,
-  hideTimer: null, trayV: null, trayOn: false, trayAt: { x: 42, y: 62 }, curtain: null, curtainReady: Promise.resolve(), veil: null, fullTab: null, watching: null, watchTimer: null });
+  hideTimer: null, trayV: null, trayOn: false, trayNext: null, trayNextT: null, trayReady: false, trayAt: { x: 42, y: 62 }, curtain: null, curtainReady: Promise.resolve(), veil: null, fullTab: null, watching: null, watchTimer: null });
 
 /** A trail (Horse Browser's idea, sheet 3): pages that belong to one thing he is doing. `named` = he named it. */
 interface Trail { id: number; name: string; named: boolean; collapsed?: boolean; fresh?: boolean; /** sheet 47: the MOCKUPS trail */ mock?: boolean }
@@ -1949,8 +1954,9 @@ export class SamaraBrowser {
     v.setBackgroundColor('#00000000');
     v.setVisible(false);
     const P = this.pane;
-    // Opened before its page had loaded (his first hover right after start): slide out once it has.
-    v.webContents.on('did-finish-load', () => { this.pane = P; this.sendTabs(); v.webContents.send('browser:tray', { size: this.tabSize }); if (P.trayOn) v.webContents.send('browser:tray', { open: true, hy: P.trayAt.hy, size: this.tabSize }); else this.warmTray(P, v); });
+    P.trayReady = false; P.trayNext = null;
+    // Phase R (2026-11-24): an open before its page has loaded is ignored (see tray()), so it never slides out late.
+    v.webContents.on('did-finish-load', () => { this.pane = P; P.trayReady = true; P.trayNext = null; this.sendTabs(); this.trayFlush(P); v.webContents.send('browser:tray', { size: this.tabSize }); this.warmTray(P, v); });
     v.webContents.on('before-input-event', (e, input) => { this.pane = P; if (this.key(input)) e.preventDefault(); });
     void v.webContents.loadURL(`${this.o.origin}/browser.html?tray=1`).catch(() => { /* its window closed while it loaded */ });
     this.trayV = v;
@@ -1999,9 +2005,14 @@ export class SamaraBrowser {
     }
     const v = this.trayView();
     if (!v) return;
+    // Not drawn yet (his hover in the first moment after start): stay shut rather than slide out late. The band's
+    // handle is told, so the next hover opens it normally.
+    if (!this.pane.trayReady) { w.webContents.send('browser:tray', { open: false }); return; }
     this.newSince = 0;
-    void this.cardOf(this.cur());                // the page in front, for the list's hover picture
-    this.tabPeekView();                          // and its layer, loaded before the first hover
+    // Phase R (2026-11-24, measured): nothing but the slide runs while the rail moves. The page picture for the hover
+    // card (a capture and a JPEG, ~9 ms) waits until the slide is over; the hover layer was built at start.
+    const P0 = this.pane;
+    setTimeout(() => { if (P0.trayOn) { const was = this.pane; this.pane = P0; void this.cardOf(this.cur()); this.pane = was; } }, TRAY_SLIDE_MS + 40);
     const n = (x: unknown, d: number) => (Number.isFinite(Number(x)) ? Math.max(0, Math.round(Number(x))) : d);
     this.trayAt = { x: n(at?.x, this.trayAt.x), y: n(at?.y, this.trayAt.y), hy: n((at as { hy?: unknown })?.hy, this.trayAt.hy ?? 80) };
     this.trayOn = true;
@@ -2009,10 +2020,17 @@ export class SamaraBrowser {
     w.contentView.addChildView(v);             // to the top, over the page
     // The rail starts folded, its handle exactly over the band's, then slides out carrying it (2026-10-20).
     v.setVisible(true);
+    // The list is already current (sent while it was shut); only a change still waiting goes first.
+    this.trayFlush(this.pane);
     v.webContents.send('browser:tray', { open: true, hy: this.trayAt.hy, size: this.tabSize });
     v.webContents.focus();
     w.webContents.send('browser:tray', { open: true });
-    this.sendTabs();
+  }
+  /** Send the shut list its newest state now (a change waiting for the quiet moment). */
+  private trayFlush(P: Pane): void {
+    if (P.trayNextT) { clearTimeout(P.trayNextT); P.trayNextT = null; }
+    const d = P.trayNext; P.trayNext = null;
+    if (d && P.trayV && !P.trayV.webContents.isDestroyed() && P.trayReady) P.trayV.webContents.send('browser:tabs', d);
   }
   // ------------------------------------------------------------------ sheet 121 (4): two pages side by side
   /**
@@ -2825,7 +2843,11 @@ export class SamaraBrowser {
     if (first) w.once('show', () => setTimeout(() => this.details.open(), 1200));
     // The tab list is made ready a few seconds after the window shows (measured 2026-10-20: built on his first hover it
     // took 0.2 s, and 0.5 s on a slow machine), so the first open is as quick as every other.
-    w.once('ready-to-show', () => setTimeout(() => { if (w.isDestroyed() || p.win !== w) return; const was = this.pane; this.pane = p; this.trayView(); this.runeView(); this.sugView(); this.noticeView(); this.pane = was; }, 3000));
+    w.once('ready-to-show', () => {
+      // The rail first (Phase R: it must be drawn before he can reach for it), the other layers once start has settled.
+      setTimeout(() => { if (w.isDestroyed() || p.win !== w) return; const was = this.pane; this.pane = p; this.trayView(); this.pane = was; }, 400);
+      setTimeout(() => { if (w.isDestroyed() || p.win !== w) return; const was = this.pane; this.pane = p; this.tabPeekView(); this.runeView(); this.sugView(); this.noticeView(); this.pane = was; }, 3000);
+    });
     // The panels' layer sooner: the ⋯ menu is often the first thing he clicks. Until it has loaded, the band opens its
     // panels the old way (on a picture of the page).
     w.once('ready-to-show', () => setTimeout(() => { if (w.isDestroyed() || p.win !== w) return; const was = this.pane; this.pane = p; this.floatView(); this.pane = was; }, 600));
@@ -6788,7 +6810,16 @@ export class SamaraBrowser {
     const tray = this.trayV && !this.trayV.webContents.isDestroyed() ? this.trayV.webContents : null;
     // The tab list only while it is open (measured 2026-10-20: every message went to it hidden too). Opening it sends
     // the current state first, so it is never stale.
-    const send = (data: Record<string, unknown>) => { w.webContents.send('browser:tabs', data); if (this.trayOn) tray?.send('browser:tabs', data); };
+    // Phase R (2026-11-24): the shut list is kept current too, at most every 150 ms (a burst of changes draws once), so
+    // opening it never rebuilds the list in the middle of its slide. Open, it follows at once as before.
+    const P = this.pane;
+    const send = (data: Record<string, unknown>) => {
+      w.webContents.send('browser:tabs', data);
+      if (!tray) return;
+      if (this.trayOn) { tray.send('browser:tabs', data); return; }
+      P.trayNext = data;
+      P.trayNextT ??= setTimeout(() => { P.trayNextT = null; this.trayFlush(P); }, 150);
+    };
     send({
       active: this.active,
       update: this.update, updated: this.updated, checking: this.checking, inCall: this.inCall, canQuit: this.onQuit !== null,

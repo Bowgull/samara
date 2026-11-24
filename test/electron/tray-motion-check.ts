@@ -75,7 +75,13 @@ app.whenReady().then(async () => {
     if (dbg) { dbg.attach('1.3'); await dbg.sendCommand('Profiler.enable'); await dbg.sendCommand('Profiler.setSamplingInterval', { interval: 200 }); await dbg.sendCommand('Profiler.start'); }
     // Open: the mouse comes to rest on the handle (his way; it opens after 0.25 s).
     const k = await band.executeJavaScript(`(() => { const r = document.getElementById('drawerkey').getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; })()`, true) as [number, number];
-    band.sendInputEvent({ type: 'mouseMove', x: k[0] + 40, y: k[1] }); await wait(30);
+    // A hand's pace (Phase R, 2026-11-24): moves a frame or more apart, so the page sees a real move onto the handle
+    // (a mouse that never moved since start no longer opens the rail; moves inside one frame are merged into one).
+    // (Each move waits for a frame: the page merges moves that land inside one, and a single merged move onto the handle
+    // looks like a mouse that was resting there at start.)
+    const frame = () => band.executeJavaScript('new Promise((r) => requestAnimationFrame(() => r(1)))', true);
+    band.sendInputEvent({ type: 'mouseMove', x: k[0] + 200, y: k[1] + 80 }); await frame(); await wait(60);
+    band.sendInputEvent({ type: 'mouseMove', x: k[0] + 4, y: k[1] }); await frame();
     band.sendInputEvent({ type: 'mouseMove', x: k[0], y: k[1] });
     const tOpen = Date.now();
     await wait(1200);
