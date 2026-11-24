@@ -35,7 +35,7 @@ import { run, within } from './page.ts';
 import { SIZES, capture, captureWindow, type CaptureOpts, type Shot, type WindowShot } from './capture.ts';
 import { trouble } from './flight.ts';
 /** How many trouble pictures are kept (the newest). */
-const TROUBLE_KEEP = 12;
+export const TROUBLE_KEEP = 12;
 import { CastSession, DEFAULT_PLAYER, airplayNames, findRemoteTvs, findTvs } from './tv.ts';
 import { KEY, ensureCert, remote, startPairing, type TvTarget } from './tvremote.ts';
 import { PAGE_VIDEO_JS, PAUSE_PAGE_JS, YOUTUBE_APP, YOUTUBE_NS, copyProtected, plainMedia, seekPageJs, tvAppLink, tvSteps, twitchMedia, twitchOf, youTubeId, youTubeOnTv, type TvAppLink } from './tvmedia.ts';
@@ -44,7 +44,7 @@ import { writeFileAtomic, writeFileAtomicSoon } from './atomic.ts';
 import { SessionStore, type SessionData } from './sessionstore.ts';
 import { SPLIT_EDGE, SPLIT_GAP, SPLIT_HEAD, clampSplit, splitLeftWidth } from './splitview.ts';
 /** Sheet 121 (5): the wood strip over a peeked page. */
-const PEEK_HEAD = 44;
+export const PEEK_HEAD = 44;
 import { fitIn } from './geometry.ts';
 import { SavePaths, programAsk, quarantineMark, safeName, sameSite, siteOfUrl, zoneMark } from './downloads.ts';
 import { readJson } from './store.ts';
@@ -95,15 +95,15 @@ export interface UpdateCard {
   security?: boolean; tonight?: boolean;
 }
 // His pick (2026-10-14): the lantern alone, lit and glowing, nothing behind it.
-const SAMARA_ICON = path.join(import.meta.dirname, '..', 'pages', 'art', 'samara', 'samara-open.ico');
+export const SAMARA_ICON = path.join(import.meta.dirname, '..', 'pages', 'art', 'samara', 'samara-open.ico');
 /**
  * The key that scrambles the list of sites Bitwarden has logins for, kept under the computer's own lock (code audit L10,
  * 2026-10-14) instead of beside the list. Windows' own lock (DPAPI) never asks him anything; the Mac moves to its
  * Keychain with the login lock, so it does not bring a new Keychain question with every update before then.
  */
-const lockKey = (key: string): string => { try { return process.platform === 'win32' && safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(key).toString('base64') : ''; } catch { return ''; } };
-const unlockKey = (locked: string): string => { try { return safeStorage.decryptString(Buffer.from(locked, 'base64')); } catch { return ''; } };
-const scramble = (key: string, host: string) => createHmac('sha256', key).update(host.toLowerCase()).digest('hex').slice(0, 32);
+export const lockKey = (key: string): string => { try { return process.platform === 'win32' && safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(key).toString('base64') : ''; } catch { return ''; } };
+export const unlockKey = (locked: string): string => { try { return safeStorage.decryptString(Buffer.from(locked, 'base64')); } catch { return ''; } };
+export const scramble = (key: string, host: string) => createHmac('sha256', key).update(host.toLowerCase()).digest('hex').slice(0, 32);
 import { PhishCheck } from './phish.ts';
 import { SB_NAME, SafeBrowsing } from './safebrowsing.ts';
 import { sched } from './sched.ts';
@@ -117,13 +117,24 @@ import { WATCH_CSS, WATCH_HOSTS } from './watchmode.ts';
 import { GOOGLE_WORDS_JS, googleRefused, refusalTarget } from './passkeys.ts';
 import { EarlierStore } from './earlier.ts';
 import { afterClose, entryKey, fading, migrateV1, tidyDue as railTidyDue, toPutAway, type EarlierEntry, type RailTab, type V1File } from './rail.ts';
+import { RailPart } from './browser-rail.ts';
+import { PanesPart } from './browser-panes.ts';
+import { TvPart } from './browser-tv.ts';
+import { ThingsPart } from './browser-things.ts';
+import { AddressPart } from './browser-address.ts';
+import { NoticesPart } from './browser-notices.ts';
+import { SyncPart } from './browser-sync.ts';
+import { ClaudePart } from './browser-claude.ts';
+import { PopoutPart } from './browser-popout.ts';
+import { MockupsPart } from './browser-mockups.ts';
+import { SessionPart } from './browser-session.ts';
 
 /**
  * Dark mode for web pages (X, 2026-10-14): Dark Reader's own engine (darkreader 4.9.133,
  * MIT), put into each page in a world of its own, so the page's scripts can neither see it nor switch it off.
  */
-const DARK_WORLD = 1002;
-const DARK_THEME = '{brightness:100,contrast:95,sepia:5}';
+export const DARK_WORLD = 1002;
+export const DARK_THEME = '{brightness:100,contrast:95,sepia:5}';
 /**
  * His report (2026-10-20): dark mode was laggy on his 2017 MacBook. Dark Reader repaints a whole page, which is heavy on a
  * busy page and a dual-core Mac also playing a cloud-PC stream. So, like the real extension's "detect dark theme": a
@@ -134,14 +145,14 @@ const DARK_THEME = '{brightness:100,contrast:95,sepia:5}';
 // dark theme under Dark Reader's): the page's own dark marks (a "dark" class or theme on <html> or <body>, or a
 // dark-only color-scheme) are watched, and Dark Reader steps aside the moment they appear.
 export const ALREADY_DARK = "var __samaraDarkMark=()=>{try{const els=[document.documentElement,document.body].filter(Boolean);for(const e of els){for(const c of e.classList)if(/dark/i.test(c)&&!/darkreader|light/i.test(c))return true;for(const n of ['data-theme','data-bs-theme','data-color-mode','data-mode','theme'])if(/dark/i.test(e.getAttribute(n)||''))return true;}return (document.querySelector('meta[name=color-scheme]')?.content||'').trim().toLowerCase()==='dark';}catch{return false;}};var __samaraWatchDark=()=>{try{const mo=new MutationObserver(()=>{if(__samaraDarkMark()){mo.disconnect();DarkReader.disable();}});mo.observe(document.documentElement,{attributes:true,childList:true});if(document.body)mo.observe(document.body,{attributes:true});}catch{}};var __samaraAlreadyDark=()=>{try{if(__samaraDarkMark())return true;const lum=(c)=>{const m=/rgba?\\(([\\d.]+),\\s*([\\d.]+),\\s*([\\d.]+)(?:,\\s*([\\d.]+))?/.exec(c||'');if(!m||(m[4]!==undefined&&+m[4]<0.5))return null;return(0.2126*m[1]+0.7152*m[2]+0.0722*m[3])/255;};const b=document.body?lum(getComputedStyle(document.body).backgroundColor):null;const h=lum(getComputedStyle(document.documentElement).backgroundColor);const v=b??h;if(v===null)return getComputedStyle(document.documentElement).colorScheme.includes('dark');return v<0.25;}catch{return false;}};";
-let darkSrc: string | null | undefined;
+export let darkSrc: string | null | undefined;
 /** A synced list of site names: plain hosts only. */
 /** Bitwarden's lock time as Settings keeps it (sheet 83). */
-const lockPick = (v: unknown): string => (typeof v === 'string' && v in LOCK_AFTER ? v : '30m');
-function hostList(v: unknown): string[] {
+export const lockPick = (v: unknown): string => (typeof v === 'string' && v in LOCK_AFTER ? v : '30m');
+export function hostList(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((h): h is string => typeof h === 'string' && /^[a-z0-9.-]{1,253}$/i.test(h)).map((h) => h.toLowerCase()).slice(-2000) : [];
 }
-function darkSource(): string | null {
+export function darkSource(): string | null {
   if (darkSrc === undefined) {
     try { darkSrc = readFileSync(createRequire(import.meta.url).resolve('darkreader/darkreader.js'), 'utf8'); }
     catch (e) { darkSrc = null; console.error('browser: dark mode could not load: ' + (e as Error).message); }
@@ -150,7 +161,7 @@ function darkSource(): string | null {
 }
 
 /** Sites with video, for the TV icon (sheet 99): the same list as the frame's VIDEO_SITE (browser.js). */
-const TV_VIDEO_SITE = /(^|\.)(youtube\.com|youtu\.be|twitch\.tv|crunchyroll\.com|netflix\.com|primevideo\.com|amazon\.(com|ca)|disneyplus\.com|vimeo\.com|kick\.com|max\.com|crave\.ca|stremio\.com)$/i;
+export const TV_VIDEO_SITE = /(^|\.)(youtube\.com|youtu\.be|twitch\.tv|crunchyroll\.com|netflix\.com|primevideo\.com|amazon\.(com|ca)|disneyplus\.com|vimeo\.com|kick\.com|max\.com|crave\.ca|stremio\.com)$/i;
 export interface BrowserOptions { origin: string; preloadPath: string; stateDir: string; tabPreloadPath: string; settingsPreloadPath: string; thingsPreloadPath: string; /** tests only */ testLocal?: boolean;
   /** tests only (sheet 99): a pretend TV's remote service instead of finding his on the network */ tvAt?: { host: string; port: number; pairPort: number; name: string };
   /** Where the mockups' git repo is (sheet 47). Found from the Shell's own folder; a test gives its own. */ repoDir?: string;
@@ -166,7 +177,7 @@ export interface BrowserOptions { origin: string; preloadPath: string; stateDir:
    *  real Samara on the PC passes it, and only when the folder is there; no folder, no Hyrule tab. */
   hyruleDir?: string }
 
-interface Tab {
+export interface Tab {
   id: number;
   /** Sheet 111: opened by a Claude session, as one of its pages (never saved; it is his once he drags it out). */
   claude?: boolean;
@@ -251,7 +262,7 @@ interface Tab {
  * the tab in front, the tray, the curtain, is per window. The browser works in one pane at a time (`this.pane`): every
  * way in (a frame's message, a tab's event, a window's event) first says which window it is about.
  */
-interface Pane {
+export interface Pane {
   id: number;
   win: BrowserWindow | null;
   active: number | null;
@@ -319,27 +330,27 @@ interface Pane {
 }
 /** Sheet 60 section 4: a note as Samara's notes rail needs it (only notes that came from a page carry `src`). */
 export interface RailNote { id: string; title: string; html: string; cat?: string; src?: { url: string; site: string }; updated: number }
-const newPane = (id: number): Pane => ({ id, win: null, active: null, inset: { left: 30, top: 66, right: 8, bottom: 8 }, drawerOpen: false, peekShot: null, peeking: false,
+export const newPane = (id: number): Pane => ({ id, win: null, active: null, inset: { left: 30, top: 66, right: 8, bottom: 8 }, drawerOpen: false, peekShot: null, peeking: false,
   hideTimer: null, trayV: null, trayOn: false, trayNext: null, trayNextT: null, trayReady: false, trayAt: { x: 42, y: 62 }, curtain: null, curtainReady: Promise.resolve(), veil: null, fullTab: null, watching: null, watchTimer: null });
 
 /** A trail (Horse Browser's idea, sheet 3): pages that belong to one thing he is doing. `named` = he named it. */
-interface Trail { id: number; name: string; named: boolean; collapsed?: boolean; fresh?: boolean; /** sheet 47: the MOCKUPS trail */ mock?: boolean }
+export interface Trail { id: number; name: string; named: boolean; collapsed?: boolean; fresh?: boolean; /** sheet 47: the MOCKUPS trail */ mock?: boolean }
 /** Sheet 47: the MOCKUPS trail always has this id, so it is the same trail across restarts and never mixed with his. */
-const MOCK_TRAIL = -1;
+export const MOCK_TRAIL = -1;
 /** A trail put away in the Stash, before Phase R: read once, to move its pages into Earlier (railMove). */
-interface Stashed { id: number; name: string; tabs: { url: string; title: string }[]; at: number }
+export interface Stashed { id: number; name: string; tabs: { url: string; title: string }[]; at: number }
 
-const isWeb = (u: string) => /^https?:\/\//i.test(u);
+export const isWeb = (u: string) => /^https?:\/\//i.test(u);
 /** A view whose page is still there (a view's page can be gone, or missing, once its window has closed). */
-const liveView = (v: WebContentsView | null | undefined): v is WebContentsView => { try { return Boolean(v?.webContents && !v.webContents.isDestroyed()); } catch { return false; } };
+export const liveView = (v: WebContentsView | null | undefined): v is WebContentsView => { try { return Boolean(v?.webContents && !v.webContents.isDestroyed()); } catch { return false; } };
 /** What the band's floating panels draw from (sheet 120 A): the frame's messages that also go to their layer. */
-const FLOAT_CHANNELS = new Set(['browser:tabs', 'browser:dls', 'browser:plan', 'browser:updatewhy']);
+export const FLOAT_CHANNELS = new Set(['browser:tabs', 'browser:dls', 'browser:plan', 'browser:updatewhy']);
 /**
  * Links that open an app instead of a page (2026-10-14: signing in to Claude on the Mac ended on "Open
  * Claude" and nothing happened, because every non-web link was dropped). Like Chrome: only these, and only after he
  * says yes in the band. Anything else stays blocked: an app link is a way to run things outside the browser.
  */
-const APP_LINKS: Record<string, string> = {
+export const APP_LINKS: Record<string, string> = {
   claude: 'the Claude app', mailto: 'your email app', zoommtg: 'Zoom', zoomus: 'Zoom', msteams: 'Microsoft Teams',
   slack: 'Slack', discord: 'Discord', spotify: 'Spotify',
 };
@@ -363,9 +374,9 @@ export function bringFront(w: BrowserWindow): void {
  * window is still full screen a moment later (the Mac can drop the ask in the middle of its animation), asked again, and
  * on the Mac a last time through its other full screen. A new full screen in between (his F11, a page's button) wins.
  */
-const fullLeaving = new WeakMap<BrowserWindow, number>();
-let fullLeaveSeq = 0;
-function leaveFull(w: BrowserWindow, why: string): void {
+export const fullLeaving = new WeakMap<BrowserWindow, number>();
+export let fullLeaveSeq = 0;
+export function leaveFull(w: BrowserWindow, why: string): void {
   if (w.isDestroyed() || !w.isFullScreen()) return;
   const n = ++fullLeaveSeq;
   fullLeaving.set(w, n);
@@ -382,13 +393,13 @@ function leaveFull(w: BrowserWindow, why: string): void {
   again(2);
 }
 /** F11 (the PC; the Mac's is ⌃⌘F in its View menu): into the window's full screen, or out of it and any page's in it. */
-function toggleFull(w: BrowserWindow): void {
+export function toggleFull(w: BrowserWindow): void {
   if (w.isDestroyed()) return;
   if (w.isFullScreen()) leaveFull(w, 'F11');
   else { fullLeaving.delete(w); w.setFullScreen(true); }
 }
 /** Never handed to another app, whatever claims them: they reach files, run code, or are the browser's own. */
-const NEVER_HANDED = new Set(['file', 'javascript', 'vbscript', 'data', 'blob', 'about', 'chrome', 'devtools', 'view-source', 'filesystem', 'jar', 'smb', 'afp', 'nfs', 'ftp', 'ms-msdt', 'search-ms', 'ms-officecmd', 'ms-settings',
+export const NEVER_HANDED = new Set(['file', 'javascript', 'vbscript', 'data', 'blob', 'about', 'chrome', 'devtools', 'view-source', 'filesystem', 'jar', 'smb', 'afp', 'nfs', 'ftp', 'ms-msdt', 'search-ms', 'ms-officecmd', 'ms-settings',
   // Phase 1 (security audit): the rest of the ones Chrome never hands out (they run help files or local code).
   'shell', 'hcp', 'mk', 'ms-its', 'its', 'res', 'ms-help', 'help', 'vnd.ms.radio', 'ms-cxh', 'ms-cxh-full', 'ie.http', 'ie.https']);
 /**
@@ -405,18 +416,18 @@ export function appOf(u: string): string | null {
   try { const name = app.getApplicationNameForProtocol(u); return name ? name.replace(/\.app$/i, '').slice(0, 60) : null; } catch { return null; }
 }
 /** The right-click item that sends a page to the other machine's browser. */
-const OTHER_OPEN = process.platform === 'darwin' ? 'Open on PC' : 'Open on Mac';
+export const OTHER_OPEN = process.platform === 'darwin' ? 'Open on PC' : 'Open on Mac';
 /** How a look-alike is named on the red plate's list chips. */
-const LOOKS_LIKE = 'LOOKS LIKE ';
-const BANK = 'YOUR BANK';
+export const LOOKS_LIKE = 'LOOKS LIKE ';
+export const BANK = 'YOUR BANK';
 /**
  * Sheet 89 (2026-10-25): Stremio in a tab. Its page plays through the engine its app runs on this Mac
  * (127.0.0.1:11470), which the home-network guard below stopped ("Streaming server is not available"). Stremio's own
  * page, and only it, may reach that one port.
  */
-const STREMIO_WEB = /^https:\/\/web\.stremio\.com(\/|$)/i;
-const STREMIO_ENGINE = /^(https?|wss?):\/\/(127\.0\.0\.1|localhost):11470(\/|$)/i;
-const STREMIO_APP = '/Applications/Stremio.app/Contents/MacOS';
+export const STREMIO_WEB = /^https:\/\/web\.stremio\.com(\/|$)/i;
+export const STREMIO_ENGINE = /^(https?|wss?):\/\/(127\.0\.0\.1|localhost):11470(\/|$)/i;
+export const STREMIO_APP = '/Applications/Stremio.app/Contents/MacOS';
 /** Private Network Access for every tab (driverrules.ts reachesIn). */
 export const netGuard = (d: Electron.OnBeforeRequestListenerDetails): boolean | Promise<boolean> => {
   let from = '';
@@ -428,7 +439,7 @@ export const netGuard = (d: Electron.OnBeforeRequestListenerDetails): boolean | 
   return host ? resolvesInward(host) : false;
 };
 /** Sheet 89: is Stremio's engine answering on this Mac? */
-const stremioUp = (): Promise<boolean> => new Promise((res) => {
+export const stremioUp = (): Promise<boolean> => new Promise((res) => {
   const s = netConnect(11470, '127.0.0.1');
   const done = (ok: boolean) => { s.destroy(); res(ok); };
   s.once('connect', () => done(true)); s.once('error', () => done(false)); s.setTimeout(800, () => done(false));
@@ -437,23 +448,23 @@ const stremioUp = (): Promise<boolean> => new Promise((res) => {
  * Sheet 89 : opening Stremio starts its engine quietly when it is not running: the same small program Stremio's
  * app starts, from the app itself, with no Stremio window. It keeps running after Samara closes, as it does for the app.
  */
-async function startStremio(): Promise<void> {
+export async function startStremio(): Promise<void> {
   if (process.platform !== 'darwin' || !existsSync(path.join(STREMIO_APP, 'server.js')) || await stremioUp()) return;
   try { spawn(path.join(STREMIO_APP, 'node'), [path.join(STREMIO_APP, 'server.js')], { cwd: STREMIO_APP, detached: true, stdio: 'ignore' }).unref(); }
   catch (e) { console.error('shell: Stremio\'s engine would not start: ' + (e as Error).message); }
 }
 /** Where a new tab opens until he sets his own in Settings (2026-10-12: not Google). */
-const DEFAULT_HOME = 'https://search.brave.com/';
+export const DEFAULT_HOME = 'https://search.brave.com/';
 /** A plain Chrome's name for itself: Google refuses sign-in to anything calling itself Electron (2026-10-12). */
 /** A web address's site, without www. Empty when it is not one. */
-const hostOf = (u: string): string => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
+export const hostOf = (u: string): string => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
 /**
  * Chrome's own name, for the computer Samara really runs on (2026-10-25: shadow.tech's "are you a bot" box
  * reloaded forever on the Mac). It said "Windows" everywhere, while the page's other clues (navigator.platform, the
  * client hints) said macOS; Cloudflare's check refuses a browser whose clues disagree. The version is given the way
  * Chrome gives it now (152.0.0.0), the same as the client hints.
  */
-const CHROME_UA = (v: string) => {
+export const CHROME_UA = (v: string) => {
   const major = String(v).split('.')[0] + '.0.0.0';
   const os = process.platform === 'darwin' ? 'Macintosh; Intel Mac OS X 10_15_7' : process.platform === 'linux' ? 'X11; Linux x86_64' : 'Windows NT 10.0; Win64; x64';
   return `Mozilla/5.0 (${os}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major} Safari/537.36`;
@@ -472,40 +483,40 @@ const CHROME_UA = (v: string) => {
 // Netflix too (2026-10-25): Samara's video signature checked valid
 // (streaming, 1361 days), so the E100 of 2026-10-14 points at the name: castLabs' own tracker (electron-releases #199)
 // has a custom name breaking Netflix's DRM and the untouched name playing; castLabs' player, which plays it here, sends its own.
-const HONEST_SITES = /^https:\/\/(accounts\.(google|youtube)\.com|([a-z0-9-]+\.)*shadow\.tech|challenges\.cloudflare\.com|([a-z0-9-]+\.)*netflix\.com)(:\d+)?(\/|$)/i;
+export const HONEST_SITES = /^https:\/\/(accounts\.(google|youtube)\.com|([a-z0-9-]+\.)*shadow\.tech|challenges\.cloudflare\.com|([a-z0-9-]+\.)*netflix\.com)(:\d+)?(\/|$)/i;
 /** The requests that carry the honest name (the sites above, and what their pages load: Netflix's video). */
-const HONEST_REQUESTS = /^https:\/\/(accounts\.(google|youtube)\.com|challenges\.cloudflare\.com|[a-z0-9.-]+\.shadow\.tech|(([a-z0-9-]+\.)*)(netflix\.com|nflxvideo\.net|nflxext\.com|nflxso\.net))(:\d+)?\//i;
+export const HONEST_REQUESTS = /^https:\/\/(accounts\.(google|youtube)\.com|challenges\.cloudflare\.com|[a-z0-9.-]+\.shadow\.tech|(([a-z0-9-]+\.)*)(netflix\.com|nflxvideo\.net|nflxext\.com|nflxso\.net))(:\d+)?\//i;
 /** Netflix's own error codes on its player page: the playback was refused here (E100, M7xxx-xxxx, F7xxx). */
-const NETFLIX_REFUSED = /\b(E100|tvq-pb-101|M7\d{3}-\d{4}|F7\d{3}(-\d{1,4})?)\b/;
+export const NETFLIX_REFUSED = /\b(E100|tvq-pb-101|M7\d{3}-\d{4}|F7\d{3}(-\d{1,4})?)\b/;
 /** A popup that opens within this long of his click or key press is his (Chrome's own rule); later ones are a page's. */
-const GESTURE_MS = 1000;
+export const GESTURE_MS = 1000;
 /**
  * Sign-in pages a site opens in a small window on his click (Sign in with Google and the like): let through on his click
  * even though they are another site's (sheet 87's click-trick rule would otherwise stop them).
  */
-const SIGN_IN = /(^|\.)(accounts\.google\.com|appleid\.apple\.com|login\.microsoftonline\.com|login\.live\.com|github\.com|discord\.com|id\.twitch\.tv|facebook\.com|x\.com|twitter\.com|steamcommunity\.com|paypal\.com|accounts\.spotify\.com|auth0\.com|okta\.com)$/i;
+export const SIGN_IN = /(^|\.)(accounts\.google\.com|appleid\.apple\.com|login\.microsoftonline\.com|login\.live\.com|github\.com|discord\.com|id\.twitch\.tv|facebook\.com|x\.com|twitter\.com|steamcommunity\.com|paypal\.com|accounts\.spotify\.com|auth0\.com|okta\.com)$/i;
 /** Sheet 109: a pass from Ask Claude lets that chat read the tab for a day. */
-const PASS_MS = 24 * 60 * 60_000;
+export const PASS_MS = 24 * 60 * 60_000;
 /** Sheet 109: browser_your_turn waits this long for him, inside the connector's own three minutes, then says he still has it. */
-const YOUR_TURN_MS = 170_000;
+export const YOUR_TURN_MS = 170_000;
 /** His rule (2026-10-20): a page may start playing by itself only this soon after he asked for it (a slow redirect included). */
-const PLAY_MS = 15_000;
+export const PLAY_MS = 15_000;
 /** The tab rail's slide in and out (2026-10-20): the same time the rail's CSS uses. */
-const TRAY_SLIDE_MS = 260;
+export const TRAY_SLIDE_MS = 260;
 /** The tab list's width at each size (sheet 71); browser.css draws the same widths. */
-const TRAY_W = { s: 300, m: 320, l: 340 } as const;
+export const TRAY_W = { s: 300, m: 320, l: 340 } as const;
 /** A tab not looked at for this long, and not playing sound, goes to sleep. */
 // 2 hours (2026-10-12: fewer reloads when going back to a tab). Was 30 minutes. This PC has 16 GB.
-const SLEEP_AFTER_MS = 8 * 60 * 60_000;
+export const SLEEP_AFTER_MS = 8 * 60 * 60_000;
 /** A tab out of sight this long is frozen (Chromium's own freezing: no timers, no work, memory the system can reuse). */
-const FREEZE_AFTER_MS = 5 * 60_000;
+export const FREEZE_AFTER_MS = 5 * 60_000;
 /** The page's main video (the biggest one) and where it is, or null: read before a tab freezes or sleeps. */
-const VIDEO_AT_JS = `(() => { const v = [...document.querySelectorAll('video')].sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
+export const VIDEO_AT_JS = `(() => { const v = [...document.querySelectorAll('video')].sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
   return v && Number.isFinite(v.duration) && v.duration > 0 && v.currentTime > 1 ? Math.floor(v.currentTime) : null; })()`;
 /** On waking: the main video goes to his spot and stays paused until he presses play himself (2026-10-23). */
 // 2026-10-23 (filmed): YouTube sets its player up again after the first draw and starts from 0, so for 8 seconds, while
 // it stays paused, it is put back at his spot each time it wanders off; his own press on play ends that at once.
-const VIDEO_BACK_JS = (at: number) => `(async () => {
+export const VIDEO_BACK_JS = (at: number) => `(async () => {
   const big = () => [...document.querySelectorAll('video')].sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
   let done = false;
   for (let i = 0; i < 160; i++) {
@@ -521,7 +532,7 @@ const VIDEO_BACK_JS = (at: number) => `(async () => {
  * then the sidebar, then moves everything). The old picture stays over it until then, so he never watches it rebuild.
  * At most 3.5 seconds after it first drew.
  */
-const SETTLED_JS = `(async () => {
+export const SETTLED_JS = `(async () => {
   const sig = () => { const v = [...document.querySelectorAll('video')].sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
     const r = v ? v.getBoundingClientRect() : null; const b = document.body;
     return [document.readyState, b ? b.scrollHeight : 0, b ? b.querySelectorAll('img,video,iframe').length : 0, r ? [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)].join(',') : ''].join('|'); };
@@ -535,19 +546,19 @@ const SETTLED_JS = `(async () => {
   return false;
 })()`;
 /** Sheet 102: what the address bar's list is told, as checked here. */
-interface SugShow { rows: { kind: string; title: string; url: string; favicon: string }[]; pick: number; typed: string; from: number; expect: number; first: boolean; x: number; y: number; width: number }
+export interface SugShow { rows: { kind: string; title: string; url: string; favicon: string }[]; pick: number; typed: string; from: number; expect: number; first: boolean; x: number; y: number; width: number }
 /** A size in plain words, as the download tray says it. */
-const mbOf = (n: number): string => (n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : n >= 1e3 ? Math.round(n / 1e3) + ' KB' : (n || 0) + ' B');
-const SUG_KINDS = new Set(['search', 'guess', 'past', 'go', 'tab', 'mark', 'history', 'closed']);
+export const mbOf = (n: number): string => (n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : n >= 1e3 ? Math.round(n / 1e3) + ' KB' : (n || 0) + ' B');
+export const SUG_KINDS = new Set(['search', 'guess', 'past', 'go', 'tab', 'mark', 'history', 'closed']);
 /** Never a tab he looked at in the last 10 minutes, even when memory is short. */
-const SLEEP_MIN_MS = 10 * 60_000;
+export const SLEEP_MIN_MS = 10 * 60_000;
 /** Sheet 100 v4: a mockup tab not looked at for this long closes by itself (it stays in the Mockups tab). */
-const MOCK_TUCK_MS = 3 * 86_400_000;
+export const MOCK_TUCK_MS = 3 * 86_400_000;
 /**
  * Is the computer short on memory? On the Mac, its own pressure level (1 normal, 2 warning, 4 critical); on Windows,
  * under 12% of memory free. A failed read counts as fine.
  */
-function memoryShort(): Promise<boolean> {
+export function memoryShort(): Promise<boolean> {
   if (process.platform === 'darwin') {
     return new Promise((res) => execFile('/usr/sbin/sysctl', ['-n', 'kern.memorystatus_vm_pressure_level'], { timeout: 2000 }, (e, out) => res(!e && Number(String(out).trim()) >= 2)));
   }
@@ -557,29 +568,29 @@ function memoryShort(): Promise<boolean> {
  * 6.24, interviews ("if it ever glitches and can't read my mic or my camera I'm in trouble"): the call sites run
  * with no ad blocking at all, so a filter list can never break a call. Their subdomains too.
  */
-const CALL_SITES = ['zoom.us', 'zoom.com', 'teams.microsoft.com', 'teams.live.com', 'teams.cloud.microsoft', 'meet.google.com', 'webex.com'];
+export const CALL_SITES = ['zoom.us', 'zoom.com', 'teams.microsoft.com', 'teams.live.com', 'teams.cloud.microsoft', 'meet.google.com', 'webex.com'];
 // The band's height (Windows draws its own buttons over it, see-through on the wood) and the page area's colour.
-const BAND_HEIGHT = 58;
+export const BAND_HEIGHT = 58;
 /** The page's corners, rounded natively: the floating page (2026-10-12) has big soft corners (Flow browser does this). */
-const PAGE_RADIUS = 16;
-const PAGE_COLOUR = '#f6f3ee';
+export const PAGE_RADIUS = 16;
+export const PAGE_COLOUR = '#f6f3ee';
 /** Chromium's saved state for a page is kept only up to this size (a page full of form fields can be large). */
-const PAGE_STATE_MAX = 64 * 1024;
+export const PAGE_STATE_MAX = 64 * 1024;
 /** Where the page is scrolled, and the colour it shows behind its content (the body's, else the page's, else white). */
-const PAGE_LOOK_JS = `[window.scrollY, (() => { const c = (e) => e ? getComputedStyle(e).backgroundColor : ''; const clear = (x) => !x || x === 'transparent' || /rgba\\(.*,\\s*0\\)$/.test(x);
+export const PAGE_LOOK_JS = `[window.scrollY, (() => { const c = (e) => e ? getComputedStyle(e).backgroundColor : ''; const clear = (x) => !x || x === 'transparent' || /rgba\\(.*,\\s*0\\)$/.test(x);
   const b = c(document.body); if (!clear(b)) return b; const h = c(document.documentElement); return clear(h) ? 'rgb(255, 255, 255)' : h; })()]`;
 /** 'rgb(14, 14, 16)' as '#0e0e10'; anything else is not a colour we keep. */
-function hexOf(c: unknown): string | undefined {
+export function hexOf(c: unknown): string | undefined {
   const m = /^rgba?\((\d{1,3}),\s*(\d{1,3}),\s*(\d{1,3})/.exec(String(c));
   return m ? '#' + m.slice(1, 4).map((x) => Math.min(255, Number(x)).toString(16).padStart(2, '0')).join('') : undefined;
 }
 /** The soft fade between pages (option 5): fade length, when a slow site dims, when a page counts as instant. */
-const VEIL_FADE_MS = 250, VEIL_DIM_MS = 1500, VEIL_INSTANT_MS = 300, VEIL_MAX_MS = 8000;
+export const VEIL_FADE_MS = 250, VEIL_DIM_MS = 1500, VEIL_INSTANT_MS = 300, VEIL_MAX_MS = 8000;
 /** A woken page's picture fades out a little slower: one soft change instead of a page rebuilding (2026-10-23). */
-const WAKE_FADE_MS = 350;
+export const WAKE_FADE_MS = 350;
 
 /** Autofill and password fill run in a world of their own: the page cannot see or change the fill (page.ts adds the deadline). */
-const FILL_WORLD = 1001;
+export const FILL_WORLD = 1001;
 
 /**
  * A picture for the companion (Send to companion, 2026-10-21): at most 1200 px wide, as a PNG data URL, and dropped (null) when it
@@ -590,7 +601,7 @@ export function fitShot(shot: Shot | null, maxBytes = SHOT_MAX_BYTES): string | 
   return url && url.length <= maxBytes ? url : null;
 }
 /** How a picture for the companion is taken (capture.ts): his size, PNG. */
-const SAMARA_SHOT = { maxWidth: SHOT_MAX_W, format: 'png', ms: 3000 } as const;
+export const SAMARA_SHOT = { maxWidth: SHOT_MAX_W, format: 'png', ms: 3000 } as const;
 
 /** Sheet 37: a Claude session's plan, as shown to him. */
 export interface PlanCard {
@@ -605,56 +616,56 @@ export interface PlanAnswer { go: boolean; change: boolean; keep: string[]; note
 
 export class SamaraBrowser {
   /** Every open window, and the one being worked in right now. With none open, `pane` is the last one (closed). */
-  private panes: Pane[] = [];
-  private pane: Pane = newPane(0);
-  private paneSeq = 0;
+  panes: Pane[] = [];
+  pane: Pane = newPane(0);
+  paneSeq = 0;
   /** The window he used last (focus), where a link from the companion or the other machine opens. */
-  private focused: Pane | null = null;
-  private get win(): BrowserWindow | null { return this.pane.win; }
-  private set win(v: BrowserWindow | null) { this.pane.win = v; }
-  private get active(): number | null { return this.pane.active; }
-  private set active(v: number | null) { this.pane.active = v; }
-  private get inset() { return this.pane.inset; }
-  private set inset(v) { this.pane.inset = v; }
-  private get drawerOpen(): boolean { return this.pane.drawerOpen; }
-  private set drawerOpen(v: boolean) { this.pane.drawerOpen = v; }
-  private get peekShot() { return this.pane.peekShot; }
-  private set peekShot(v) { this.pane.peekShot = v; }
-  private get peeking(): boolean { return this.pane.peeking; }
-  private set peeking(v: boolean) { this.pane.peeking = v; }
-  private get hideTimer() { return this.pane.hideTimer; }
-  private set hideTimer(v) { this.pane.hideTimer = v; }
-  private get trayV() { return this.pane.trayV; }
-  private set trayV(v) { this.pane.trayV = v; }
-  private get trayOn(): boolean { return this.pane.trayOn; }
-  private set trayOn(v: boolean) { this.pane.trayOn = v; }
-  private get trayAt() { return this.pane.trayAt; }
-  private set trayAt(v) { this.pane.trayAt = v; }
-  private get curtain() { return this.pane.curtain; }
-  private set curtain(v) { this.pane.curtain = v; }
-  private get curtainReady() { return this.pane.curtainReady; }
-  private set curtainReady(v) { this.pane.curtainReady = v; }
-  private get veil() { return this.pane.veil; }
-  private set veil(v) { this.pane.veil = v; }
-  private get fullTab() { return this.pane.fullTab; }
-  private set fullTab(v) { this.pane.fullTab = v; }
-  private get watching() { return this.pane.watching; }
-  private set watching(v) { this.pane.watching = v; }
-  private get watchTimer() { return this.pane.watchTimer; }
-  private set watchTimer(v) { this.pane.watchTimer = v; }
-  private paneOfTab(t: Tab): Pane | undefined { return this.panes.find((p) => p.id === t.pane); }
+  focused: Pane | null = null;
+  get win(): BrowserWindow | null { return this.pane.win; }
+  set win(v: BrowserWindow | null) { this.pane.win = v; }
+  get active(): number | null { return this.pane.active; }
+  set active(v: number | null) { this.pane.active = v; }
+  get inset() { return this.pane.inset; }
+  set inset(v) { this.pane.inset = v; }
+  get drawerOpen(): boolean { return this.pane.drawerOpen; }
+  set drawerOpen(v: boolean) { this.pane.drawerOpen = v; }
+  get peekShot() { return this.pane.peekShot; }
+  set peekShot(v) { this.pane.peekShot = v; }
+  get peeking(): boolean { return this.pane.peeking; }
+  set peeking(v: boolean) { this.pane.peeking = v; }
+  get hideTimer() { return this.pane.hideTimer; }
+  set hideTimer(v) { this.pane.hideTimer = v; }
+  get trayV() { return this.pane.trayV; }
+  set trayV(v) { this.pane.trayV = v; }
+  get trayOn(): boolean { return this.pane.trayOn; }
+  set trayOn(v: boolean) { this.pane.trayOn = v; }
+  get trayAt() { return this.pane.trayAt; }
+  set trayAt(v) { this.pane.trayAt = v; }
+  get curtain() { return this.pane.curtain; }
+  set curtain(v) { this.pane.curtain = v; }
+  get curtainReady() { return this.pane.curtainReady; }
+  set curtainReady(v) { this.pane.curtainReady = v; }
+  get veil() { return this.pane.veil; }
+  set veil(v) { this.pane.veil = v; }
+  get fullTab() { return this.pane.fullTab; }
+  set fullTab(v) { this.pane.fullTab = v; }
+  get watching() { return this.pane.watching; }
+  set watching(v) { this.pane.watching = v; }
+  get watchTimer() { return this.pane.watchTimer; }
+  set watchTimer(v) { this.pane.watchTimer = v; }
+  paneOfTab(t: Tab): Pane | undefined { return this.panes.find((p) => p.id === t.pane); }
   /** The tabs in one window, in their order. */
-  private paneTabs(p: Pane = this.pane): Tab[] { return this.tabs.filter((t) => t.pane === p.id); }
+  paneTabs(p: Pane = this.pane): Tab[] { return this.tabs.filter((t) => t.pane === p.id); }
   /** Work in the window this tab is in. False if that window is gone. */
-  private inTab(t: Tab): boolean { const p = this.paneOfTab(t); if (p) this.pane = p; return Boolean(p); }
-  private alive(p: Pane | null | undefined): p is Pane & { win: BrowserWindow } { return Boolean(p?.win && !p.win.isDestroyed()); }
+  inTab(t: Tab): boolean { const p = this.paneOfTab(t); if (p) this.pane = p; return Boolean(p); }
+  alive(p: Pane | null | undefined): p is Pane & { win: BrowserWindow } { return Boolean(p?.win && !p.win.isDestroyed()); }
   /** The window he used last, or any open one. */
-  private lastPane(): Pane | undefined { return this.alive(this.focused) && this.panes.includes(this.focused) ? this.focused : this.panes.filter((p) => this.alive(p)).pop(); }
-  private tabs: Tab[] = [];
-  private seq = 0;
-  private trails: Trail[] = [];
-  private trailSeq = 0;
-  private closed: string[] = [];
+  lastPane(): Pane | undefined { return this.alive(this.focused) && this.panes.includes(this.focused) ? this.focused : this.panes.filter((p) => this.alive(p)).pop(); }
+  tabs: Tab[] = [];
+  seq = 0;
+  trails: Trail[] = [];
+  trailSeq = 0;
+  closed: string[] = [];
   /**
    * 2026-10-12: the picture of the page used to be taken AFTER the
    * click (up to 600 ms), and the live page was hidden before the frame had painted it, so the page area
@@ -687,8 +698,8 @@ export class SamaraBrowser {
     return { window, popout, size };
   }
   /** A page went away or stopped answering: one picture of his window as it was, kept for finding out why . */
-  private troubleAt = 0;
-  private troubleShot(kind: 'gone' | 'hang', wc: Electron.WebContents): void {
+  troubleAt = 0;
+  troubleShot(kind: 'gone' | 'hang', wc: Electron.WebContents): void {
     if (Date.now() - this.troubleAt < 60_000) return;
     const t = this.tabs.find((x) => x.view && !x.view.webContents.isDestroyed() && x.view.webContents === wc);
     if (!t || !this.alive(this.paneOfTab(t))) return;                               // only his own tabs, in a window
@@ -711,7 +722,7 @@ export class SamaraBrowser {
     }, kind === 'gone' ? 1500 : 0);
   }
 
-  private async shotOf(t: Tab): Promise<string | null> {
+  async shotOf(t: Tab): Promise<string | null> {
     if (!t.view || t.crashed || t.blocked || t.failed || t.lent) return null;
     try {
       // At the page's own size on screen (capture.ts): it is shown over the page, so never smaller than that.
@@ -728,59 +739,59 @@ export class SamaraBrowser {
     finally { P.peeking = false; }
   }
   /** The frame has painted the picture: now the live page can go. */
-  private frozenReady(): void {
+  frozenReady(): void {
     if (this.hideTimer) { clearTimeout(this.hideTimer); this.hideTimer = null; }
     const t = this.cur();
     if (this.drawerOpen && t?.view && !t.lent) t.view.setVisible(false);
   }
-  private timers: NodeJS.Timeout[] = [];
+  timers: NodeJS.Timeout[] = [];
   /** This browser's jobs on the scheduler. */
-  private get jobNames(): string[] { return ['browser.snapshot', 'browser.sleep-idle', 'browser.claude-forms']; }
-  private saveSoon: NodeJS.Timeout | null = null;
-  private readonly o: BrowserOptions;
+  get jobNames(): string[] { return ['browser.snapshot', 'browser.sleep-idle', 'browser.claude-forms']; }
+  saveSoon: NodeJS.Timeout | null = null;
+  readonly o: BrowserOptions;
   /** The one owner of browser-tabs.json (sessionstore.ts). */
-  private readonly session: SessionStore;
+  readonly session: SessionStore;
   /** Phase 5: Samara on its own (samara.ts) can be quit from its ... menu; the companion's windows never set this. */
   onQuit: (() => void) | null = null;
   /** The session the tabs open in. */
-  private ses: Electron.Session;
+  ses: Electron.Session;
   // 6.22, protection.
-  private readonly phish: PhishCheck;
+  readonly phish: PhishCheck;
   /** Google Safe Browsing in private mode (safebrowsing.ts). */
-  private sb: SafeBrowsing | null = null;
-  private ads: AdBlock | null = null;
-  private readonly pausedFile: string;
-  private paused = new Set<string>();
+  sb: SafeBrowsing | null = null;
+  ads: AdBlock | null = null;
+  readonly pausedFile: string;
+  paused = new Set<string>();
   /** Sites he chose to open anyway, past a list, with the held lever. This run only. */
-  private readonly letThrough = new Set<string>();
-  private readonly asks = new Map<number, (allow: boolean) => void>();
+  readonly letThrough = new Set<string>();
+  readonly asks = new Map<number, (allow: boolean) => void>();
   /** HTTPS-first: sites he chose to open without a secure version. Kept between runs. */
-  private readonly httpOkFile: string;
-  private httpOk = new Set<string>();
+  readonly httpOkFile: string;
+  httpOk = new Set<string>();
   /** Decision 18: sites he let download a program. Only his click on the chip adds to it. Kept between runs. */
-  private readonly trustedFile: string;
-  private trusted = new Set<string>();
+  readonly trustedFile: string;
+  trusted = new Set<string>();
   /**
    * His call (2026-10-14, code audit M3): sites the OTHER computer trusts (for programs, or opened without https)
    * travel here but do not count until he says yes once on this machine. A removal there still applies here.
    */
   /** Sheet 37: his per-site rules (Claude and companion, his login, camera, mic). */
   rules!: SiteRules;
-  private peerTrusted = new Set<string>();
-  private peerHttp = new Set<string>();
-  private askSeq = 0;
+  peerTrusted = new Set<string>();
+  peerHttp = new Set<string>();
+  askSeq = 0;
   /**
    * 6.24 calls (Zoom, Teams, Meet): camera and microphone he allowed on a site, kept only while a tab is still on
    * that site, so one call does not ask five times (they ask again for every device switch). Never written to disk.
    */
-  private readonly mediaOk = new Map<string, Set<string>>();
+  readonly mediaOk = new Map<string, Set<string>>();
   /** 6.24: the screen-share picker waiting for his pick. One at a time. */
   /** Sites he is sharing his screen with right now (with or without camera). */
-  private readonly shareHosts = new Set<string>();
-  private share: { id: number; host: string; sources: Map<string, DesktopCapturerSource>; audio: boolean; done: (s: Electron.Streams | null) => void; timer: NodeJS.Timeout } | null = null;
+  readonly shareHosts = new Set<string>();
+  share: { id: number; host: string; sources: Map<string, DesktopCapturerSource>; audio: boolean; done: (s: Electron.Streams | null) => void; timer: NodeJS.Timeout } | null = null;
   /** Sheet 69: the keyboards and mice each site may use, and the one device ask waiting for his pick. */
-  private devices!: DeviceOk;
-  private devAsk: { id: number; host: string; list: Electron.HIDDevice[]; done: (id?: string) => void; timer: NodeJS.Timeout; picked: string | null } | null = null;
+  devices!: DeviceOk;
+  devAsk: { id: number; host: string; list: Electron.HIDDevice[]; done: (id?: string) => void; timer: NodeJS.Timeout; picked: string | null } | null = null;
   /** The little wood sounds (new tab, close, download done). Off until he turns them on in Settings. */
   sounds = false;
   /** The ⋯ menu's switches (sheet 3 section 10), kept between runs. Block ads and Block popups start on. */
@@ -789,35 +800,35 @@ export class SamaraBrowser {
    * its own (the Mac's small screen and the PC's big one), so it is kept apart from the prefs, which sync.
    */
   tabSize: 's' | 'm' | 'l' = 'l';
-  private localFile = '';
+  localFile = '';
   prefs = { ads: true, popups: true, home: DEFAULT_HOME, search: 'brave' as Engine, aiBox: true, startup: 'tabs' as 'tabs' | 'home', dark: true, darkOff: [] as string[], afSounds: true, lockAfter: '30m' };
   /** His home page, or his search engine's front page. Web pages only. */
-  private get HOME(): string { return isWeb(this.prefs.home) && this.prefs.home !== DEFAULT_HOME ? this.prefs.home : engineHome(); }
+  get HOME(): string { return isWeb(this.prefs.home) && this.prefs.home !== DEFAULT_HOME ? this.prefs.home : engineHome(); }
   /** The Stash of before Phase R, read once so railMove can put its pages in Earlier; empty after that. */
-  private stash: Stashed[] = [];
+  stash: Stashed[] = [];
   /** Phase R (2026-11-24): the tabs put away overnight, and what trails, the done shelf and the Stash held before. */
-  private earlier!: EarlierStore;
-  private readonly stashFile: string;
+  earlier!: EarlierStore;
+  readonly stashFile: string;
   /** Sites he let open popups by themselves ("Allow popups on this site"). Kept between runs. */
-  private popupOk = new Set<string>();
-  private readonly popupOkFile: string;
+  popupOk = new Set<string>();
+  readonly popupOkFile: string;
   /** When he last clicked or pressed a key in each tab: Chrome's user-activation rule for popups. */
-  private lastGesture = new Map<number, number>();
+  lastGesture = new Map<number, number>();
   /** Download names taken by downloads still running (downloads.ts): never handed to a second download. */
-  private readonly savePaths = new SavePaths();
+  readonly savePaths = new SavePaths();
   /** Scrambled list of the sites he has Bitwarden logins for (no names, no passwords), for the gold key. */
-  private readonly sitesFile: string;
-  private sites: Set<string> | null = null;
-  private siteKey = '';
-  private readonly prefsFile: string;
+  readonly sitesFile: string;
+  sites: Set<string> | null = null;
+  siteKey = '';
+  readonly prefsFile: string;
   /** Electron's own name for itself, kept for Google's sign-in pages. */
-  private honestUA = '';
+  honestUA = '';
   /** Hidden sites' cookies (privacy.ts): which pairs are let through, and the privacy log. */
   wall!: CookieWall;
   /** The browser hints' brand line, as this engine's pages read it (privacy.ts), once a page has told it. */
-  private brands: string | null = null;
+  brands: string | null = null;
   /** A page's own name for the browser follows where it is going: honest on Google's sign-in, Chrome elsewhere. */
-  private nameFor(wc: Electron.WebContents): void {
+  nameFor(wc: Electron.WebContents): void {
     // The real address never goes out around the page (2026-10-26): calls still work, but the Mac's home-network
     // address stays in, and later a VPN cannot be gone around (WebRTC IP handling, Brave's own default).
     try { wc.setWebRTCIPHandlingPolicy('default_public_interface_only'); } catch { /* an older runtime */ }
@@ -836,37 +847,37 @@ export class SamaraBrowser {
     });
   }
   /** 6.23: his logins from Bitwarden, filled when he clicks the key. */
-  private readonly vault: Vault;
-  private readonly details: DetailsStore;
-  private readonly pinSeal: PinSeal;
+  readonly vault: Vault;
+  readonly details: DetailsStore;
+  readonly pinSeal: PinSeal;
   /** The tab and site a fill was started for: a fill never lands on a page that changed since. */
-  private vaultFor: { tab: number; host: string } | null = null;
+  vaultFor: { tab: number; host: string } | null = null;
   /** Does the page he is looking at have a password box? Then the key shows in the slot. */
-  private hasLogin = false;
+  hasLogin = false;
   /** Each site's icon, kept as a small picture so bookmarks always carry their icons, as in any browser. */
-  private readonly iconsFile: string;
-  private icons = new Map<string, string>();
-  private iconsBusy = false;
+  readonly iconsFile: string;
+  icons = new Map<string, string>();
+  iconsBusy = false;
   /** 6.23: his bookmarks. The bar ones show on the velvet shelf; all of them are kept. */
-  private readonly marksFile: string;
-  private marks: Mark[] = [];
+  readonly marksFile: string;
+  marks: Mark[] = [];
   /** 6.22b bug 5: where the window was, kept between opens. */
-  private readonly placeFile: string;
+  readonly placeFile: string;
   /** 6.22b bug 1: the tab whose page asked for fullscreen (a video's own button): it fills the whole screen. */
   /** 6.22b bug 2: the right-click menu's own little window, kept hidden between uses. */
-  private menu: BrowserWindow | null = null;
-  private menuFor: { tab: number; p: Electron.ContextMenuParams } | null = null;
-  private menuItems: unknown[] | null = null;
+  menu: BrowserWindow | null = null;
+  menuFor: { tab: number; p: Electron.ContextMenuParams } | null = null;
+  menuItems: unknown[] | null = null;
   /** Sheet 109: the chats Ask Claude's list showed, in its order (ask0 is the first). */
-  private menuChats: Chat[] = [];
+  menuChats: Chat[] = [];
   /** Where the menu was put, so Claude's list beside it can grow it without moving it. */
-  private menuAt: { x: number; y: number; w: number } | null = null;
+  menuAt: { x: number; y: number; w: number } | null = null;
   /** Sheet 109: passes handed to Claude with a pick, each for one tab: that chat may read the tab without asking again. */
-  private tabPasses = new Map<string, { tab: number; until: number }>();
+  tabPasses = new Map<string, { tab: number; until: number }>();
   /** 6.25a: the pages the companion (and Claude sessions) drive, in hidden windows of their own. */
   readonly driver: Driver;
   /** Driving sessions stuck repeating one step (loopcatch.ts). */
-  private loops = new LoopCatch();
+  loops = new LoopCatch();
   /** Set by main: he pressed STOP on a job, so the companion stops that turn. */
   onDriverStop: ((j: Job) => void) | null = null;
   /**
@@ -891,36 +902,36 @@ export class SamaraBrowser {
   onPlaying: (() => void) | null = null;
   /** Right-click "Play in the pop-out" on a link. */
   onPlayInPopout: ((url: string) => void) | null = null;
-  private popTab: ((id: number) => void) | null = null;
+  popTab: ((id: number) => void) | null = null;
   /** Right-click "Pop out this video": the same as the pop-out key (popoutipc.ts). */
   setPopTab(fn: (id: number) => void): void { this.popTab = fn; }
-  private planSeq = 0;
-  private planWait = new Map<string, (a: PlanAnswer | null) => void>();
+  planSeq = 0;
+  planWait = new Map<string, (a: PlanAnswer | null) => void>();
   /** Which card each planned job showed, for its live checklist. */
-  private planOfJob = new Map<number, string>();
+  planOfJob = new Map<number, string>();
   /** The driver page he is watching in the page area (a live picture), or none. */
   /** History (2026-10-12): every page he opened, 90 days, only on this PC. */
-  private visits: Visits;
+  visits: Visits;
   /** Downloads (2026-10-12): the list behind the tray and the Downloads page; the live ones and how far along they are. */
-  private dls: Downloads;
-  private readonly live = new Map<number, Electron.DownloadItem>();
-  private readonly got = new Map<number, { got: number; total: number; rate: number }>();
+  dls: Downloads;
+  readonly live = new Map<number, Electron.DownloadItem>();
+  readonly got = new Map<number, { got: number; total: number; rate: number }>();
   /** The tray holds only downloads since this: the browser opening, or his Clear list. */
-  private traySince = Date.now();
-  private trayTimer: NodeJS.Timeout | null = null;
-  private dlSendTimer: NodeJS.Timeout | null = null;
+  traySince = Date.now();
+  trayTimer: NodeJS.Timeout | null = null;
+  dlSendTimer: NodeJS.Timeout | null = null;
   /** The mouse's side buttons can arrive twice (window and page): one press, one step. */
-  private lastNav = 0;
+  lastNav = 0;
   /**
    * Sheet 47 (2026-10-21): the mockups Claude opens. The versioned page server and the history file; both
    * null where there is no git repo , and then the whole feature quietly stays off.
    */
-  private mockServer: MockServer | null = null;
-  private mockStore: MockStore | null = null;
-  private mockRepo = '';
-  private mockReady: Promise<number> = Promise.resolve(0);
+  mockServer: MockServer | null = null;
+  mockStore: MockStore | null = null;
+  mockRepo = '';
+  mockReady: Promise<number> = Promise.resolve(0);
   /** Things waiting for the window to finish opening (a mockup opened while Samara was closed). */
-  private whenOpen: (() => void)[] = [];
+  whenOpen: (() => void)[] = [];
   constructor(o: BrowserOptions) {
     this.o = o;
     trouble.on('gone', (wc: Electron.WebContents) => this.troubleShot('gone', wc));
@@ -1045,7 +1056,7 @@ export class SamaraBrowser {
 
   /** Everything a browsing session needs: plain Chrome's name, the asks, downloads, logins kept, the guards and the ad
    *  lists. */
-  private arm(): void {
+  arm(): void {
     const ses = this.ses;
     // Plain Chrome, everywhere in his browsing session, except Google's sign-in pages (above).
     ses.setUserAgent(CHROME_UA(process.versions.chrome));
@@ -1085,7 +1096,7 @@ export class SamaraBrowser {
    * hangs from the band, for this call only, never "always"; notifications, location and everything else are
    * refused without asking, because nothing he does needs them.
    */
-  private permissions(): void {
+  permissions(): void {
     this.ses.setPermissionRequestHandler((wc, permission, done, details) => {
       if (permission === 'fullscreen') { done(true); return; }
       this.inWc(wc);
@@ -1145,7 +1156,7 @@ export class SamaraBrowser {
    * parchment ask hanging from the band, listing only the devices the site asked for; he picks one and it is remembered
    * for that site, so next time it connects with no ask. Forget in the shield takes it back. Claude's tabs never get one.
    */
-  private hid(): void {
+  hid(): void {
     this.ses.setDevicePermissionHandler((d) => d.deviceType === 'hid' && this.devices.allowed(hostOf(d.origin), d.device as Electron.HIDDevice));
     this.ses.on('select-hid-device', (event, details, done) => {
       event.preventDefault();
@@ -1169,12 +1180,12 @@ export class SamaraBrowser {
     this.ses.on('hid-device-added', (_e, d) => { if (this.devAsk && !this.devAsk.list.some((x) => x.deviceId === d.device.deviceId)) { this.devAsk.list.push(d.device); this.sendDevAsk(); } });
     this.ses.on('hid-device-removed', (_e, d) => { if (this.devAsk) { this.devAsk.list = this.devAsk.list.filter((x) => x.deviceId !== d.device.deviceId); this.sendDevAsk(); } });
   }
-  private sendDevAsk(): void {
+  sendDevAsk(): void {
     const a = this.devAsk;
     if (a) this.notices.update(a.id, cleanNotice(this.devNotice(a.host, a.list, a.picked)));
   }
   /** The device ask as a notice: only the devices the site asked for, the one allowed last time already picked. */
-  private devNotice(host: string, list: Electron.HIDDevice[], picked: string | null): NoticeIn {
+  devNotice(host: string, list: Electron.HIDDevice[], picked: string | null): NoticeIn {
     // How it is connected, from its own name (a wireless one calls itself a receiver or dongle); a cable otherwise.
     const how = (d: Electron.HIDDevice) => (/2\.4g|dongle|receiver|wireless/i.test(d.name) ? 'Wireless dongle' : 'Plugged in by cable');
     return { kind: 'need', from: 'shield', icon: 'keyboard', kick: `${host || 'This site'} wants`, title: list.length ? 'One of your devices' : 'A keyboard or mouse',
@@ -1207,7 +1218,7 @@ export class SamaraBrowser {
    * hangs from the band, every time, and his own sound goes only if he ticks it. Unanswered in 2 minutes means no.
    * the companion's own pages can never share anything.
    */
-  private screenShare(): void {
+  screenShare(): void {
     this.ses.setDisplayMediaRequestHandler((req, done) => {
       const deny = () => { try { done(null); } catch { /* the page went away */ } };
       let wc: Electron.WebContents | undefined;
@@ -1235,8 +1246,8 @@ export class SamaraBrowser {
   }
   /** In a call right now? Restarting the browser would drop it, so the update key waits and so must anything else. */
   inCall = false;
-  private callFile = '';
-  private callNow(on: boolean): void {
+  callFile = '';
+  callNow(on: boolean): void {
     if (on === this.inCall) return;
     this.inCall = on;
     console.log(`shell: browser: ${on ? 'a call started' : 'no call now'}`);
@@ -1245,7 +1256,7 @@ export class SamaraBrowser {
     if (!on) sched.wake();                            // background jobs held for the call go now
   }
   /** 6.28: a tested engine waiting for his Restart now (the update key), or null. */
-  private update: UpdateCard | null = null;
+  update: UpdateCard | null = null;
   setUpdate(u: UpdateCard | null): void { this.update = u; this.sendTabs(); }
   /** The companion's bubble line about an update was clicked (2026-11-01): the update card opens, once the window has its page. */
   openUpdate(): void {
@@ -1257,10 +1268,10 @@ export class SamaraBrowser {
     setTimeout(() => tell(0), 300);
   }
   /** After an update put in overnight: what it did, shown once by the ... key (sheet 35). */
-  private updated: { title: string; lines: string[] } | null = null;
+  updated: { title: string; lines: string[] } | null = null;
   setUpdated(d: { title: string; lines: string[] } | null): void { this.updated = d; this.sendTabs(); }
   /** Sheet 122: what his "Check for updates" is doing (checking, downloading, setting up, how it ended), or null. */
-  private checking: CheckProgress | null = null;
+  checking: CheckProgress | null = null;
   setChecking(c: CheckProgress | null): void { this.checking = c; this.sendTabs(); }
   /** Why Restart now did not go ahead, in the update tray. */
   updateWhy(why: string): void { for (const p of this.panes) if (this.alive(p)) p.win!.webContents.send('browser:updatewhy', why); }
@@ -1284,7 +1295,7 @@ export class SamaraBrowser {
    * 6.24 spellcheck: Canadian and American English, like Chrome's. Chromium fetches the word lists from Google's
    * own dictionary server the first time, exactly as Chrome does. Suggestions are in the right-click menu.
    */
-  private spelling(): void {
+  spelling(): void {
     try {
       const want = ['en-CA', 'en-US'].filter((l) => this.ses.availableSpellCheckerLanguages.includes(l));
       if (want.length) this.ses.setSpellCheckerLanguages(want);
@@ -1292,12 +1303,12 @@ export class SamaraBrowser {
     } catch { /* no spellcheck is better than no browser */ }
   }
   /** Work in the window of the tab this page is in (a site asking for something). */
-  private inWc(wc: Electron.WebContents): void { const t = this.tabs.find((x) => x.view?.webContents === wc); if (t) this.inTab(t); }
+  inWc(wc: Electron.WebContents): void { const t = this.tabs.find((x) => x.view?.webContents === wc); if (t) this.inTab(t); }
   /**
    * Ask him, as a "needs you" notice dropping from what it is about (sheet 106 v7: the shield, the download key,
    * Claude's rune), with its one sound, and wait for his answer. Unanswered in 2 minutes means no.
    */
-  private ask(a: { host: string; what: string; text?: string; yes?: string; no?: string; from?: NoticeFrom; kick?: string; icon?: string; claude?: boolean }, done: (allow: boolean) => void): void {
+  ask(a: { host: string; what: string; text?: string; yes?: string; no?: string; from?: NoticeFrom; kick?: string; icon?: string; claude?: boolean }, done: (allow: boolean) => void): void {
     if (!this.win || this.win.isDestroyed()) { done(false); return; }
     let timer: NodeJS.Timeout | null = null;
     const id = this.notices.push(cleanNotice({
@@ -1312,14 +1323,14 @@ export class SamaraBrowser {
    * A small window's place: centred over Samara's window (the one in front), kept fully inside that screen's work area.
    * With no Samara window, the screen the mouse is on.
    */
-  private overWindow(width: number, height: number): { x: number; y: number; width: number; height: number } {
+  overWindow(width: number, height: number): { x: number; y: number; width: number; height: number } {
     const w = this.win && !this.win.isDestroyed() ? this.win : null;
     const b = w ? w.getBounds() : null;
     const area = b ? screen.getDisplayMatching(b).workArea : screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
     return fitIn(area, { width, height, x: b ? b.x + (b.width - width) / 2 : area.x + (area.width - width) / 2, y: b ? b.y + (b.height - height) / 2 : area.y + (area.height - height) / 2 });
   }
   /** Is this page one of this browser's own (its tabs and their popups), never another window's or Claude's? */
-  private mine(wc: Electron.WebContents | null | undefined): wc is Electron.WebContents {
+  mine(wc: Electron.WebContents | null | undefined): wc is Electron.WebContents {
     return Boolean(wc && !wc.isDestroyed() && wc.session === this.ses && !this.driver?.owns(wc));
   }
   /**
@@ -1328,7 +1339,7 @@ export class SamaraBrowser {
    *   tries in a row on the same site end it, as Chrome does, rather than looping.
    * - Client certificates: he picks which one (Electron otherwise hands the site the first one silently), or none.
    */
-  private signIns(): void {
+  signIns(): void {
     const tries = new Map<string, number>();
     app.on('login', (e, wc, details, auth, cb) => {
       if (!this.mine(wc)) return;                               // another window's, or Claude's: cancelled as before
@@ -1360,7 +1371,7 @@ export class SamaraBrowser {
     });
   }
   /** The sign-in box: one small window over his browser per ask; his answer once, or null when he cancels or closes it. */
-  private signinBox(m: { host: string; realm: string; proxy: boolean; secure: boolean; again: boolean }, done: (user: string | null, pass: string | null) => void): void {
+  signinBox(m: { host: string; realm: string; proxy: boolean; secure: boolean; again: boolean }, done: (user: string | null, pass: string | null) => void): void {
     const parent = this.win && !this.win.isDestroyed() ? this.win : undefined;
     if (!parent) { done(null, null); return; }
     const w = new BrowserWindow({ parent, modal: true, width: 400, height: 330, resizable: false, minimizable: false, maximizable: false, frame: false,
@@ -1387,7 +1398,7 @@ export class SamaraBrowser {
    * 6.22b bug 1: a page's own full screen (a video's button) fills the whole screen, band and drawer gone; it comes back
    * exactly as it was when the page leaves full screen (its button, Esc, F11, or the page dying).
    */
-  private pageFullOn(tab: Tab, view: WebContentsView): void {
+  pageFullOn(tab: Tab, view: WebContentsView): void {
     const w = this.win;
     if (!w || w.isDestroyed()) return;
     this.fullTab = tab.id;
@@ -1399,7 +1410,7 @@ export class SamaraBrowser {
     w.setFullScreen(true);
     this.place();
   }
-  private pageFullOff(tab: Tab, view: WebContentsView): void {
+  pageFullOff(tab: Tab, view: WebContentsView): void {
     if (this.fullTab !== tab.id) return;
     this.fullTab = null;
     try { if (!view.webContents.isDestroyed()) view.setBorderRadius(PAGE_RADIUS); } catch { /* an older runtime, or gone */ }
@@ -1413,7 +1424,7 @@ export class SamaraBrowser {
    * It is now a view inside Samara's own window, on both machines: no second window, nothing the Mac's full screen has
    * to carry.
    */
-  private fullHint(w: BrowserWindow): void {
+  fullHint(w: BrowserWindow): void {
     try {
       const v = new WebContentsView({ webPreferences: { ...SAFE_WEB_PREFERENCES } });
       v.setBackgroundColor('#00000000');
@@ -1433,7 +1444,7 @@ export class SamaraBrowser {
     } catch { /* full screen still works without the hint */ }
   }
   /** A link to an app (APP_LINKS): asked in the band, then handed to the system, which opens that app. */
-  private offerApp(tab: Tab, u: string): void {
+  offerApp(tab: Tab, u: string): void {
     const app = appOf(u);
     if (!app) return;
     let host = '';
@@ -1450,7 +1461,7 @@ export class SamaraBrowser {
    * 6.22: downloads go to his Downloads folder and are marked as from the internet (the Mark of the Web),
    * so Windows Defender and SmartScreen check them before anything opens them, exactly as for Chrome.
    */
-  private downloads(): void {
+  downloads(): void {
     this.ses.on('will-download', (_e, item, wc) => {
       // The companion's own pages never download (decision 42: he reads and clicks; files are not his to fetch).
       if (wc && this.driver?.owns(wc)) { item.cancel(); return; }
@@ -1524,7 +1535,7 @@ export class SamaraBrowser {
   }
 
   /** Is this address on a list, and has he not chosen to go anyway? Returns the lists, or none. */
-  private listed(u: string): string[] {
+  listed(u: string): string[] {
     try { if (this.letThrough.has(new URL(u).hostname)) return []; } catch { return []; }
     const lists = this.phish.check(u);
     if (lists.length) return lists;
@@ -1538,9 +1549,9 @@ export class SamaraBrowser {
    * His rule (2026-10-14): his bank never opens in Samara. Chrome gets safety fixes weeks sooner, so a bank or money
    * site gets a plate with one big "Open in Chrome" button instead of the page. Same stops as the fake-site lists.
    */
-  private stopFor(u: string): string[] { return isWeb(u) && bankSite(u) ? [BANK] : this.listed(u); }
+  stopFor(u: string): string[] { return isWeb(u) && bankSite(u) ? [BANK] : this.listed(u); }
   /** His bank, handed to Chrome (Safari on the Mac, Edge on Windows, if Chrome is not there). Web addresses only. */
-  private toChrome(u: string): void {
+  toChrome(u: string): void {
     let url = '';
     try { const x = new URL(u); if (x.protocol !== 'https:' && x.protocol !== 'http:') return; url = x.href; } catch { return; }
     const fail = (e: Error | null) => { if (e) this.note('', { kind: 'bad', from: 'shield', icon: 'globe', kick: 'Chrome', title: "Didn't open", rows: [{ g: 'Do this', v: 'Open your bank there yourself.' }] }); };
@@ -1557,7 +1568,7 @@ export class SamaraBrowser {
    * The page only rings (tabpreload.cjs); the address offered is the one Samara reads itself from the page's own top
    * frame, never anything the page says. Once per address, so a page that keeps asking cannot keep the notice up.
    */
-  private passkeyAsked = new Map<number, string>();
+  passkeyAsked = new Map<number, string>();
   passkeyWanted(wc: Electron.WebContents): void {
     if (!this.mine(wc)) return;
     const u = wc.getURL();
@@ -1565,7 +1576,7 @@ export class SamaraBrowser {
     this.chromeOffer(wc, u, u, 'passkey');
   }
   /** Google's "This browser or app may not be secure" (phase 3): the same offer, for the page he was signing in to. */
-  private async googleCheck(wc: Electron.WebContents, cameFrom: () => string): Promise<void> {
+  async googleCheck(wc: Electron.WebContents, cameFrom: () => string): Promise<void> {
     if (wc.isDestroyed() || !this.mine(wc)) return;
     const u = wc.getURL();
     if (!/^https:\/\/accounts\.(google|youtube)\.com\//i.test(u)) return;
@@ -1579,7 +1590,7 @@ export class SamaraBrowser {
     try { from = cameFrom(); } catch { /* none */ }
     this.chromeOffer(wc, u, refusalTarget(u, from), 'google');
   }
-  private chromeOffer(wc: Electron.WebContents, at: string, target: string, why: 'passkey' | 'google'): void {
+  chromeOffer(wc: Electron.WebContents, at: string, target: string, why: 'passkey' | 'google'): void {
     const tab = this.tabs.find((t) => t.view?.webContents === wc);
     const key = tab?.id ?? -wc.id;
     if (this.passkeyAsked.get(key) === at) return;
@@ -1594,7 +1605,7 @@ export class SamaraBrowser {
       (ok) => { if (ok) this.toChrome(target); });
   }
   /** Stop a tab at a listed address: nothing loads, the frame shows the red plate instead. */
-  private block(tab: Tab, url: string, lists: string[]): void {
+  block(tab: Tab, url: string, lists: string[]): void {
     const like = lists.find((l) => l.startsWith(LOOKS_LIKE));
     tab.blocked = { url, lists, ...(like ? { real: like.slice(LOOKS_LIKE.length).toLowerCase() } : {}), ...(lists[0] === BANK ? { bank: true } : {}) };
     tab.url = url;
@@ -1609,13 +1620,13 @@ export class SamaraBrowser {
   }
 
   /** HTTPS-first: the address to really load, the secure one when it exists. Remembers what it upgraded. */
-  private secured(tab: Tab, url: string): string {
+  secured(tab: Tab, url: string): string {
     const up = upgrade(url, this.httpOk);
     tab.upgraded = up ? url : null;
     return up ?? url;
   }
   /** The page did not load: the frame's own plate shows where it would be. */
-  private fail(tab: Tab, f: NonNullable<Tab['failed']>): void {
+  fail(tab: Tab, f: NonNullable<Tab['failed']>): void {
     tab.failed = f;
     tab.loading = false;
     tab.upgraded = null;
@@ -1698,7 +1709,7 @@ export class SamaraBrowser {
     this.savePrefs(); this.sync?.changed('prefs'); this.sendTabs(); this.pushSettings();
   }
   /** Every site he set anything for, with all its rules, for Settings > Your sites. */
-  private yourSites(): { host: string; favicon: string; ai: boolean; login: boolean; ads: boolean; popups: boolean; dark: boolean; camera: Tri; mic: Tri; bank: boolean }[] {
+  yourSites(): { host: string; favicon: string; ai: boolean; login: boolean; ads: boolean; popups: boolean; dark: boolean; camera: Tri; mic: Tri; bank: boolean }[] {
     const hosts = new Set<string>([...Object.keys(this.rules.all()), ...this.paused, ...this.popupOk, ...this.prefs.darkOff].map((h) => siteKey(h)).filter(Boolean));
     return [...hosts].sort().slice(0, 500).map((host) => {
       const u = 'https://' + host + '/', st = this.siteState(u)!;
@@ -1719,7 +1730,7 @@ export class SamaraBrowser {
   }
 
   /** SY: the other machine's lists, in place of these. Every entry is checked as if it were typed here. */
-  private takeLists(v: unknown): void {
+  takeLists(v: unknown): void {
     if (!v || typeof v !== 'object') return;
     const L = v as Record<string, unknown>;
     const put = (f: string, set: Set<string>) => { try { writeFileAtomic(f, JSON.stringify([...set])); } catch { /* best effort */ } };
@@ -1749,11 +1760,11 @@ export class SamaraBrowser {
     this.sendTabs(); this.pushSettings();
   }
   /** The site's name for dark mode: its host without www. */
-  private darkHost(u: string): string { try { return new URL(u).hostname.replace(/^www\./, '').toLowerCase(); } catch { return ''; } }
+  darkHost(u: string): string { try { return new URL(u).hostname.replace(/^www\./, '').toLowerCase(); } catch { return ''; } }
   /** Dark mode on this page: on everywhere unless he switched it off for this site. */
-  private darkWanted(u: string): boolean { return this.prefs.dark && isWeb(u) && !this.prefs.darkOff.includes(this.darkHost(u)); }
+  darkWanted(u: string): boolean { return this.prefs.dark && isWeb(u) && !this.prefs.darkOff.includes(this.darkHost(u)); }
   /** Make one page dark, or put it back. Runs on every page load and on every switch. */
-  private paintDark(t: Tab): void {
+  paintDark(t: Tab): void {
     const wc = t.view?.webContents;
     if (!wc || wc.isDestroyed() || t.internal || !isWeb(wc.getURL())) return;
     const on = this.darkWanted(wc.getURL());
@@ -1762,13 +1773,13 @@ export class SamaraBrowser {
     const steps = on ? [{ code: `if(!globalThis.DarkReader){${src}\n};true` }, { code: `${ALREADY_DARK}if(!DarkReader.isEnabled()&&!__samaraAlreadyDark()){DarkReader.enable(${DARK_THEME});__samaraWatchDark();}true` }] : [{ code: 'globalThis.DarkReader&&DarkReader.disable();true' }];
     void wc.executeJavaScriptInIsolatedWorld(DARK_WORLD, steps).catch(() => { /* the page went away */ });
   }
-  private paintDarkAll(): void { for (const t of this.tabs) this.paintDark(t); }
+  paintDarkAll(): void { for (const t of this.tabs) this.paintDark(t); }
   /**
    * With dark mode on, every site is told he prefers dark (prefers-color-scheme), so the many that have a dark look of
    * their own (YouTube, Reddit, Twitch, LinkedIn...) draw it themselves, at no cost; Dark Reader then finds them already
    * dark and leaves them be. The companion's own pages never follow this setting, so only websites change.
    */
-  private colorScheme(): void { try { nativeTheme.themeSource = this.prefs.dark ? 'dark' : 'system'; } catch { /* not here */ } }
+  colorScheme(): void { try { nativeTheme.themeSource = this.prefs.dark ? 'dark' : 'system'; } catch { /* not here */ } }
   /**
    * Dark mode from the page's first moment (2026-10-20: Gmail and LinkedIn stayed white for a long while).
    * dom-ready comes late on heavy sites, so the tab's own script asks here as the page starts, and runs Dark Reader in its
@@ -1799,7 +1810,7 @@ export class SamaraBrowser {
   }
 
   /** Sheet 87: the link he last clicked in each tab (the page's own message, his clicks only), and when. */
-  private lastLink = new Map<number, { url: string; at: number }>();
+  lastLink = new Map<number, { url: string; at: number }>();
   linkClicked(sender: Electron.WebContents, href: string): void {
     const t = this.tabs.find((x) => x.view?.webContents === sender);
     if (!t) return;
@@ -1809,7 +1820,7 @@ export class SamaraBrowser {
    * Sheet 87 (his anime sites, every window): a new tab or window a page opens on his click is his only when it is the
    * link he clicked, the site's own page, or a sign-in page. An ad that a page opens on any click is none of those.
    */
-  private fairOpen(tab: Tab, pageUrl: string, u: string): boolean {
+  fairOpen(tab: Tab, pageUrl: string, u: string): boolean {
     const l = this.lastLink.get(tab.id);
     try { if (l && Date.now() - l.at < GESTURE_MS && new URL(u).href === l.url) return true; } catch { return false; }
     try {
@@ -1818,9 +1829,9 @@ export class SamaraBrowser {
     } catch { return false; }
   }
   /** A site he let open pop-ups. */
-  private popOk(site: string): boolean { return this.popupOk.has(site); }
+  popOk(site: string): boolean { return this.popupOk.has(site); }
 
-  private savePrefs(): void {
+  savePrefs(): void {
     try { writeFileAtomic(this.prefsFile, JSON.stringify({ sounds: this.sounds, ...this.prefs })); } catch { /* best effort */ }
     this.sync?.changed('prefs');
   }
@@ -1890,7 +1901,7 @@ export class SamaraBrowser {
    * loads, even when nobody asked it to (seen on the hidden desktop: no focus() call, and the tab had it anyway). While
    * the bar is open and he has not clicked the page, the keyboard goes back to the bar.
    */
-  private holdBarAtStart(p: Pane): void {
+  holdBarAtStart(p: Pane): void {
     const w = p.win;
     if (!w) return;
     const clickedAt = new Map<number, number>();
@@ -1920,233 +1931,12 @@ export class SamaraBrowser {
     return Boolean(p);
   }
 
-  // ------------------------------------------------------------------ the tab list, floating over the live page
-  /**
-   * His ask (2026-10-13): Twitch froze under the drawer (it showed a picture of the page), and the page must not get
-   * smaller either. So the list is drawn in its own see-through layer ABOVE the live page: the video stays full size
-   * and keeps playing under its edge. The layer is the frame's own page (?tray), so it is the same list, the same
-   * clicks, the same drag and drop.
-   */
-  private trayView(): WebContentsView | null {
-    const w = this.win;
-    if (!w || w.isDestroyed()) return null;
-    if (this.trayV && !this.trayV.webContents.isDestroyed()) return this.trayV;
-    // Never slowed while hidden: its slide must start the moment it shows (2026-10-20). It does nothing at rest.
-    const v = new WebContentsView({ webPreferences: { ...SAFE_WEB_PREFERENCES, preload: this.o.preloadPath, backgroundThrottling: false } });
-    lockDown(v.webContents);
-    v.setBackgroundColor('#00000000');
-    v.setVisible(false);
-    const P = this.pane;
-    P.trayReady = false; P.trayNext = null;
-    // Phase R (2026-11-24): an open before its page has loaded is ignored (see tray()), so it never slides out late.
-    v.webContents.on('did-finish-load', () => { this.pane = P; P.trayReady = true; P.trayNext = null; this.sendTabs(); this.trayFlush(P); v.webContents.send('browser:tray', { size: this.tabSize }); this.warmTray(P, v); });
-    v.webContents.on('before-input-event', (e, input) => { this.pane = P; if (this.key(input)) e.preventDefault(); });
-    void v.webContents.loadURL(`${this.o.origin}/browser.html?tray=1`).catch(() => { /* its window closed while it loaded */ });
-    this.trayV = v;
-    return v;
-  }
-  /**
-   * Drawn once, out of sight, before he first opens it (2026-10-22, measured on his Mac: the very first open stalled the
-   * screen 130-400 ms while the graphics card drew the list's layer for the first time; every later open was smooth).
-   * The layer is shown for a moment at almost no opacity with the list out, then put away. Only while his mouse is
-   * not where it lies, so it never takes a click meant for the page.
-   */
-  private warmTray(P: Pane, v: WebContentsView, tries = 0): void {
-    const w = P.win;
-    if (P.trayOn || !w || w.isDestroyed() || v.webContents.isDestroyed() || tries > 10) return;
-    const [cw, ch] = w.getContentSize(), wb = w.getContentBounds(), at = P.trayAt;
-    const box = { x: at.x, y: at.y, width: Math.max(0, Math.min(TRAY_W[this.tabSize], cw - at.x)), height: Math.max(0, ch - at.y) };
-    const m = screen.getCursorScreenPoint();
-    if (m.x >= wb.x + box.x && m.x < wb.x + box.x + box.width && m.y >= wb.y + box.y && m.y < wb.y + box.y + box.height) { setTimeout(() => this.warmTray(P, v, tries + 1), 2000); return; }
-    v.setBounds(box);
-    w.contentView.addChildView(v);
-    v.setVisible(true);
-    v.webContents.send('browser:tray', { warm: true });
-    setTimeout(() => { if (!P.trayOn && !v.webContents.isDestroyed()) v.setVisible(false); }, 300);
-  }
-
   /** Tabs opened from links since he last opened the list (the tab arrow's +1). */
-  private newSince = 0;
-  /** Open the list where the frame says (beside its handle, under the band), or put it away. */
-  tray(open: boolean, at?: { x?: unknown; y?: unknown }): void {
-    const w = this.win;
-    if (!w || w.isDestroyed()) return;
-    if (!open) {
-      // The rail slides back in with its handle (2026-10-20), then goes; the band's own handle shows again
-      // only once the rail's copy is back on top of it, so there is never a second arrow.
-      const v = this.trayV && !this.trayV.webContents.isDestroyed() ? this.trayV : null;
-      void this.tabPeek(null);
-      if (!this.trayOn) { v?.setVisible(false); return; }
-      this.trayOn = false;
-      this.pane.traySeq = (this.pane.traySeq ?? 0) + 1; this.pane.trayShutAt = Date.now();
-      v?.webContents.send('browser:tray', { open: false });
-      setTimeout(() => {
-        if (this.trayOn || w.isDestroyed()) return;
-        v?.setVisible(false);
-        w.webContents.send('browser:tray', { open: false }); w.webContents.focus();
-      }, TRAY_SLIDE_MS + 20);
-      return;
-    }
-    const v = this.trayView();
-    if (!v) return;
-    // Not drawn yet (his hover in the first moment after start): stay shut rather than slide out late. The band's
-    // handle is told, so the next hover opens it normally.
-    if (!this.pane.trayReady) { w.webContents.send('browser:tray', { open: false }); return; }
-    this.newSince = 0;
-    // Phase R (2026-11-24, measured): nothing but the slide runs while the rail moves. The page picture for the hover
-    // card (a capture and a JPEG, ~9 ms) waits until the slide is over; the hover layer was built at start.
-    const P0 = this.pane, seq = P0.traySeq = (P0.traySeq ?? 0) + 1;
-    setTimeout(() => { if (P0.trayOn && P0.traySeq === seq) { const was = this.pane; this.pane = P0; void this.cardOf(this.cur()); this.pane = was; } }, TRAY_SLIDE_MS + 40);
-    const n = (x: unknown, d: number) => (Number.isFinite(Number(x)) ? Math.max(0, Math.round(Number(x))) : d);
-    this.trayAt = { x: n(at?.x, this.trayAt.x), y: n(at?.y, this.trayAt.y), hy: n((at as { hy?: unknown })?.hy, this.trayAt.hy ?? 80) };
-    this.trayOn = true;
-    this.placeTray();
-    w.contentView.addChildView(v);             // to the top, over the page
-    // The rail starts folded, its handle exactly over the band's, then slides out carrying it (2026-10-20).
-    v.setVisible(true);
-    // The list is already current (sent while it was shut); only a change still waiting goes first.
-    this.trayFlush(this.pane);
-    v.webContents.send('browser:tray', { open: true, hy: this.trayAt.hy, size: this.tabSize });
-    v.webContents.focus();
-    w.webContents.send('browser:tray', { open: true });
-  }
-  /** Send the shut list its newest state now (a change waiting for the quiet moment). */
-  private trayFlush(P: Pane): void {
-    if (P.trayNextT) { clearTimeout(P.trayNextT); P.trayNextT = null; }
-    const d = P.trayNext; P.trayNext = null;
-    if (d && P.trayV && !P.trayV.webContents.isDestroyed() && P.trayReady) P.trayV.webContents.send('browser:tabs', d);
-  }
-  // ------------------------------------------------------------------ sheet 121 (4): two pages side by side
-  /**
-   * His pick (2026-11-20): two pages in one window. The page he is using has the gold edge; a wood peg between them shares
-   * the space. Opened by dropping a tab at the window's right edge, or "Side by side" in the ⋯ menu; each page's × ends it
-   * (both tabs stay open). The pair is remembered: picking either tab shows both again, and it comes back after a restart.
-   */
-  /** The pair in this window, when both of its tabs are still here (a pair that lost a tab is forgotten). */
-  private splitOf(P: Pane = this.pane): { L: Tab; R: Tab; ratio: number } | null {
-    const s = P.split;
-    if (!s) return null;
-    const L = this.tabs.find((x) => x.id === s.left && x.pane === P.id), R = this.tabs.find((x) => x.id === s.right && x.pane === P.id);
-    if (!L || !R || L === R || L.lent || R.lent) { P.split = null; return null; }
-    return { L, R, ratio: s.ratio };
-  }
-  /** The pair, while one of its tabs is the one in front (and no page is full screen). */
-  private splitShown(P: Pane = this.pane): { L: Tab; R: Tab; ratio: number } | null {
-    const x = this.splitOf(P);
-    return x && (P.active === x.L.id || P.active === x.R.id) && P.fullTab === null ? x : null;
-  }
-  /** The other page of the pair shown with this one, if any. */
-  private partnerOf(id: number, P: Pane = this.pane): Tab | null {
-    const x = this.splitOf(P);
-    return !x ? null : x.L.id === id ? x.R : x.R.id === id ? x.L : null;
-  }
-  /** In front: the tab in front of a window, or the other page of a pair shown beside it. */
-  private inFront(t: Tab): boolean {
-    return this.panes.some((p) => p.active === t.id || (this.splitShown(p) !== null && (p.split!.left === t.id || p.split!.right === t.id)));
-  }
-  /** The two pages' places (window pixels): the page area cut in two with the peg's gap, a name strip over each. */
-  private splitBoxes(ratio: number): { left: Electron.Rectangle; right: Electron.Rectangle } | null {
-    const w = this.win;
-    if (!w || w.isDestroyed()) return null;
-    const [cw, ch] = w.getContentSize();
-    const x0 = this.inset.left, y0 = this.inset.top + SPLIT_HEAD, W = Math.max(0, cw - this.inset.left - this.inset.right), H = Math.max(0, ch - y0 - this.inset.bottom);
-    const lw = splitLeftWidth(W, ratio);
-    return { left: { x: x0, y: y0, width: lw, height: H }, right: { x: x0 + lw + SPLIT_GAP, y: y0, width: Math.max(0, W - lw - SPLIT_GAP), height: H } };
-  }
-  /** Lay out the pair (from place()). */
-  private placeSplit(x: { L: Tab; R: Tab; ratio: number }): void {
-    const b = this.splitBoxes(x.ratio);
-    if (!b) return;
-    for (const [t, r] of [[x.L, b.left], [x.R, b.right]] as const) {
-      if (!t.view) continue;
-      if (t.crashed || t.blocked || t.failed) { t.view.setBounds({ x: 0, y: 0, width: 0, height: 0 }); continue; }
-      t.view.setBounds(r);
-      if (!this.drawerOpen && !t.view.getVisible()) t.view.setVisible(true);
-    }
-    if (this.veil?.up && this.curtain) { const t = this.cur(); if (t?.view) this.curtain.setBounds(t.view.getBounds()); }
-  }
+  newSince = 0;
   /** The band draws the name strips, the gold edge and the peg from this (only when something changed). */
-  private splitSent = new WeakMap<Pane, string>();
-  private splitSend(): void {
-    const P = this.pane, w = this.win;
-    if (!w || w.isDestroyed()) return;
-    const x = this.splitShown(P);
-    const info = (t: Tab) => { let host = '', rest = ''; try { const u = new URL(t.url); host = u.hostname.replace(/^www\./, ''); rest = u.pathname === '/' ? '' : u.pathname; } catch { host = t.title; } return { id: t.id, title: t.title, host, rest, favicon: t.favicon || this.iconOf(t.url) }; };
-    const msg = x ? { ratio: x.ratio, gap: SPLIT_GAP, head: SPLIT_HEAD, on: P.active === x.L.id ? 'left' : 'right', left: info(x.L), right: info(x.R) } : null;
-    const sig = JSON.stringify(msg);
-    if (this.splitSent.get(P) === sig) return;
-    this.splitSent.set(P, sig);
-    w.webContents.send('browser:sbs', msg);
-  }
-  /** Side by side with another tab: the one given (dropped at the right edge), or the last one he was on, or a new one. */
-  splitOpen(other?: number): void {
-    const P = this.pane, a = this.cur();
-    if (!a || a.lent || !this.alive(P)) return;
-    const mine = this.paneTabs(P).filter((x) => !x.lent && !x.done);
-    let left = a, right: Tab | undefined;
-    const dropped = other === undefined ? undefined : mine.find((x) => x.id === other);
-    if (dropped && dropped !== a) right = dropped;
-    else {
-      right = mine.filter((x) => x !== a).sort((p, q) => q.lastSeen - p.lastSeen)[0];
-      if (dropped === a && right) { left = right; right = a; }      // the page in front was dropped at the edge: it goes right
-    }
-    if (!right) {
-      const id = this.newTab(this.HOME, null, false);
-      right = id === null ? undefined : this.tabs.find((x) => x.id === id);
-      this.pane = P;
-    }
-    if (!right) return;
-    P.split = { left: left.id, right: right.id, ratio: P.split?.ratio ?? 0.5 };
-    for (const t of [left, right]) if (!t.view) this.wake(t); else this.thaw(t);
-    this.pane = P;
-    this.activate(dropped && dropped !== a ? dropped.id : a.id);
-    this.changed();
-  }
-  /** The pair ends; both tabs stay open. `keep`: the page that stays in front (the other one's × was pressed). */
-  splitClose(keep?: number): void {
-    const P = this.pane, x = this.splitOf(P);
-    P.split = null;
-    if (!x) { this.splitSend(); return; }
-    const stay = keep === x.L.id || keep === x.R.id ? keep : P.active ?? x.L.id;
-    this.activate(stay);
-    this.changed();
-  }
-  /** The band: the peg was dragged (a share of the width), a page's strip was clicked, or its × pressed. */
-  splitFromFrame(a: Record<string, unknown>): void {
-    const P = this.pane, x = this.splitOf(P);
-    if (!x) return;
-    if (typeof a.ratio === 'number' && Number.isFinite(a.ratio)) {
-      P.split!.ratio = clampSplit(a.ratio);
-      this.place();
-      if (a.done === true) this.changed();
-      return;
-    }
-    const id = Number(a.id);
-    if (id !== x.L.id && id !== x.R.id) return;
-    if (a.act === 'focus') this.activate(id);
-    else if (a.act === 'close') this.splitClose(id === x.L.id ? x.R.id : x.L.id);
-  }
-  /** A page of the pair got the keyboard (he clicked into it): it becomes the page in front, with the gold edge. */
-  private splitFocus(t: Tab): void {
-    const P = this.paneOfTab(t);
-    if (!P || !this.alive(P) || P.active === t.id) return;
-    const x = this.splitShown(P);
-    if (!x || (x.L !== t && x.R !== t)) return;
-    this.pane = P;
-    this.activate(t.id);
-  }
+  splitSent = new WeakMap<Pane, string>();
   /** Pairs read back from the saved tabs, waiting until both tabs are in the same window (other windows open a moment later). */
-  private splitsWanted: { L: Tab; R: Tab; ratio: number }[] = [];
-  private adoptSplits(): void {
-    this.splitsWanted = this.splitsWanted.filter((s) => {
-      if (!this.tabs.includes(s.L) || !this.tabs.includes(s.R)) return false;
-      if (s.L.pane !== s.R.pane) return true;
-      const P = this.panes.find((p) => p.id === s.L.pane);
-      if (!P) return true;
-      if (!P.split) { P.split = { left: s.L.id, right: s.R.id, ratio: s.ratio }; const was = this.pane; this.pane = P; if (P.active === s.L.id || P.active === s.R.id) this.activate(P.active!); this.pane = was; }
-      return false;
-    });
-  }
+  splitsWanted: { L: Tab; R: Tab; ratio: number }[] = [];
 
   // ------------------------------------------------------------------ sheet 121 (5): peek at a link
   /**
@@ -2155,92 +1945,7 @@ export class SamaraBrowser {
    * layers: a see-through one over the whole window (the shade, the strip and its keys, which takes the click outside),
    * and the page itself in the box under the strip.
    */
-  private lp: { pane: Pane; shade: WebContentsView; view: WebContentsView; from: number | null; ready: boolean } | null = null;
-  /** A page asked (Shift-click or a held press on a link). */
-  peekLink(sender: Electron.WebContents, href: string): void {
-    const t = this.tabs.find((x) => x.view?.webContents === sender);
-    if (!t || t.lent || t.internal) return;
-    const P = this.paneOfTab(t);
-    if (!P || !this.alive(P)) return;
-    this.pane = P;
-    this.linkPeek(href, t.id);
-  }
-  /** Open the peek over the page in front (a web address only). */
-  linkPeek(href: string, from: number | null = null): void {
-    let url: string;
-    try { const u = new URL(href); if (!/^https?:$/.test(u.protocol)) return; url = u.href; } catch { return; }
-    const P = this.pane, w = this.win;
-    if (!w || w.isDestroyed()) return;
-    this.linkPeekClose();
-    const shade = new WebContentsView({ webPreferences: { ...SAFE_WEB_PREFERENCES, preload: this.o.preloadPath, backgroundThrottling: false } });
-    lockDown(shade.webContents);
-    shade.setBackgroundColor('#00000000');
-    const view = new WebContentsView({ webPreferences: { ...SAFE_WEB_PREFERENCES, session: this.ses, preload: this.o.tabPreloadPath, backgroundThrottling: false } });
-    view.setBackgroundColor('#ffffff');
-    try { view.setBorderRadius(12); } catch { /* square */ }
-    const lp = { pane: P, shade, view, from, ready: false };
-    this.lp = lp;
-    const wc = view.webContents;
-    // A link in it that wants a new window opens as a normal tab, behind.
-    wc.setWindowOpenHandler(({ url: u }) => { if (/^https?:/i.test(u)) { this.pane = P; this.newTab(u, null, false); } return { action: 'deny' }; });
-    const head = () => { if (this.lp !== lp || shade.webContents.isDestroyed() || !lp.ready) return; let host = '', rest = ''; try { const u = new URL(wc.getURL() || url); host = u.hostname.replace(/^www\./, ''); rest = u.pathname === '/' ? '' : u.pathname; } catch { host = url; } void shade.webContents.executeJavaScript(`peekHead(${JSON.stringify({ host, rest, title: wc.getTitle() })})`, true).catch(() => {}); };
-    for (const ev of ['did-navigate', 'did-navigate-in-page', 'page-title-updated', 'did-stop-loading'] as const) wc.on(ev as 'did-navigate', head);
-    const keys = (e: Electron.Event, input: Electron.Input) => { if (input.type === 'keyDown' && input.key === 'Escape') { e.preventDefault(); this.linkPeekClose(); } };
-    wc.on('before-input-event', keys);
-    shade.webContents.on('before-input-event', keys);
-    shade.webContents.on('did-finish-load', () => { lp.ready = true; this.placePeek(); head(); });
-    void shade.webContents.loadURL(`${this.o.origin}/peek.html`).catch(() => { /* gone */ });
-    void wc.loadURL(url).catch(() => { /* the page says so itself */ });
-    w.contentView.addChildView(shade);
-    w.contentView.addChildView(view);
-    this.placePeek();
-    wc.focus();
-  }
-  /** The box over the page area: two thirds of it wide (at least 640), centred, a little in from the top and bottom. */
-  private peekBox(): { shade: Electron.Rectangle; box: Electron.Rectangle } | null {
-    const lp = this.lp, w = lp?.pane.win;
-    if (!lp || !w || w.isDestroyed()) return null;
-    const [cw, ch] = w.getContentSize(), ins = lp.pane.inset;
-    const aw = Math.max(0, cw - ins.left - ins.right), ah = Math.max(0, ch - ins.top - ins.bottom);
-    const bw = Math.min(aw - 40, Math.max(640, Math.round(aw * 0.66)));
-    const x = ins.left + Math.round((aw - bw) / 2), y = ins.top + 22, h = Math.max(200, ah - 54);
-    return { shade: { x: 0, y: 0, width: cw, height: ch }, box: { x, y, width: Math.max(0, bw), height: h } };
-  }
-  private placePeek(): void {
-    const lp = this.lp, b = this.peekBox();
-    if (!lp || !b) return;
-    lp.shade.setBounds(b.shade);
-    lp.view.setBounds({ x: b.box.x, y: b.box.y + PEEK_HEAD, width: b.box.width, height: Math.max(0, b.box.height - PEEK_HEAD) });
-    if (lp.ready && !lp.shade.webContents.isDestroyed()) void lp.shade.webContents.executeJavaScript(`peekBox(${JSON.stringify({ ...b.box, head: PEEK_HEAD })})`, true).catch(() => {});
-  }
-  /** Close it (Esc, the ×, a click outside, or he kept it). */
-  linkPeekClose(): void {
-    const lp = this.lp;
-    if (!lp) return;
-    this.lp = null;
-    const w = lp.pane.win;
-    for (const v of [lp.view, lp.shade]) {
-      try { if (w && !w.isDestroyed()) w.contentView.removeChildView(v); } catch { /* gone */ }
-      try { if (!v.webContents.isDestroyed()) v.webContents.close(); } catch { /* gone */ }
-    }
-    const t = this.tabs.find((x) => x.id === lp.pane.active);
-    if (t?.view && !t.view.webContents.isDestroyed()) t.view.webContents.focus();
-  }
-  /** The strip's keys: keep it as a tab (in front), put it side by side with the page under it, or close it. */
-  peekAct(sender: Electron.WebContents, act: unknown): void {
-    const lp = this.lp;
-    if (!lp || sender !== lp.shade.webContents) return;
-    this.pane = lp.pane;
-    const url = lp.view.webContents.isDestroyed() ? '' : lp.view.webContents.getURL();
-    if (act === 'close' || !/^https?:/i.test(url)) { this.linkPeekClose(); return; }
-    if (act === 'tab') { this.linkPeekClose(); this.newTab(url, lp.from, true); return; }
-    if (act === 'split') {
-      this.linkPeekClose();
-      const id = this.newTab(url, lp.from, false);
-      this.pane = lp.pane;
-      if (id !== null) this.splitOpen(id);
-    }
-  }
+  lp: { pane: Pane; shade: WebContentsView; view: WebContentsView; from: number | null; ready: boolean } | null = null;
 
   // ------------------------------------------------------------------ sheet 121 (3): hover a tab to see it
   /**
@@ -2248,159 +1953,10 @@ export class SamaraBrowser {
    * full name and address, BESIDE the list. The list itself is not touched: the picture is its own small layer to the
    * right of it. The page in front is pictured live; the others show the picture taken the last time they were in front.
    */
-  private tabPeekV: WebContentsView | null = null;
-  private tabPeekOn = false;
-  private tabPeekReady = false;
-  private tabPeekSeq = 0;
-  /** A small picture of the page in front, for the tab list's hover picture. */
-  private async cardOf(t: Tab | undefined): Promise<void> {
-    if (!t?.view || t.crashed || t.blocked || t.failed || t.lent || t.internal || !t.view.getVisible() || t.id !== this.active) return;
-    try { const s = await capture(t.view, { ms: 500, maxWidth: 640, quality: 72 }); if (s) { t.card = s.dataUrl(); t.cardUrl = t.url; } } catch { /* none this time */ }
-  }
-  private tabPeekView(): WebContentsView | null {
-    const w = this.win;
-    if (!w || w.isDestroyed()) return null;
-    if (liveView(this.tabPeekV) && this.tabPeekV) {
-      // The layer belongs to one window at a time: moved to the one he is in.
-      if (!w.contentView.children.includes(this.tabPeekV)) { this.tabPeekV.setVisible(false); this.tabPeekOn = false; }
-      return this.tabPeekV;
-    }
-    const v = new WebContentsView({ webPreferences: { ...SAFE_WEB_PREFERENCES, backgroundThrottling: false } });
-    lockDown(v.webContents);
-    v.setBackgroundColor('#00000000');
-    v.setVisible(false);
-    this.tabPeekReady = false;
-    v.webContents.on('did-finish-load', () => { this.tabPeekReady = true; });
-    void v.webContents.loadURL(`${this.o.origin}/tabpeek.html`).catch(() => { /* gone */ });
-    this.tabPeekV = v;
-    return v;
-  }
-  /** The list: the mouse rests on a tab (its row's top and bottom in the list's own layer), or it left the rows. */
-  async tabPeek(a: { id?: unknown; top?: unknown; bottom?: unknown } | null): Promise<void> {
-    const seq = ++this.tabPeekSeq;
-    const w = this.win, P = this.pane;
-    const hide = () => { if (this.tabPeekOn) { this.tabPeekOn = false; this.tabPeekV?.setVisible(false); } };
-    if (!a || !w || w.isDestroyed() || !P.trayOn) { hide(); return; }
-    const t = this.tabs.find((x) => x.id === Number(a.id) && x.pane === P.id);
-    const top = Number(a.top), bottom = Number(a.bottom);
-    if (!t || !Number.isFinite(top) || !Number.isFinite(bottom)) { hide(); return; }
-    const v = this.tabPeekView();
-    if (!v) return;
-    if (t.id === this.active) await this.cardOf(t);
-    if (seq !== this.tabPeekSeq || !P.trayOn || w.isDestroyed()) return;
-    const shot = t.card ?? t.leftShot ?? null;
-    let host = '', rest = '';
-    try { const u = new URL(t.url); host = u.hostname.replace(/^www\./, ''); rest = (u.pathname === '/' ? '' : u.pathname) + u.search; } catch { host = t.url.startsWith('samara:') ? 'Samara' : t.url; }
-    const W = 356, H = shot ? 278 : 92;
-    const [cw, ch] = w.getContentSize();
-    const x = Math.min(cw - W - 4, P.trayAt.x + TRAY_W[this.tabSize] + 6);
-    const mid = P.trayAt.y + (top + bottom) / 2;
-    const y = Math.max(P.trayAt.y + 4, Math.min(ch - H - 4, Math.round(mid - H / 2)));
-    if (x < P.trayAt.x + 40) { hide(); return; }       // no room beside the list in a narrow window
-    const data = { shot, title: t.title || host, host, rest, playing: t.audible === true && !t.muted };
-    // The page has no doors of its own: it is handed the picture and the words (drawn with textContent there).
-    const paint = () => { if (seq === this.tabPeekSeq && !v.webContents.isDestroyed()) void v.webContents.executeJavaScript(`show(${JSON.stringify(data)})`, true).catch(() => { /* gone */ }); };
-    if (this.tabPeekReady) paint(); else v.webContents.once('did-finish-load', paint);
-    v.setBounds({ x: Math.max(0, x), y, width: W, height: H });
-    if (!this.tabPeekOn || !w.contentView.children.includes(v)) w.contentView.addChildView(v);   // over the page, beside the list
-    this.tabPeekOn = true;
-    v.setVisible(true);
-  }
-
-  // ------------------------------------------------------------------ the band's panels, floating over the live page
-  /** The frame's panel layer: the frame's own page with ?float, see-through, the size of the window, on top while a panel is open. */
-  floatView(): WebContentsView | null {
-    const w = this.win, P = this.pane;
-    if (!w || w.isDestroyed()) return null;
-    if (liveView(P.floatV)) return P.floatV!;
-    // Never slowed while hidden: a menu must draw the moment it shows. It does nothing at rest.
-    const v = new WebContentsView({ webPreferences: { ...SAFE_WEB_PREFERENCES, preload: this.o.preloadPath, backgroundThrottling: false } });
-    lockDown(v.webContents);
-    v.setBackgroundColor('#00000000');
-    v.setVisible(false);
-    P.floatReady = false;
-    v.webContents.on('did-finish-load', () => {
-      this.pane = P;
-      // What the frame was told before this layer could listen: the tab list (with the site, zoom and update state),
-      // the downloads, Claude's plan.
-      for (const [ch, a] of P.floatLast ?? []) if (ch !== 'browser:openupdate') v.webContents.send(ch, ...a);
-      P.floatReady = true;
-      if (this.alive(P)) P.win!.webContents.send('browser:float', { ready: true });
-    });
-    v.webContents.on('render-process-gone', () => { P.floatReady = false; P.floatOn = false; if (this.alive(P)) P.win!.webContents.send('browser:float', { ready: false }); });
-    // His keys work while a menu is open (Ctrl+T, Ctrl+L ...), the same as in the tab list.
-    v.webContents.on('before-input-event', (e, input) => { this.pane = P; if (this.key(input)) e.preventDefault(); });
-    void v.webContents.loadURL(`${this.o.origin}/browser.html?float=1`).catch(() => { /* its window closed while it loaded */ });
-    P.floatV = v;
-    return v;
-  }
-  isFloat(sender: Electron.WebContents): boolean {
-    const p = this.panes.find((x) => this.alive(x) && liveView(x.floatV) && sender === x.floatV!.webContents);
-    if (p) this.pane = p;
-    return Boolean(p);
-  }
-  /** Show the layer over everything (it covers the whole window, so a click anywhere else closes the panel), or put it away. */
-  private floatShow(on: boolean): void {
-    const w = this.win, P = this.pane, v = P.floatV;
-    if (!w || w.isDestroyed() || !liveView(v)) return;
-    if (!on) {
-      if (!P.floatOn) return;
-      P.floatOn = false;
-      v.setVisible(false);
-      // The keyboard goes back to the page he was on (or the band, when there is no page).
-      const t = this.cur();
-      if (t?.view && !t.lent && !t.view.webContents.isDestroyed() && t.view.getVisible()) t.view.webContents.focus(); else w.webContents.focus();
-      return;
-    }
-    const [cw, ch] = w.getContentSize();
-    v.setBounds({ x: 0, y: 0, width: cw, height: ch });
-    if (!P.floatOn) w.contentView.addChildView(v);   // to the top, over the page, the tab list and the rune
-    P.floatOn = true;
-    v.setVisible(true);
-    v.webContents.focus();
-  }
-  /** The frame: a key of the band was pressed; its panel opens in the layer. */
-  floatFromFrame(a: Record<string, unknown>): void {
-    const P = this.pane;
-    if (typeof a.click !== 'string' || !/^(menukey|star|lock|dlkey|upkey)$/.test(a.click)) return;
-    const v = this.floatView();
-    if (!v || !P.floatReady) return;
-    this.floatShow(true);
-    v.webContents.send('browser:float', { click: a.click, kb: a.kb === true });
-  }
-  /** The layer: a panel opened (show it) or the last one closed (put it away); the band's keys show which are open. */
-  floatFromLayer(a: Record<string, unknown>): void {
-    const P = this.pane;
-    if (a.open === true) this.floatShow(true);
-    else if (a.open === false) this.floatShow(false);
-    if (Array.isArray(a.over) && this.alive(P)) P.win!.webContents.send('browser:float', { over: a.over.filter((x) => typeof x === 'string').slice(0, 10) });
-    // A menu line that works on the band itself (find on the page, this site's notes, the tab list): the band does it.
-    if (typeof a.frame === 'string' && ['find', 'sitenotes', 'drawer'].includes(a.frame) && this.alive(P)) P.win!.webContents.send('browser:float', { do: a.frame });
-  }
-  /** The window changed size while a panel is open: the layer follows. */
-  private placeFloat(): void {
-    const w = this.win, P = this.pane, v = P.floatV;
-    if (!P.floatOn || !w || w.isDestroyed() || !liveView(v)) return;
-    const [cw, ch] = w.getContentSize();
-    v.setBounds({ x: 0, y: 0, width: cw, height: ch });
-  }
-
-  // ------------------------------------------------------------------ the window's size
-  /**
-   * Fill the screen, or back to a size easy to drag and resize (2026-10-25). A window he dragged or sized to fill the screen counts as
-   * filled too (the Mac only calls it zoomed when its own button did it), and comes back to the size it had, or, when
-   * that was the whole screen too, three quarters of it in the middle. The Mac glides it there.
-   */
-  private fillOrShrink(w: BrowserWindow): void {
-    if (w.isDestroyed()) return;
-    const area = screen.getDisplayMatching(w.getBounds()).workArea, b = w.getBounds();
-    const fills = (r: Electron.Rectangle) => r.width >= area.width - 16 && r.height >= area.height - 16;
-    if (!w.isMaximized() && !fills(b)) { w.maximize(); return; }
-    if (w.isMaximized()) w.unmaximize();
-    const was = w.getNormalBounds();
-    const to = fills(was) ? { width: Math.round(area.width * 0.75), height: Math.round(area.height * 0.8) } : { width: was.width, height: was.height };
-    w.setBounds({ x: Math.round(area.x + (area.width - to.width) / 2), y: Math.round(area.y + (area.height - to.height) / 2), ...to }, true);
-  }
+  tabPeekV: WebContentsView | null = null;
+  tabPeekOn = false;
+  tabPeekReady = false;
+  tabPeekSeq = 0;
   // ------------------------------------------------------------------ Stremio's downloads
   /**
    * 2026-10-25 : every stream he opens in Stremio starts
@@ -2408,576 +1964,24 @@ export class SamaraBrowser {
    * at once. The downloads that start while his Stremio tab plays are Samara's; when he leaves the video or picks another,
    * all but the one he is now watching are stopped. Ones his Stremio app started are never touched.
    */
-  private stremioMine = new Map<number, { hashes: string[]; seen: Set<string> | null; url: string; timer?: NodeJS.Timeout }>();
+  stremioMine = new Map<number, { hashes: string[]; seen: Set<string> | null; url: string; timer?: NodeJS.Timeout }>();
   /** Stremio's engine on this Mac (a test points it at a stand-in). */
   stremioApi = 'http://127.0.0.1:11470';
-  private async stremioHashes(): Promise<string[]> {
-    try {
-      const r = await fetch(`${this.stremioApi}/stats.json`, { signal: AbortSignal.timeout(2000) });
-      return Object.keys(await r.json() as Record<string, unknown>).filter((h) => /^[0-9a-f]{40}$/i.test(h));
-    } catch { return []; }
-  }
-  private stremioMoved(tab: Tab, url: string): void {
-    const st = this.stremioMine.get(tab.id) ?? { hashes: [], seen: null, url: '' };
-    if (st.url === url) return;
-    st.url = url;
-    this.stremioMine.set(tab.id, st);
-    if (st.timer) clearTimeout(st.timer);
-    const playing = /#\/player\//.test(url) && url !== 'about:closed';
-    void (async () => {
-      const now = await this.stremioHashes();
-      // What was already running when this tab first came to Stremio is not its own (his Stremio app's, say).
-      if (!st.seen) st.seen = new Set(now);
-      // Leaving a video, or onto another one: what this tab started before stops now.
-      const drop = st.hashes.filter((h) => now.includes(h));
-      st.hashes = [];
-      for (const h of drop) await fetch(`${this.stremioApi}/${h}/remove`, { signal: AbortSignal.timeout(3000) }).catch(() => null);
-      if (drop.length) console.log(`shell: Stremio: stopped ${drop.length} old download${drop.length === 1 ? '' : 's'}`);
-      if (!playing) { if (url === 'about:closed') this.stremioMine.delete(tab.id); else st.seen = new Set(await this.stremioHashes()); return; }
-      // A video: whatever is running that was not running before it (it may have started a moment before this) is its.
-      const watch = (left: number) => {
-        void this.stremioHashes().then((hs) => { if (st.url !== url) return; for (const h of hs) if (!st.seen!.has(h) && !drop.includes(h) && !st.hashes.includes(h)) st.hashes.push(h); });
-        if (left > 0) st.timer = setTimeout(() => watch(left - 1), 3000);
-      };
-      watch(8);
-    })();
-  }
 
   // ------------------------------------------------------------------ sheet 89, the TV
   /** What is on his TV now: one video (Google Cast) or this window (AirPlay, as a second screen). */
-  private tv: { kind: 'video' | 'window' | 'app'; tab: number; name: string; title: string; site: string; cast?: CastSession; back?: Electron.Rectangle; win?: BrowserWindow; app?: string } | null = null;
+  tv: { kind: 'video' | 'window' | 'app'; tab: number; name: string; title: string; site: string; cast?: CastSession; back?: Electron.Rectangle; win?: BrowserWindow; app?: string } | null = null;
   /** The TV ask in the band: setting yeet up as a second screen (once), what is playing there, the code to link
    *  Samara (sheet 99, the very first send), or the TV that did not wake. */
-  private tvAsk: 'setup' | 'playing' | 'link' | 'asleep' | null = null;
+  tvAsk: 'setup' | 'playing' | 'link' | 'asleep' | null = null;
   /** Sheet 99: how far a send has got (0 started, 1 waking the TV, 2 opening the app), for the TV icon's fill. */
-  private tvStep: number | null = null;
-  private tvLinkErr = '';
-  private tvState(): Record<string, unknown> | null {
-    const t = this.cur();
-    // Sheet 99: the TV icon sits in the bar on any page Samara can send (the Mac only: that is where his TV is)
-    const can = Boolean((process.platform === 'darwin' || this.o.tvAt) && t && isWeb(t.url) && !t.internal && (tvAppLink(t.url) || TV_VIDEO_SITE.test(hostOf(t.url)) || t.audible));
-    if (!this.tv && !this.tvAsk && this.tvStep === null && !can) return null;
-    const app = t ? tvAppLink(t.url)?.app ?? null : null;
-    return { kind: this.tv?.kind ?? null, name: this.tv?.name ?? this.tvName, title: this.tv?.title ?? '', site: this.tv?.site ?? hostOf(t?.url ?? ''), ask: this.tvAsk,
-      can, step: this.tvStep, app, toTv: Boolean(app || (t && !copyProtected(t.url))), linkErr: this.tvLinkErr };
-  }
-  private tvName = 'your TV';
+  tvStep: number | null = null;
+  tvLinkErr = '';
+  tvName = 'your TV';
   // ---- sheet 99: the TV's own apps, through Google TV's remote service (tvremote.ts)
-  private get tvFile(): string { return path.join(this.o.stateDir, 'tv-remote.json'); }
-  /** The linked TV and his two TV settings (answer YouTube's "Who's watching?", pause the video here). */
-  private tvCfg(): { host: string; name: string; linked: boolean; answer: boolean; pause: boolean } {
-    const j = readJson<Record<string, unknown>>(this.tvFile, {});   // none yet: {}
-    return { host: typeof j.host === 'string' ? j.host : '', name: typeof j.name === 'string' ? j.name : '', linked: j.linked === true, answer: j.answer !== false, pause: j.pause !== false };
-  }
-  private saveTvCfg(c: ReturnType<SamaraBrowser['tvCfg']>): void { try { writeFileAtomic(this.tvFile, JSON.stringify(c)); } catch (e) { console.log('shell: TV: could not save its link: ' + (e as Error).message); } }
-  private tvTarget(host: string): TvTarget {
-    const at = this.o.tvAt;
-    return { host: at ? at.host : host, ...(at ? { port: at.port, pairPort: at.pairPort } : {}), ...ensureCert(this.o.stateDir) };
-  }
-  /** His TV on the network (the one named yeet if there are several), or the one he linked last time. */
-  private async tvFind(): Promise<{ host: string; name: string } | null> {
-    if (this.o.tvAt) return { host: this.o.tvAt.host, name: this.o.tvAt.name };
-    const c = this.tvCfg();
-    const all = await findRemoteTvs().catch(() => []);
-    const tv = all.find((x) => c.name && x.name === c.name) ?? all.find((x) => /yeet/i.test(x.name)) ?? all[0];
-    return tv ?? (c.host ? { host: c.host, name: c.name || 'your TV' } : null);
-  }
-  private tvRemoteRun(steps: Parameters<typeof remote>[1]): Promise<void> { const c = this.tvCfg(); return remote(this.tvTarget(c.host), steps); }
-  private tvPair: { finish: (code: string) => Promise<void>; close: () => void } | null = null;
-  private tvPending: { tab: number; a: TvAppLink; at: number } | null = null;
-  private setTvStep(n: number | null): void { this.tvStep = n; this.sendTabs(); }
-  /**
-   * Send to TV, one click on the TV icon (sheet 99): the TV's own app when the site has one, else just the video; a
-   * copy-protected site with neither sends the window. The icon fills as each step is done; the video here pauses once the TV has it; nothing fails silently.
-   */
-  private async tvSend(t: Tab): Promise<void> {
-    const say = (s: string) => console.log(`shell: TV: ${s}`);
-    const wc = t.view?.webContents, live = Boolean(wc && !wc.isDestroyed());
-    const v = live ? await run<{ at: number } | null>(wc!, PAGE_VIDEO_JS, { ms: 1500, fallback: null }) : null;
-    const at = v?.at ?? 0;
-    const a = tvAppLink(t.url, at);
-    say(`send from ${hostOf(t.url)}: ${a ? 'the TV\'s ' + a.app : copyProtected(t.url) ? 'the whole window' : 'just the video'}`);
-    // A copy-protected site with no app on the TV cannot go on its own: the click sends the window instead.
-    if (!a) { if (copyProtected(t.url)) await this.tvWindow(t); else await this.tvVideo(t); return; }
-    this.tvAsk = null; this.tvLinkErr = '';
-    this.setTvStep(0);
-    const tv = await this.tvFind();
-    if (!tv) { say('no TV found'); this.tvName = 'your TV'; this.tvStep = null; this.tvAsk = 'asleep'; this.sendTabs(); return; }
-    this.tvName = tv.name;
-    const c = this.tvCfg();
-    if (!c.linked || c.host !== tv.host) {
-      // the very first send: the TV shows its code, and the ask hangs from the TV icon for it
-      this.saveTvCfg({ ...c, host: tv.host, name: tv.name, linked: false });
-      try { this.tvPair?.close(); this.tvPair = await startPairing(this.tvTarget(tv.host)); }
-      catch (e) { say('could not start linking: ' + (e as Error).message); this.tvStep = null; this.tvAsk = 'asleep'; this.sendTabs(); return; }
-      this.tvPending = { tab: t.id, a, at }; this.tvAsk = 'link'; this.sendTabs();
-      return;
-    }
-    await this.tvOpen(t.id, a);
-  }
-  /** The code he typed: Samara is linked, and the send that was waiting goes on. */
-  private async tvCode(code: string): Promise<void> {
-    if (!this.tvPair || !this.tvPending) return;
-    try { await this.tvPair.finish(code); }
-    catch (e) { this.tvLinkErr = (e as Error).message.includes('look right') || (e as Error).message.includes('match') ? 'That code does not match. Check the TV and type it again.' : 'The TV stopped waiting. Click the TV icon to try again.'; this.sendTabs(); return; }
-    this.tvPair = null; this.tvLinkErr = '';
-    this.saveTvCfg({ ...this.tvCfg(), linked: true });
-    console.log('shell: TV: linked to ' + this.tvName);
-    const p = this.tvPending; this.tvPending = null; this.tvAsk = null;
-    await this.tvOpen(p.tab, p.a);
-  }
-  private async tvOpen(tabId: number, a: TvAppLink): Promise<void> {
-    const t = this.tabs.find((x) => x.id === tabId);
-    const c = this.tvCfg();
-    this.setTvStep(1);
-    const steps = tvSteps(a, { answerYouTube: c.answer, pause: c.pause });
-    const linkAt = steps.find((x) => 'link' in x)?.at ?? 0;
-    const two = setTimeout(() => this.setTvStep(2), linkAt);
-    try { await remote(this.tvTarget(c.host), steps); }
-    catch (e) {
-      clearTimeout(two);
-      const why = (e as Error).message;
-      console.log('shell: TV: failed: ' + why);
-      // turned away: the TV forgot Samara (a reset, or unlinked on the TV), so it links again on the next click
-      if (/turned Samara away/.test(why)) this.saveTvCfg({ ...c, linked: false });
-      this.tvStep = null; this.tvAsk = 'asleep'; this.sendTabs(); return;
-    }
-    clearTimeout(two);
-    console.log(`shell: TV: playing in the TV's ${a.app}`);
-    const wc = t?.view?.webContents;
-    if (c.pause && wc && !wc.isDestroyed()) void run(wc, PAUSE_PAGE_JS, { fallback: null });
-    this.tv = { kind: 'app', tab: tabId, name: this.tvName, title: (t?.title || '').slice(0, 200), site: hostOf(t?.url ?? ''), app: a.app };
-    this.tvStep = null;
-    this.sendTabs();
-  }
-  /**
-   * Just the video (Stremio, YouTube, Twitch, any plain video). The TV plays it by itself, so his TV remote
-   * works and the Mac is free; the tab's own video pauses where it was. A page that plays from inside itself has nothing
-   * to send on its own: Samara says so and offers the whole window.
-   */
-  private async tvVideo(t: Tab): Promise<void> {
-    const wc = t.view?.webContents;
-    // Every step goes in the log (2026-10-27: "nothing" happened, and nothing said why), and no way out is
-    // silent any more.
-    const say = (s: string) => console.log(`shell: TV: ${s}`);
-    say(`just the video from ${hostOf(t.url)} (tab ${t.lent ? 'in the pop-out' : t.view ? 'live' : 'asleep'})`);
-    // A YouTube video goes by its address alone, so an asleep tab (as every tab is after an update) sends too.
-    const live = Boolean(wc && !wc.isDestroyed());
-    if (!isWeb(t.url) || (!live && !youTubeId(t.url))) { say('no live page to send'); this.note('', { kind: 'bad', from: 'menu', icon: 'tv', kick: 'The TV', title: 'No video playing', rows: [{ g: 'Do this', v: 'Play it, then send it again.' }] }); return; }
-    await this.tvOff(false);
-    const tvs = await findTvs();
-    say(`found ${tvs.map((x) => x.name).join(', ') || 'no TV'}`);
-    const tv = tvs.find((x) => /yeet/i.test(x.name)) ?? tvs[0];
-    if (!tv) { this.note('', { kind: 'bad', from: 'menu', icon: 'tv', kick: 'The TV', title: 'Didn\u2019t answer', rows: [{ g: 'Try', v: 'Turn it on, then try again. The whole window works with it asleep.' }], keys: [{ label: 'Try again', act: 'retry' }, { label: 'Close', act: 'ok', plain: true }] }, (act) => { if (act === 'retry') void this.tvAct('retry'); }); return; }
-    this.tvName = tv.name;
-    const v = live ? await run<{ src: string; at: number; live: boolean; paused: boolean; poster: string; title: string } | null>(wc!, PAGE_VIDEO_JS, { ms: 2000, fallback: null }) : null;
-    const title = (t.title || v?.title || '').slice(0, 200), site = hostOf(t.url);
-    const cast = new CastSession(tv);
-    try {
-      const yt = youTubeId(t.url);
-      if (yt) {
-        say(`YouTube video ${yt}`);
-        await cast.open(YOUTUBE_APP);
-        say('YouTube opened on the TV');
-        // YouTube starting from cold takes longer than a few seconds to answer (the TV, 2026-10-27: it gave up at 8 s),
-        // and a question asked before it is ready goes unheard: asked again every 1.5 s, for up to 25 s.
-        const screen = await new Promise<string>((res, rej) => {
-          const ask = setInterval(() => cast.appSend(YOUTUBE_NS, { type: 'getMdxSessionStatus' }), 1500);
-          const tm = setTimeout(() => { clearInterval(ask); rej(new Error('YouTube on the TV did not answer. If the TV was off, turn it on and send it again')); }, 25_000);
-          cast.on('app', (ns: string, d: Record<string, unknown>) => { const id = (d.data as Record<string, unknown> | undefined)?.screenId; if (ns === YOUTUBE_NS && typeof id === 'string') { clearTimeout(tm); clearInterval(ask); res(id); } });
-          cast.appSend(YOUTUBE_NS, { type: 'getMdxSessionStatus' });
-        });
-        say('YouTube on the TV answered');
-        const why = await youTubeOnTv(screen, yt, v?.at ?? 0);
-        say(why ?? 'video sent');
-        if (why) throw new Error(why);
-      } else {
-        const media = twitchOf(t.url) ? await twitchMedia(t.url, title, v?.at ?? 0) : plainMedia(v ? { ...v, title } : null);
-        if (!media) { cast.close(); this.note('', { kind: 'bad', from: 'menu', icon: 'tv', kick: 'The TV', title: 'Only as the whole window', rows: [{ g: 'Why', v: 'This page plays its video from inside itself.' }], keys: [{ label: 'Send window', act: 'window' }, { label: 'Close', act: 'ok', plain: true }] }, (act) => { if (act === 'window') void this.tvAct('send:window'); }); return; }
-        await cast.open(DEFAULT_PLAYER);
-        await cast.load(media);
-      }
-    } catch (e) { cast.close(); say(`failed: ${(e as Error).message}`); this.note('', { kind: 'bad', from: 'menu', icon: 'tv', kick: tv.name, title: 'Could not play it', rows: [{ g: 'Why', v: (e as Error).message }] }); return; }
-    if (live) void run(wc!, PAUSE_PAGE_JS, { fallback: null });
-    this.tv = { kind: 'video', tab: t.id, name: tv.name, title, site, cast };
-    cast.on('ended', () => { if (this.tv?.cast === cast) { this.tv = null; this.tvAsk = null; this.sendTabs(); } });
-    this.sendTabs();
-  }
-  /**
-   * The whole window (it fills the TV and the sound plays there). The Mac must use yeet as a second screen,
-   * which only he can turn on, once; Samara finds that screen by the TV's AirPlay name and moves this window onto it.
-   */
-  private async tvWindow(t: Tab): Promise<void> {
-    const w = this.win;
-    if (!w || w.isDestroyed()) return;
-    if (this.tv?.kind === 'window') return;
-    const names = await airplayNames();
-    if (names.length) this.tvName = names.find((n) => /yeet/i.test(n)) ?? names[0]!;
-    const shown = screen.getAllDisplays().find((d) => !d.internal && names.some((n) => d.label.toLowerCase().includes(n.toLowerCase())));
-    if (!shown) { this.tvAsk = 'setup'; this.sendTabs(); return; }
-    await this.tvOff(false);
-    if (this.active !== t.id) this.activate(t.id);
-    const back = w.isFullScreen() ? null : w.getBounds();
-    if (w.isFullScreen()) w.setFullScreen(false);
-    w.setBounds(shown.bounds);
-    setTimeout(() => { if (!w.isDestroyed()) w.setFullScreen(true); }, 300);
-    this.tv = { kind: 'window', tab: t.id, name: this.tvName, title: (t.title || '').slice(0, 200), site: hostOf(t.url), ...(back ? { back } : {}), win: w };
-    this.tvAsk = null;
-    this.sendTabs();
-  }
-  /** The TV ask's keys, from the frame only (browseripc). */
-  async tvAct(act: string): Promise<void> {
-    const t = this.cur();
-    // Sheet 99 : Send to TV plays the show or video on the TV by
-    // itself (the TV's own app when the site has one, else just the video); Send window shows this whole window there.
-    if (act === 'send') { if (t) void this.tvSend(t); return; }
-    if (act === 'send:window') { if (t) void this.tvWindow(t); return; }
-    if (act === 'settings') { this.openSettings('tv'); return; }
-    if (act.startsWith('code:')) { void this.tvCode(act.slice(5)); return; }
-    if (act === 'retry') { this.tvAsk = null; this.sendTabs(); if (t) void this.tvSend(t); return; }
-    if (act === 'nolink') { this.tvPair?.close(); this.tvPair = null; this.tvPending = null; this.tvAsk = null; this.tvStep = null; this.tvLinkErr = ''; this.sendTabs(); return; }
-    if (act === 'open') { this.tvAsk = this.tv ? 'playing' : null; this.sendTabs(); }
-    else if (act === 'close') { this.tvAsk = null; this.sendTabs(); }
-    else if (act === 'displays') { this.tvAsk = null; this.sendTabs(); void shell.openExternal('x-apple.systempreferences:com.apple.Displays-Settings.extension'); }
-    else if (act === 'back') await this.tvOff(true);
-    else if (act === 'stop') await this.tvOff(false);
-  }
-  /** Off the TV: back into the tab where it left off (paused), or the window back to its size on the Mac. */
-  private async tvOff(bringBack: boolean): Promise<void> {
-    const tv = this.tv;
-    this.tv = null; this.tvAsk = null;
-    if (!tv) return;
-    if (tv.kind === 'app') {
-      // In the TV's own app: Samara cannot read where it got to, so Stop just takes the TV back to its home.
-      if (!bringBack) void this.tvRemoteRun([{ key: KEY.HOME }]).catch(() => null);
-      if (bringBack) this.activate(tv.tab);
-    } else if (tv.kind === 'video' && tv.cast) {
-      const at = bringBack ? await tv.cast.where() : 0;
-      tv.cast.stop();
-      const wc = this.tabs.find((x) => x.id === tv.tab)?.view?.webContents;
-      if (bringBack && wc && !wc.isDestroyed()) { void run(wc, seekPageJs(at), { fallback: null }); this.activate(tv.tab); }
-    } else if (tv.kind === 'window' && tv.win && !tv.win.isDestroyed()) {
-      const w = tv.win;
-      const done = () => { if (!w.isDestroyed() && tv.back) w.setBounds(tv.back, true); };
-      if (w.isFullScreen()) { w.once('leave-full-screen', () => setTimeout(done, 200)); w.setFullScreen(false); } else done();
-    }
-    this.sendTabs();
-  }
-
-  private raiseTray(): void {
-    if (this.trayOn && this.trayV && this.win && !this.win.isDestroyed()) this.win.contentView.addChildView(this.trayV);
-    // Sheet 102: the address bar's open list stays over whatever comes up under it.
-    if (this.pane.sugV && !this.pane.sugV.webContents.isDestroyed() && this.pane.sugV.getVisible() && this.win && !this.win.isDestroyed()) this.win.contentView.addChildView(this.pane.sugV);
-    // 2026-10-21: the rune's panel too, whatever comes up under it (a waking tab, the page back from the pop-out).
-    const P = this.pane;
-    if (P.runeOn && P.runeV && !P.runeV.webContents.isDestroyed() && this.win && !this.win.isDestroyed()) this.win.contentView.addChildView(P.runeV);
-    // Sheet 106: a notice stays over everything under it.
-    if (this.noticePane === P && P.noticeV && !P.noticeV.webContents.isDestroyed() && P.noticeV.getVisible() && this.win && !this.win.isDestroyed()) this.win.contentView.addChildView(P.noticeV);
-  }
-  private placeTray(): void {
-    const w = this.win, v = this.trayV;
-    if (!w || w.isDestroyed() || !v || !this.trayOn) return;
-    const [cw, ch] = w.getContentSize();
-    v.setBounds({ x: this.trayAt.x, y: this.trayAt.y, width: Math.max(0, Math.min(TRAY_W[this.tabSize], cw - this.trayAt.x)), height: Math.max(0, ch - this.trayAt.y) });
-  }
-
-  /** Open the window (or bring it forward), optionally on an address. Coming back, every tab comes back. */
-  open(url?: string): void {
-    const p = this.lastPane();
-    if (p && !this.restored) {
-      if (url) this.whenOpen.push(() => this.newTab(url));
-      // 2026-11-03 (after the 1.45 update Samara stayed invisible and the dock could not open it): asked to
-      // open, a hidden window always comes up, still starting or not.
-      if (!p.win!.isVisible() || p.win!.isMinimized()) { console.log('shell: browser: open while still starting; the hidden window comes up'); bringFront(p.win!); }
-      return;
-    }
-    if (p) {
-      this.pane = p;
-      const hidden = !p.win!.isVisible();
-      bringFront(p.win!);
-      // the same report: say when a hidden window was asked up, and whether it really came up, for next time
-      if (hidden) setTimeout(() => { if (!p.win || p.win.isDestroyed()) return; console.log(`shell: browser: open found the window hidden; now ${p.win.isVisible() ? 'showing' : 'STILL HIDDEN'}`); if (!p.win.isVisible()) p.win.show(); }, 600);
-      if (url) this.newTab(url);
-      return;
-    }
-    this.createPane(url);
-  }
-
-  /**
-   * A browser window. The first one brings his tabs back (or his home page); one made by dragging a tab out of another
-   * (`bring`) opens where he let go and takes that tab, live, nothing reloaded.
-   */
-  private createPane(url?: string, bring?: Tab | Tab[], at?: { x: number; y: number; width: number; height: number }): void {
-    const first = !this.panes.some((x) => this.alive(x));
-    if (first && !bring) this.restored = false;     // a new first window reads his tabs back before anything saves
-    const wa = screen.getPrimaryDisplay().workArea;
-    const was = first ? this.savedPlace() : null;
-    // A new run: the download tray starts empty (its key hidden) until something downloads.
-    if (first) this.traySince = Date.now();
-    const p = newPane(++this.paneSeq);
-    const w = new BrowserWindow({
-      width: Math.min(1440, wa.width - 80), height: Math.min(900, wa.height - 60), minWidth: 720, minHeight: 480,
-      ...(was ? { x: was.x, y: was.y, width: was.width, height: was.height } : {}),
-      ...(at ? { x: Math.round(at.x), y: Math.round(at.y), width: Math.max(720, Math.round(at.width)), height: Math.max(480, Math.round(at.height)) } : {}),
-      show: false, backgroundColor: '#24160D', title: 'Samara',
-      // The carved band IS the title bar; Windows draws its own buttons over the band's right end.
-      // See-through (the research: Flow browser), so Windows' own minimise, maximise and close sit ON the wood
-      // with their real hover and snap layouts, instead of on a flat block that looked stuck on.
-      // 2026-10-12: Samara draws its own bold gold minimise, maximise and close on the band; Windows' were too thin.
-      titleBarStyle: 'hidden',
-      // Autofill's sounds (sheet 77) play in this, Samara's own page, while his keys are in the site's page.
-      webPreferences: { ...SAFE_WEB_PREFERENCES, preload: this.o.preloadPath, autoplayPolicy: 'no-user-gesture-required' },
-    });
-    // Samara (name and icon chosen in sheet 33 L1, 2026-10-14): the browser wears its own lantern and gets its
-    // own taskbar button; the companion's other windows keep its face.
-    try { w.setIcon(SAMARA_ICON); w.setAppDetails({ appId: 'Samara', appIconPath: SAMARA_ICON, appIconIndex: 0, relaunchDisplayName: 'Samara' }); } catch { /* not Windows */ }
-    // The lantern lights up as the window opens (2026-10-14), the same frames as the Mac's Dock.
-    if (process.platform === 'win32') {
-      let i = 0;
-      const t = setInterval(() => {
-        if (w.isDestroyed()) { clearInterval(t); return; }
-        // 2026-10-20: frames made at the taskbar's own sizes from the 24 px drawing (tools/samara-icons-leaf.py). The 64 px
-        // frames, shrunk to 24 by Windows, came out blurry; the Mac's Dock still uses those.
-        try { w.setIcon(nativeImage.createFromPath(path.join(import.meta.dirname, '..', 'pages', 'art', 'samara', `samara-lightup-${i}.ico`))); } catch { /* the lit icon stays */ }
-        if (++i > 9) { clearInterval(t); try { w.setIcon(SAMARA_ICON); } catch { /* fine */ } }
-      }, 55);
-    }
-    p.win = w;
-    this.panes.push(p);
-    this.pane = p;
-    this.focused = p;
-    lockDown(w.webContents);
-    // Sheet 120 A: what the band's panels draw from goes to their floating layer too (and is kept for when it loads).
-    p.floatLast = new Map();
-    const frameSend = w.webContents.send.bind(w.webContents);
-    w.webContents.send = ((ch: string, ...args: unknown[]) => {
-      frameSend(ch, ...args);
-      if (!FLOAT_CHANNELS.has(ch)) return;
-      p.floatLast!.set(ch, args);
-      const v = p.floatV;
-      if (p.floatReady && liveView(v)) v!.webContents.send(ch, ...args);
-    }) as typeof w.webContents.send;
-    softEdge(w);
-    // M6: on the Mac, 'hidden' still shows the red, yellow and green buttons, floating over the band's left end (his
-    // report, 2026-10-13). Samara's own gold buttons are the window's buttons on both machines.
-    if (process.platform === 'darwin') w.setWindowButtonVisibility(false);
-    if (was?.maximized) w.once('ready-to-show', () => w.maximize());
-    let keep: NodeJS.Timeout | null = null;
-    // Where the first window was is kept for next time; the others are made by dragging and open where they are dropped.
-    const keepSoon = () => { if (keep) clearTimeout(keep); keep = setTimeout(() => { this.pane = p; if (this.panes[0] === p) this.keepPlace(); }, 800); };
-    w.on('focus', () => { this.focused = p; this.frontNow(); });
-    w.on('blur', () => setTimeout(() => this.frontNow(), 60));
-    w.on('resize', () => { this.pane = p; this.place(); this.placeTray(); this.placeRune(); this.placeFloat(); if (this.lp?.pane === p) this.placePeek(); keepSoon(); });
-    w.on('move', keepSoon);
-    w.on('maximize', () => { this.pane = p; this.place(); keepSoon(); this.sendTabs(); });
-    w.on('unmaximize', () => { this.pane = p; this.place(); keepSoon(); this.sendTabs(); });
-    w.on('close', () => { this.pane = p; if (this.panes[0] === p) this.keepPlace(); if (!this.quitting) void this.snapshot(true); this.visits.flush(); this.veil = null; try { this.curtain?.webContents.close(); } catch { /* gone */ } this.curtain = null; });
-    // 6.22b bug 4: the mouse's back and forward side buttons.
-    w.on('app-command', (_e, cmd) => { this.pane = p; if (cmd === 'browser-backward') this.sideNav('back'); else if (cmd === 'browser-forward') this.sideNav('forward'); });
-    // A page in fullscreen: leaving the window's fullscreen (F11, a snap) ends it too.
-    w.on('leave-full-screen', () => { const t = this.tabs.find((x) => x.id === p.fullTab); if (t?.view) void run(t.view.webContents, 'document.fullscreenElement&&document.exitFullscreen().catch(()=>{});true', { ms: 500, fallback: null }); });
-    w.on('closed', () => {
-      this.pane = p;
-      // Its hidden helper pages (tab list, rune layer, light, suggestions) go with it: a page in a view outlives its
-      // window, and each close and reopen left four of them running (2026-10-30, stability check).
-      for (const v of [p.trayV, p.runeV, p.lightV, p.sugV, p.noticeV, p.handV, p.floatV]) { try { if (liveView(v)) v!.webContents.close(); } catch { /* gone */ } }
-      // The tab list's hover picture and a peek lived in this window: they go with it.
-      if (this.tabPeekV && !this.panes.some((x) => x !== p && this.alive(x) && x.win!.contentView.children.includes(this.tabPeekV!))) { try { if (liveView(this.tabPeekV)) this.tabPeekV.webContents.close(); } catch { /* gone */ } this.tabPeekV = null; this.tabPeekOn = false; }
-      if (this.lp?.pane === p) this.lp = null;
-      p.lightV = null; p.sugV = null; p.noticeV = null; p.handV = null; p.floatV = null; p.floatOn = false; p.floatReady = false;
-      // A notice it was showing moves to the window left (next time one is placed).
-      if (this.noticePane === p) { this.noticePane = null; if (this.noticeNow) setTimeout(() => { if (this.noticeNow && !this.noticePane) void this.noticePlace(++this.noticeGen); }, 0); }
-      const others = this.panes.filter((x) => x !== p && this.alive(x));
-      // Quitting: this window's tabs stay in the snapshot already taken; nothing is dropped or saved again.
-      if (others.length && this.quitting) { p.win = null; p.trayV = null; p.trayOn = false; p.runeV = null; p.runeOn = false; this.panes = others; if (this.focused === p) this.focused = null; this.pane = others[others.length - 1]!; return; }
-      if (others.length) {
-        // One of several windows: its tabs close (Reopen closed tab brings them back), the browser goes on.
-        for (const t of this.paneTabs(p)) {
-          if (t.lent) { t.pane = others[0]!.id; continue; }       // playing in the popout: it comes back to another window
-          if (isWeb(t.url)) { this.closed.push(t.url); if (this.closed.length > 25) this.closed.shift(); }
-          this.closeView(t);
-        }
-        this.tabs = this.tabs.filter((t) => t.pane !== p.id);
-        if (p.watchTimer) clearTimeout(p.watchTimer);
-        p.win = null; p.trayV = null; p.trayOn = false; p.runeV = null; p.runeOn = false;
-        this.panes = others;
-        if (this.focused === p) this.focused = null;
-        this.pane = others[others.length - 1]!;
-        this.tidyTrails();
-        this.changed();
-        return;
-      }
-      if (this.menu && !this.menu.isDestroyed()) this.menu.destroy();
-      this.vault.lock();                          // closing the browser locks the vault
-      this.mediaOk.clear();                       // and ends every call's camera and microphone
-      this.shareHosts.clear();
-      this.callNow(false);
-      if (this.share) this.shareAnswer(this.share.id, null, false);
-      this.menu = null; this.fullTab = null;
-      for (const t of this.tabs) if (!t.lent) this.closeView(t);
-      this.tabs = []; this.active = null; this.win = null; this.trayV = null; this.trayOn = false; this.pane.runeV = null; this.pane.runeOn = false;
-      this.panes = []; this.focused = null; this.quitting = false;
-      this.timers.forEach(clearInterval); this.timers = [];
-      for (const j of this.jobNames) sched.cancel(j);
-      try { this.onLastClosed?.(); } catch { /* the browser is closed either way */ }
-    });
-    w.once('ready-to-show', () => bringFront(w));
-    // Anything that needs the Mac's Keychain waits until the window is up (2026-10-25: a Keychain box at start left
-    // Samara with no window and a dead Dock icon until he answered it). Then the box, if any, comes up over the window.
-    if (first) w.once('show', () => setTimeout(() => this.details.open(), 1200));
-    // The tab list is made ready a few seconds after the window shows (measured 2026-10-20: built on his first hover it
-    // took 0.2 s, and 0.5 s on a slow machine), so the first open is as quick as every other.
-    w.once('ready-to-show', () => {
-      // The rail first (Phase R: it must be drawn before he can reach for it), the other layers once start has settled.
-      setTimeout(() => { if (w.isDestroyed() || p.win !== w) return; const was = this.pane; this.pane = p; this.trayView(); this.pane = was; }, 400);
-      setTimeout(() => { if (w.isDestroyed() || p.win !== w) return; const was = this.pane; this.pane = p; this.tabPeekView(); this.runeView(); this.sugView(); this.noticeView(); this.pane = was; }, 3000);
-    });
-    // The panels' layer sooner: the ⋯ menu is often the first thing he clicks. Until it has loaded, the band opens its
-    // panels the old way (on a picture of the page).
-    w.once('ready-to-show', () => setTimeout(() => { if (w.isDestroyed() || p.win !== w) return; const was = this.pane; this.pane = p; this.floatView(); this.pane = was; }, 600));
-    w.webContents.once('did-finish-load', () => {
-      this.pane = p;
-      // Made by dragging a tab out: that tab moves in, live.
-      if (bring) {
-        const list = (Array.isArray(bring) ? bring : [bring]).filter((t) => this.tabs.includes(t) && !t.lent && this.paneOfTab(t));
-        for (const t of list) this.moveTo(t, p);           // the last one moved ends up in front
-        if (!list.length) this.newTab(this.HOME);
-        this.adoptSplits();
-        return;
-      }
-      // Startup (Settings > General): his tabs as they were, or a fresh home page.
-      if (!first) { this.newTab(url ?? this.HOME); return; }
-      // His ask (2026-11-22, changing 2026-11-20's): Samara opens normally, the bar NOT opened or selected for him; he
-      // can still grab it the moment it opens (early.js keeps an early click or typing, holdBarAtStart keeps it his).
-      const barFirst = !url && !this.whenOpen.length;
-      // A mockup that opened the window (sheet 47) is its first tab: no home page under it.
-      if (this.prefs.startup === 'home' || !this.restore()) { this.restored = true; if (url || !this.whenOpen.length) this.newTab(url ?? this.HOME); }
-      else if (url) this.newTab(url);                       // his tabs come back, and the link he clicked opens on top
-      for (const f of this.whenOpen.splice(0)) { this.pane = p; f(); }
-      // The first seconds: if he opens the bar while the tabs are still coming back, they do not take it from him.
-      if (barFirst && !w.isDestroyed()) this.holdBarAtStart(p);
-      // Sheet 115: Claude's tabs from before the restart come back after his own.
-      setTimeout(() => { void this.restoreClaude(); }, 1500);
-    });
-    void w.loadURL(`${this.o.origin}/browser.html`);
-    // The continuous snapshot, and putting idle tabs to sleep: once for the whole browser.
-    // On the scheduler (2026-10-30), never quiet-held: the snapshot is his tabs surviving a crash.
-    // The login look stays a plain 1.5 s poll: it drives what the page shows.
-    if (first) {
-      sched.every(this.jobNames[0]!, 8000, () => this.snapshot());
-      sched.every(this.jobNames[1]!, 60_000, () => this.sleepIdle());
-      sched.every(this.jobNames[2]!, FORM_EVERY_MS, () => this.grabForms());
-      this.timers.push(setInterval(() => { void this.lookForLogin(); }, 1500));
-      // Phase R: the overnight tidy, checked every minute (and a few seconds after start, for a night Samara was shut).
-      this.timers.push(setInterval(() => { this.railTidy(); }, 60_000));
-      setTimeout(() => { this.railTidy(); }, 5000);
-    }
-  }
-
-  /**
-   * His ask (2026-10-13): a tab dragged out of the list and let go outside its window becomes its own window there, like
-   * Chrome; let go on another of Samara's windows, it joins that one. Its page goes with it, still playing,
-   * nothing reloaded. The only tab in its window: the window itself moves there.
-   */
-  tearOut(tabId: number): void {
-    const t = this.tabs.find((x) => x.id === tabId);
-    const src = t ? this.paneOfTab(t) : undefined;
-    if (!t || t.lent || !this.alive(src)) return;
-    const pt = screen.getCursorScreenPoint();
-    const inside = (w: BrowserWindow) => { const b = w.getBounds(); return pt.x >= b.x && pt.x < b.x + b.width && pt.y >= b.y && pt.y < b.y + b.height; };
-    if (inside(src.win)) {
-      // Sheet 121 (4): let go at the window's right edge, the tab goes side by side with the page in front.
-      const cb = src.win.getContentBounds();
-      if (pt.x >= cb.x + cb.width * (1 - SPLIT_EDGE) && pt.y >= cb.y + this.inset.top) { this.pane = src; this.tray(false); this.splitOpen(t.id); }
-      return;                                                  // elsewhere inside its own window: nothing happens
-    }
-    this.pane = src;
-    this.tray(false);
-    const into = this.panes.find((x) => x !== src && this.alive(x) && inside(x.win!));
-    if (into) { this.moveTo(t, into); into.win!.focus(); return; }
-    const b = src.win.isMaximized() ? { width: 1200, height: 800 } : src.win.getNormalBounds();
-    const spot = { x: pt.x - 140, y: pt.y - 24, width: b.width, height: b.height };
-    if (this.paneTabs(src).length === 1) {
-      if (src.win.isMaximized()) src.win.unmaximize();
-      src.win.setBounds(spot);
-      src.win.focus();
-      return;
-    }
-    this.createPane(undefined, t, spot);
-  }
-  /** "Move to a new window" from the tab's right-click menu: a new window a little down and right of this one. */
-  newWindowFor(tabId: number): void {
-    const t = this.tabs.find((x) => x.id === tabId);
-    const src = t ? this.paneOfTab(t) : undefined;
-    if (!t || t.lent || !this.alive(src) || this.paneTabs(src).length < 2) return;
-    this.pane = src;
-    const b = src.win.isMaximized() ? { x: src.win.getBounds().x + 80, y: src.win.getBounds().y + 80, width: 1200, height: 800 } : src.win.getNormalBounds();
-    this.createPane(undefined, t, { x: b.x + 48, y: b.y + 48, width: b.width, height: b.height });
-  }
-  /** A tab into another window: its live page is handed across; the window it left shows its next tab, or closes. */
-  private moveTo(t: Tab, to: Pane): void {
-    const from = this.paneOfTab(t);
-    if (!from || from === to || !this.alive(to)) return;
-    this.pane = from;
-    if (from.veil?.tab === t.id) this.veilDown(0);
-    if (from.fullTab === t.id) from.fullTab = null;
-    if (from.watching !== null && from.active === t.id) this.unwatch(false);
-    const at = this.paneTabs(from).indexOf(t);
-    if (t.view) {
-      try { if (this.alive(from)) from.win!.contentView.removeChildView(t.view); } catch { /* not shown */ }
-      t.view.setVisible(false);
-      to.win!.contentView.addChildView(t.view);
-      if (to.trayOn && to.trayV) to.win!.contentView.addChildView(to.trayV);   // the open tab list stays on top
-      if (to.runeOn && to.runeV) to.win!.contentView.addChildView(to.runeV);   // and the rune's panel (2026-10-21)
-    }
-    t.pane = to.id;
-    t.opener = null;
-    // Last in the list of its new window.
-    this.tabs.splice(this.tabs.indexOf(t), 1);
-    this.tabs.push(t);
-    if (from.active === t.id) {
-      from.active = null;
-      const rest = this.paneTabs(from);
-      const next = rest[Math.min(Math.max(0, at), rest.length - 1)];
-      if (next) this.activate(next.id);
-      else if (this.alive(from)) from.win!.close();
-    }
-    this.pane = to;
-    this.activate(t.id);
-  }
-
-  /** 6.19: the frame says how big its rail and band are; everything else follows from the window. */
-  setInsets(left: number, top: number, right = 0, bottom = 0): void {
-    if (![left, top, right, bottom].every(Number.isFinite)) return;
-    const c = (n: number) => Math.max(0, Math.round(n));
-    this.inset = { left: c(left), top: c(top), right: c(right), bottom: c(bottom) };
-    this.place();
-    // Sheet 106: the window changed size (or a chip came down): the notice stays under what it came from.
-    if (this.noticePane === this.pane && this.noticeNow) void this.noticeFollow();
-  }
-
-  /** Put the active tab exactly in the page area. Synchronous, from the window's own content size. */
-  /** Where a tab's page sits in the window. */
-  private pageArea(): { x: number; y: number; width: number; height: number } {
-    const [cw, ch] = this.win && !this.win.isDestroyed() ? this.win.getContentSize() : [1280, 800];
-    return { x: this.inset.left, y: this.inset.top, width: Math.max(0, cw - this.inset.left - this.inset.right), height: Math.max(0, ch - this.inset.top - this.inset.bottom) };
-  }
-  private place(): void {
-    const w = this.win;
-    if (!w || w.isDestroyed()) return;
-    const [cw, ch] = w.getContentSize();
-    const t = this.cur();
-    if (!t?.view || t.lent) return;
-    // A crashed page is moved out of the way so the frame's own plate shows; it is never touched.
-    if (t.crashed || t.blocked || t.failed) { t.view.setBounds({ x: 0, y: 0, width: 0, height: 0 }); this.veilDown(0); return; }
-    if (this.fullTab === t.id) { t.view.setBounds({ x: 0, y: 0, width: cw, height: ch }); this.partnerOf(t.id)?.view?.setVisible(false); this.veilDown(0); this.splitSend(); return; }
-    // Sheet 121 (4): two pages side by side.
-    const pair = this.splitShown();
-    if (pair) { this.placeSplit(pair); this.splitSend(); return; }
-    t.view.setBounds({ x: this.inset.left, y: this.inset.top, width: Math.max(0, cw - this.inset.left - this.inset.right), height: Math.max(0, ch - this.inset.top - this.inset.bottom) });
-    if (this.veil?.up && this.curtain) this.curtain.setBounds(t.view.getBounds());
-    this.splitSend();
-  }
+  get tvFile(): string { return path.join(this.o.stateDir, 'tv-remote.json'); }
+  tvPair: { finish: (code: string) => Promise<void>; close: () => void } | null = null;
+  tvPending: { tab: number; a: TvAppLink; at: number } | null = null;
 
   // ------------------------------------------------------------------ the soft fade between pages (2026-10-12)
   /**
@@ -2986,428 +1990,11 @@ export class SamaraBrowser {
    * the moment the new page first draws, the curtain fades out over 0.25 s and the new page is underneath. A page
    * that arrives at once (Back, a fast site) just switches. A tab with nothing drawn yet shows the wood instead.
    */
-  private veilSeq = 0;
-  private curtainView(): WebContentsView | null {
-    const w = this.win;
-    if (!w || w.isDestroyed()) return null;
-    if (this.curtain && !this.curtain.webContents.isDestroyed()) return this.curtain;
-    const v = new WebContentsView({ webPreferences: { ...SAFE_WEB_PREFERENCES } });
-    lockDown(v.webContents);
-    v.setBackgroundColor('#00000000');
-    try { v.setBorderRadius(PAGE_RADIUS); } catch { /* square */ }
-    v.setVisible(false);
-    w.contentView.addChildView(v);
-    this.curtain = v;
-    this.curtainReady = v.webContents.loadURL(`${this.o.origin}/curtain.html`).catch(() => {});
-    // The picture never stands between him and the page (2026-10-23): it could
-    // sit over a page for seconds after a load, taking his clicks. A press on it takes it away at once and the press,
-    // and its release, go to the page underneath, at the same spot.
-    const P = this.pane;
-    let through: Tab | null = null;
-    v.webContents.on('input-event', (_e, i) => {
-      const m = i as Electron.MouseInputEvent;
-      if (i.type === 'mouseDown') {
-        this.pane = P;
-        const t = this.tabs.find((x) => x.id === P.veil?.tab) ?? this.cur();
-        if (P.veil) this.veilDown(0);
-        v.setVisible(false);
-        if (t?.waking) this.wokeUp(t);
-        through = t?.view && !t.view.webContents.isDestroyed() ? t : null;
-      }
-      if (through && (i.type === 'mouseDown' || i.type === 'mouseUp') && through.view && !through.view.webContents.isDestroyed()) {
-        through.view.webContents.sendInputEvent({ type: i.type, x: m.x, y: m.y, button: m.button ?? 'left', clickCount: m.clickCount ?? 1 });
-        if (i.type === 'mouseUp') through = null;
-      }
-    });
-    return v;
-  }
-  /**
-   * `from`: the page he was looking at when he opened a new tab (2026-10-13: no glitchy blank frame). It stays on
-   * screen until the curtain holds its picture, then the new tab is swapped in underneath and fades in as it draws.
-   */
-  private async veilUp(t: Tab, from?: Tab): Promise<void> {
-    const P = this.pane;
-    // However this ends, the new tab ends up shown and the one it came from hidden.
-    const swap = () => {
-      this.pane = P;
-      if (!from || t.id !== this.active || !t.view) return;
-      if (!this.drawerOpen) t.view.setVisible(true);
-      if (from.view && from.id !== this.active && !from.lent) from.view.setVisible(false);
-    };
-    try { await this.veilUpInner(t, from); } finally { swap(); }
-  }
-  private async veilUpInner(t: Tab, from?: Tab): Promise<void> {
-    const P = this.pane;
-    if (this.veil?.tab === t.id) return;                       // a redirect inside one change keeps the same curtain
-    if (t.id !== this.active || !t.view || t.lent || t.internal || this.drawerOpen || this.fullTab === t.id || t.crashed || t.blocked || t.failed) return;
-    this.veilDown(0);
-    const v = this.curtainView();
-    if (!v) return;
-    const nav = ++this.veilSeq;
-    this.veil = { tab: t.id, nav, at: Date.now(), up: false, dimT: null, capT: null };
-    // The hover picture if it is fresh and of this page; otherwise a new one. Nothing drawn yet: the wood.
-    const p = this.peekShot;
-    const shot = !t.drawn ? (t.waking && t.leftShot ? t.leftShot : from ? await this.shotOf(from) : null) : p && p.tab === t.id && Date.now() - p.at < 1500 ? p.shot : await this.shotOf(t);
-    await P.curtainReady;
-    this.pane = P;
-    if (this.veil?.nav !== nav) return;                         // the new page drew first: a plain switch
-    if (!v.webContents || v.webContents.isDestroyed()) { if (this.veil?.nav === nav) this.veil = null; return; }   // the window closed meanwhile
-    const ok = await run(v.webContents, `curtainShow(${JSON.stringify(shot)})`, { ms: 400, fallback: false });
-    this.pane = P;
-    const vl = this.veil;
-    if (!ok || vl?.nav !== nav || !t.view || t.id !== this.active || this.drawerOpen) { if (vl?.nav === nav) this.veil = null; return; }
-    v.setBounds(t.view.getBounds());
-    this.win?.contentView.addChildView(v);                      // to the top, over the page
-    this.raiseTray();                                           // but never over the open tab list
-    v.setVisible(true);
-    vl.up = true;
-    vl.dimT = setTimeout(() => { if (P.veil?.nav === nav) void run(v.webContents, 'curtainDim()', { fallback: null }); }, VEIL_DIM_MS);
-    vl.capT = setTimeout(() => { this.pane = P; if (this.veil?.nav === nav) this.veilDown(VEIL_FADE_MS); }, VEIL_MAX_MS);
-  }
-  private veilDown(fade: number): void {
-    const vl = this.veil;
-    this.veil = null;
-    if (!vl) return;
-    if (vl.dimT) clearTimeout(vl.dimT);
-    if (vl.capT) clearTimeout(vl.capT);
-    const v = this.curtain;
-    if (!v || v.webContents.isDestroyed() || !vl.up) return;
-    // A page that came at once just switches: fading it would only add a wait that was not there.
-    const ms = Date.now() - vl.at < VEIL_INSTANT_MS ? 0 : fade;
-    if (!ms) { v.setVisible(false); return; }
-    void run(v.webContents, `curtainFade(${ms})`, { fallback: null });
-    const P = this.pane;
-    setTimeout(() => { if (!P.veil?.up) v.setVisible(false); }, ms + 30);
-  }
-  /** The tab's page has drawn its first content (from tabpreload.cjs): the curtain can go. */
-  painted(sender: Electron.WebContents): void {
-    const t = this.tabs.find((x) => x.view?.webContents === sender);
-    if (!t || !this.inTab(t)) return;
-    t.drawn = true;
-    if (t.phase !== 'idle') { t.prog = Math.max(t.prog ?? 0, 0.7); this.sendTabs(); }
-    if (t.waking && typeof t.videoAt === 'number') { const at = t.videoAt; t.videoAt = undefined; void run(sender, VIDEO_BACK_JS(at), { fallback: null }); }
-    if (!t.waking) { if (this.veil?.tab === t.id) this.veilDown(VEIL_FADE_MS); return; }
-    // Woken from sleep (2026-10-23, filmed): its last picture stays until the page has stopped moving, then one soft fade.
-    const P = this.pane, seq = t.wakeSeq;
-    void run<boolean>(sender, SETTLED_JS, { ms: 4000, fallback: false }).then(() => {
-      this.pane = P;
-      if (this.veil?.tab === t.id) this.veilDown(WAKE_FADE_MS);
-      setTimeout(() => this.wokeUp(t, seq), WAKE_FADE_MS + 150);
-    });
-  }
+  veilSeq = 0;
   /** A woken tab is on screen: what it held back (his video) may play now, if he is looking at it. */
   /** A woken tab is silent until he clicks or presses a key in it (2026-10-30: a woken YouTube tab played
    *  for a moment, at whatever volume he had left; the mute used to lift on a timer). */
-  private wakeHush = new Set<number>();
-  private wokeUp(t: Tab, seq = t.wakeSeq): void {
-    if (!t.waking || seq !== t.wakeSeq) return;
-    t.waking = false;
-    const wc = t.view?.webContents;
-    if (wc && !wc.isDestroyed() && !this.wakeHush.has(t.id)) wc.setAudioMuted(t.muted);
-    if (wc && !wc.isDestroyed() && this.seen(t)) { try { wc.send('tab:shown', true); } catch { /* gone */ } }   // only what he started plays
-  }
-
-  /** Give a tab a live page, at its address, then put it back where it was scrolled. */
-  private wake(tab: Tab): void {
-    if (tab.internal === 'hyrule') { this.wakeHyrule(tab); return; }
-    if (tab.internal) { this.wakeSettings(tab); return; }
-    // The safe preferences, but a tab in the background may sleep: unlike the pop-out it has no reason to
-    // keep painting over his game. NOT lockDown(): that pins a window to one page, and a browser navigates.
-    // tabpreload.cjs exposes nothing to the page; it only hides passkeys, which hang in Electron (6.22).
-    // plugins: Chromium's own PDF viewer, so a PDF opens in the tab instead of downloading (6.22b item 12).
-    const view = new WebContentsView({ webPreferences: { ...SAFE_WEB_PREFERENCES, backgroundThrottling: true, session: tab.guest ? this.driver.guestSession() : this.ses, preload: this.o.tabPreloadPath, plugins: true } });
-    const wc = view.webContents;
-    // A new view paints white until its page draws; that white is the flash between pages. Paint it the
-    // page area's own colour instead (or, coming back, the page's own colour: a dark site stays dark), and keep it in
-    // the window, hidden, so switching to it is instant.
-    view.setBackgroundColor(tab.pageBg ?? PAGE_COLOUR);
-    try { view.setBorderRadius(PAGE_RADIUS); } catch { /* an older runtime: square corners */ }
-    view.setVisible(false);
-    this.inTab(tab);
-    this.win?.contentView.addChildView(view);
-    this.raiseTray();                                   // a waking tab never covers the open tab list
-    tab.view = view; tab.crashed = false; tab.loading = true; tab.drawn = false;
-    // Coming back from sleep (2026-10-23: a video played before the page showed, and it looked crashed): it
-    // counts as loading at once, so the curtain (with its own last picture) covers it, and nothing plays until it shows.
-    tab.phase = 'waiting'; tab.waking = tab.slept === true; tab.slept = false;
-    // Silent while it wakes: a player that sets itself up again can start for a moment before it is paused (filmed).
-    tab.wakeSeq = (tab.wakeSeq ?? 0) + 1;
-    if (tab.waking) { const seq = tab.wakeSeq; wc.setAudioMuted(true); this.wakeHush.add(tab.id); setTimeout(() => this.wokeUp(tab, seq), 10_000); }
-    else this.wakeHush.delete(tab.id);
-    // Every event from this page is about the window the tab is in NOW (it can be dragged to another).
-    const on = ((ev: string, fn: (...a: any[]) => void) => wc.on(ev as 'destroyed', (...a: any[]) => { this.inTab(tab); fn(...a); })) as unknown as Electron.WebContents['on'];
-    wc.on('will-attach-webview', (e) => e.preventDefault());
-    on('focus', () => this.splitFocus(tab));          // sheet 121 (4): a click into the other page of a pair makes it the one in front
-    this.nameFor(wc);
-    if (!tab.internal) declineCookies(wc);                                         // cookiedecline.ts: banners rejected by themselves
-    // A link that opens a new window becomes a tab under the one it came from. Web pages only.
-    // A middle click or Ctrl+click opens it behind, the way every browser does.
-    // "Block popups" (on unless he turns it off): a page opening a new WINDOW by itself is refused; a link he
-    // opens in a new tab still opens as a tab.
-    // Popups (2026-10-12, Chrome's rule): one opened within a second of his click or key press is his, and
-    // opens as a real small window that keeps its link to the page (Sign in with Google needs that). One a page opens
-    // by itself is blocked, unless he allowed popups on that site; a chip offers that.
-    on('input-event', (_e, i) => {
-      if (i.type === 'mouseDown' || i.type === 'keyDown') {
-        this.lastGesture.set(tab.id, Date.now());
-        // His first click or key in a woken tab lets its sound back (it stayed hushed until then).
-        if (this.wakeHush.delete(tab.id) && !wc.isDestroyed()) wc.setAudioMuted(tab.muted);
-      }
-      // (2026-10-14: a click never closes the tab list; only his mouse leaving it does.)
-    });
-    wc.setWindowOpenHandler(({ url: u, disposition }) => {
-      this.inTab(tab);
-      // Phase 1 (parity sweep): a blank page or a blob: page the site builds itself (print previews, generated PDFs,
-      // some sign-ins write into window.open('')) opens as a small window that keeps its link to the page.
-      const own = ownPopup(u, wc.getURL());
-      if (!isWeb(u) && !own) { this.offerApp(tab, u); return { action: 'deny' }; }
-      // A page on the internet never opens this computer or the home network in a new tab or window either.
-      if (goesInward(u, wc.getURL())) { console.log('shell: browser: a page tried to open a home-network address'); return { action: 'deny' }; }
-      if (own) disposition = 'new-window';
-      // Sheet 111: in a tab Claude is driving, a new tab opens in that same tab (as Claude's pages always did); a small
-      // window (a sign in popup) still opens as for his own tabs. Once he has the tab, it is his browsing.
-      const cp = this.driver.pageOfTab(tab.id);
-      if (cp?.borrowed?.own && !this.hands.has(cp.id) && disposition !== 'new-window') { this.driver.openHere(cp.id, u); return { action: 'deny' }; }
-      if (disposition === 'new-window') {
-        let site = '';
-        try { site = new URL(wc.getURL()).hostname.replace(/^www\./, ''); } catch { /* none */ }
-        const his = Date.now() - (this.lastGesture.get(tab.id) ?? 0) < GESTURE_MS;
-        if (this.listed(u).length) return { action: 'deny' };
-        if (!this.prefs.popups || (his && (own || this.fairOpen(tab, wc.getURL(), u))) || this.popOk(site)) {
-          // Over Samara's own window, fully on that screen (2026-11-13: Samara's pop-ups came up in the middle
-          // of his other screen, cut off, wherever Windows put a window with no place of its own).
-          return { action: 'allow', overrideBrowserWindowOptions: { ...this.overWindow(520, 680), autoHideMenuBar: true, backgroundColor: PAGE_COLOUR,
-            title: 'Samara', webPreferences: { ...SAFE_WEB_PREFERENCES, session: this.ses, preload: this.o.tabPreloadPath } } };
-        }
-        // His call (2026-10-12): no chip. The shield glows one solid blue; he clicks it to see what was blocked and
-        // can open it or allow the site, so a popup he was actually waiting for is one click away.
-        console.log('shell: browser: popup blocked');
-        tab.blockedPopup = { url: u, site };
-        this.sendTabs();
-        return { action: 'deny' };
-      }
-      // A new TAB a page opens (window.open with no size, a link in a new tab) needs his click too (security check
-      // 2026-10-24, finding 7): before, only new windows were checked, so a page could open tabs by itself.
-      if (this.listed(u).length) return { action: 'deny' };
-      const his = Date.now() - (this.lastGesture.get(tab.id) ?? 0) < GESTURE_MS;
-      let site = '';
-      try { site = new URL(wc.getURL()).hostname.replace(/^www\./, ''); } catch { /* none */ }
-      if (this.prefs.popups && !(his && this.fairOpen(tab, wc.getURL(), u)) && !this.popOk(site)) {
-        console.log('shell: browser: a tab the page opened by itself was blocked');
-        tab.blockedPopup = { url: u, site };
-        this.sendTabs();
-        return { action: 'deny' };
-      }
-      this.newTab(u, tab.id, disposition !== 'background-tab');
-      return { action: 'deny' };
-    });
-    on('did-create-window', (pw) => this.popupWindow(pw));
-    // 6.22: a listed site never loads, whether it is a link, a redirect or anything else.
-    // A page on the internet never sends him to this computer or the home network (security check 2026-10-24, finding 9:
-    // a page could quietly post a form to his router's settings). He can still type such an address himself.
-    const inward = (u: string) => { try { return privateHost(new URL(u).hostname) && !privateHost(new URL(wc.getURL()).hostname) && /^https?:$/.test(new URL(wc.getURL()).protocol); } catch { return false; } };
-    const refuseInward = (e: Electron.Event, u: string) => { e.preventDefault(); let h = ''; try { h = new URL(u).host; } catch { /* none */ } this.note('', { kind: 'bad', from: 'shield', icon: 'wont', kick: 'Stopped', title: h || 'A home network address', rows: [{ g: 'Why', v: 'A website tried to open it on your home network. Type it in yourself if you meant to go there.' }] }); };
-    on('will-navigate', (e, u) => {
-      if (!isWeb(u)) { e.preventDefault(); this.offerApp(tab, u); return; }
-      if (inward(u)) { refuseInward(e, u); return; }
-      if (this.toPaid(u)) { e.preventDefault(); return; }
-      const l = this.stopFor(u);
-      if (l.length) { e.preventDefault(); this.block(tab, u, l); return; }
-      const up = upgrade(u, this.httpOk);
-      if (up) { e.preventDefault(); tab.upgraded = u; setTimeout(() => { if (!wc.isDestroyed()) void wc.loadURL(up).catch(() => {}); }, 0); }
-    });
-    on('will-redirect', (e, u, _inPage, isMain) => {
-      if (!isMain) return;
-      if (isWeb(u) && inward(u)) { refuseInward(e, u); return; }
-      if (isWeb(u) && this.toPaid(u)) { e.preventDefault(); return; }
-      if (!isWeb(u) && appOf(u)) { e.preventDefault(); this.offerApp(tab, u); return; }
-      // A link for something that is not a web page and that no app here opens: stopped quietly, never shown as a fake
-      // site (2026-10-25: that red plate told him shadow.tech's sign-in was a fake login page).
-      if (!isWeb(u)) { e.preventDefault(); let sc = ''; try { sc = new URL(u).protocol; } catch { /* odd */ } this.note('', { kind: 'bad', from: 'shield', small: true, icon: 'wont', kick: 'No app opens', title: `${sc.replace(/:$/, '') || 'Those'} links` }); return; }
-      const l = this.stopFor(u);
-      if (l.length) { e.preventDefault(); this.block(tab, u, l); return; }
-      const up = upgrade(u, this.httpOk);
-      if (!up) return;
-      e.preventDefault();
-      // The secure version sent us straight back to the plain one: it has no secure version.
-      let back = false;
-      try { back = tab.upgraded !== null && new URL(tab.upgraded).hostname === new URL(u).hostname; } catch { /* no */ }
-      if (back) { this.fail(tab, { kind: 'insecure', url: u, title: "This site isn't secure", text: '', retry: false }); return; }
-      tab.upgraded = u;
-      setTimeout(() => { if (!wc.isDestroyed()) void wc.loadURL(up).catch(() => {}); }, 0);
-    });
-    // A new page clears the last failure; a different site forgets the upgrade.
-    on('did-start-navigation', (d) => {
-      const x = d as unknown as { url: string; isMainFrame: boolean; isSameDocument: boolean };
-      if (!x.isMainFrame || x.isSameDocument) return;
-      if (tab.failed) { tab.failed = null; this.place(); this.changed(); }
-      if (tab.blockedPopup) { tab.blockedPopup = null; this.sendTabs(); }   // a new page: the old popup is old news
-      try { if (tab.upgraded && new URL(tab.upgraded).hostname !== new URL(x.url).hostname) tab.upgraded = null; } catch { tab.upgraded = null; }
-    });
-    // The page did not load: the companion's own plate instead of Chromium's grey page. Cancelled loads (-3) are not failures.
-    on('did-fail-load', (_e, code, _desc, url, isMain) => {
-      if (isMain) { tab.pending = null; if (this.veil?.tab === tab.id) this.veilDown(0); }
-      if (!isMain || code === -3 || !isWeb(url)) return;
-      let host = '';
-      try { host = new URL(url).hostname; } catch { /* keep */ }
-      let wasUp = false;
-      try { wasUp = tab.upgraded !== null && url.startsWith('https:') && new URL(tab.upgraded).hostname === host; } catch { /* no */ }
-      if (wasUp && code !== -106 && code !== -105) this.fail(tab, { kind: 'insecure', url: tab.upgraded!, title: "This site isn't secure", text: '', retry: false });
-      else this.fail(tab, { kind: 'error', url, ...failureWords(code, host) });
-    });
-    on('did-start-navigation', (d) => {
-      const x = d as unknown as { url: string; isMainFrame: boolean };
-      if (!x.isMainFrame || !isWeb(x.url)) return;
-      const l = this.stopFor(x.url);
-      if (l.length) { this.block(tab, x.url, l); return; }
-      // Safe Browsing (private mode): its fingerprint is on Google's kept list and not answered yet. Hold the page,
-      // ask Google about the 4-byte prefix only, then block it or load it again (the answer is kept, so no loop).
-      const sb = this.sb;
-      if (sb?.suspect(x.url)) {
-        // Stopped just after this event, never inside it: stopping from inside did-start-navigation crashed Electron.
-        setImmediate(() => { try { if (!wc.isDestroyed()) wc.stop(); } catch { /* gone */ } });
-        void sb.verdict(x.url).then((threats) => {
-          if (wc.isDestroyed()) return;
-          if (threats.length) this.block(tab, x.url, [SB_NAME]);
-          else void wc.loadURL(x.url).catch(() => { /* the page's own error shows */ });
-        });
-      }
-    });
-    // A mockup keeps the name Claude gave it ("46 · One cockpit"), and never goes into his History.
-    on('page-title-updated', (_e, title) => { if (tab.mock) return; tab.title = title; this.visits.name(wc.getURL(), title); this.changed(); });
-    on('page-favicon-updated', (_e, icons) => {
-      tab.favicon = icons.find((i) => /^https?:|^data:image\//.test(i)) ?? '';
-      this.sendTabs();
-      // Keep it for the site's bookmark, so the shelf shows it even before he visits again.
-      try { const u = new URL(wc.getURL()); if (tab.favicon && !this.icons.has(u.hostname)) void this.keepIcon(u.hostname, [...icons, u.origin + '/favicon.ico']); } catch { /* none */ }
-    });
-    on('did-start-loading', () => { tab.loading = true; if (tab.crashed) { tab.crashed = false; this.place(); } this.sendTabs(); });
-    on('did-stop-loading', () => {
-      tab.loading = false; tab.phase = 'idle'; tab.prog = 1; tab.pending = null; tab.drawn = true;
-      // A woken page "finishes" while it is still rearranging itself (YouTube, filmed 2026-10-23): its picture stays until
-      // it has held still (painted()).
-      if (this.veil?.tab === tab.id && !tab.waking) this.veilDown(VEIL_FADE_MS);
-      this.sendTabs();
-      // Sheet 121 (3): its hover picture, once it has settled (only the page in front can be pictured).
-      setTimeout(() => { if (tab.id === this.active) void this.cardOf(tab); }, 1200);
-      void this.googleCheck(wc, () => { const h = wc.navigationHistory, i = h.getActiveIndex(); return i > 0 ? h.getEntryAtIndex(i - 1)?.url ?? '' : ''; });
-    });
-    // The loading steps (2026-10-12): the click, the site answering, the page read, the page drawn (painted()).
-    on('did-start-navigation', (d) => {
-      const x = d as unknown as { url: string; isMainFrame: boolean; isSameDocument: boolean };
-      if (!x.isMainFrame || x.isSameDocument) return;
-      tab.phase = 'waiting'; tab.prog = 0.08;
-      if (this.af?.tab === tab.id) { this.af = null; this.lightHide(); }
-      if (isWeb(x.url)) void this.veilUp(tab);
-      this.sendTabs();
-    });
-    on('dom-ready', () => {
-      this.paintDark(tab);
-      // Watch mode's look (watchmode.ts): the tab's own script turns it on with the site's theater mode.
-      try { if (WATCH_HOSTS.test(new URL(wc.getURL()).hostname)) void wc.insertCSS(WATCH_CSS).catch(() => {}); } catch { /* not a page */ }
-      if (tab.phase !== 'idle') { tab.prog = Math.max(tab.prog ?? 0, 0.55); this.sendTabs(); }
-    });
-    on('did-navigate', (_e, u, status) => {
-      if (/^https:\/\/(www\.)?netflix\.com(:\d+)?\/watch\//i.test(u)) this.watchPlays(tab, u);
-      if (STREMIO_WEB.test(u)) { void startStremio(); this.stremioMoved(tab, u); }
-      tab.url = u; tab.scrollY = 0; if (status > 0) tab.upgraded = null; if (status < 400 && !tab.mock) this.visits.add(u, '');
-      tab.pending = null;
-      if (tab.phase !== 'idle') { tab.phase = 'loading'; tab.prog = Math.max(tab.prog ?? 0, 0.35); }
-      this.changed();
-    });
-    on('did-navigate-in-page', (_e, u, main) => {
-      if (main && STREMIO_WEB.test(u)) this.stremioMoved(tab, u);
-      // A show started inside the page (Netflix changes page without loading one, 2026-10-14): where paid
-      // video plays in its own window, the show goes there and this tab steps back to where it was.
-      if (main && /^https:\/\/(www\.)?netflix\.com(:\d+)?\/watch\//i.test(u)) { if (this.toPaid(u)) { if (wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack(); return; } this.watchPlays(tab, u); }
-      // Only the page's own move changes its address (2026-10-30: Gmail's compose showed contacts.google.com, a
-      // frame inside it).
-      if (!main) return;
-      tab.url = u; if (!tab.mock) this.visits.add(u, wc.getTitle()); this.changed();
-      void this.googleCheck(wc, () => '');
-    });
-    // Find on page: how many matches, and which one is lit. Only the tab he is looking at reports.
-    on('found-in-page', (_e, r) => { if (tab.id === this.active) this.win?.webContents.send('browser:found', { at: r.activeMatchOrdinal, of: r.matches }); });
-    // 6.22b bug 1: a page's own fullscreen (a video's button) fills the whole screen, band and drawer gone; it
-    // comes back exactly as it was when the page leaves fullscreen (its button, or Esc).
-    on('enter-html-full-screen', () => { if (!tab.lent) this.pageFullOn(tab, view); });
-    on('leave-html-full-screen', () => this.pageFullOff(tab, view));
-    // 6.22b bug 2: right-click on the page opens the companion's own wood menu.
-    on('context-menu', (_e, p) => this.pageMenu(tab, p));
-    // Link preview (6.22b item 8): the real address of the link he points at, shown in the wood under the page.
-    on('update-target-url', (_e, u) => { if (tab.id === this.active) this.win?.webContents.send('browser:hover', isWeb(u) ? u.slice(0, 600) : ''); });
-    // One video at a time (2026-10-13): when this tab starts making sound, every other one stops, here and on
-    // the other machine. Sound, not just playing: a silent hover preview (YouTube's front page) stops nothing.
-    // The pop-out is made ready the moment something plays here (2026-10-22): the first Popout is then as quick as any.
-    on('media-started-playing', () => { if (!tab.internal) { try { this.onPlaying?.(); } catch { /* the video plays on */ } } });
-    on('audio-state-changed', (e) => {
-      const was = tab.audible;
-      tab.audible = (e as unknown as { audible: boolean }).audible;
-      if (tab.audible && !was && !tab.call) this.onePlaying(tab);
-      this.sendTabs();
-    });
-    // A crashed page goes blank and anything that pokes it hangs (tested 2026-10-04): mark it, never touch it.
-    // Nothing it was doing carries on (2026-10-30): a tab that crashed while playing no longer counts as playing.
-    // 2026-11-18 (a black full screen he could not close): a page that dies in full screen gives the screen back.
-    on('render-process-gone', () => { tab.crashed = true; tab.loading = false; tab.audible = false; tab.frozen = false; tab.freezing = false; tab.waking = false; if (this.fullTab === tab.id) this.pageFullOff(tab, view); this.place(); this.sendTabs(); });
-    // The keys work wherever the keyboard is, page or frame.
-    // Not while it is lent to the popout: Ctrl+W there must not close a tab in here.
-    on('before-input-event', (e, input) => { if (this.afKey(tab, input)) { e.preventDefault(); return; } if (!tab.lent && this.key(input)) e.preventDefault(); });
-    // Back where it was: the zoom at once. The scroll (2026-10-22, measured on his Mac: it waited for every picture on
-    // the page, so a busy page sat at the top for up to ~15 s and then jumped): Chromium's own saved state when there is
-    // one, so the page draws where he left it, as Chrome does after a restart; otherwise as soon as the page can scroll,
-    // and once more when it has loaded, unless he has scrolled it himself in between.
-    if (tab.zoom) wc.setZoomLevel(tab.zoom);
-    if (tab.muted) wc.setAudioMuted(true);
-    const back = Math.round(tab.scrollY), state = tab.pageState;
-    tab.pageState = undefined;                          // used once: a later wake loads the page afresh
-    // A mockup from an earlier run: the page server has a new port each run, the commit and path stay the same.
-    // (A live page, 2026-10-22, has no commit and keeps its own address.)
-    if (tab.mock?.commit && this.mockServer) tab.url = this.mockServer.rebase(tab.url);
-    const l = this.stopFor(tab.url);
-    if (l.length) { this.block(tab, tab.url, l); return; }
-    tab.blocked = null;
-    const to = this.secured(tab, tab.url);
-    if (state && to === tab.url && !tab.mock) {
-      wc.navigationHistory.restore({ index: 0, entries: [{ url: tab.url, title: tab.title, pageState: state }] }).catch(() => { if (!wc.isDestroyed()) void wc.loadURL(to).catch(() => {}); });
-      return;
-    }
-    if (back > 0) {
-      // The page engine's main-world run does not wait for the page to finish loading (page.ts).
-      let placed = -1;
-      wc.once('dom-ready', () => { void run(wc, `(scrollTo(0, ${back}), scrollY)`, { fallback: null }).then((y) => { if (y !== null) placed = Number(y); }); });
-      wc.once('did-finish-load', () => { void run(wc, `(scrollY === ${placed} || scrollY === 0) && scrollTo(0, ${back})`, { fallback: null }); });
-    }
-    void wc.loadURL(to).catch(() => {});
-  }
-
-  /**
-   * The Settings tab (2026-10-12): the browser's own page in a tab. It has its own small preload with
-   * only the settings doors, lives in the companion's own session (never his browsing one), and is pinned to its page:
-   * nothing can navigate it anywhere, and typing an address while on it opens a new tab instead.
-   */
-  private wakeSettings(tab: Tab): void {
-    const things = tab.internal === 'things', log = tab.internal === 'mocklog';
-    const view = new WebContentsView({ webPreferences: { ...SAFE_WEB_PREFERENCES, preload: log ? path.join(path.dirname(this.o.thingsPreloadPath), 'mocklogpreload.cjs') : things ? this.o.thingsPreloadPath : this.o.settingsPreloadPath } });
-    const wc = view.webContents;
-    lockDown(wc);
-    view.setBackgroundColor('#24160D');
-    try { view.setBorderRadius(PAGE_RADIUS); } catch { /* square */ }
-    view.setVisible(false);
-    this.inTab(tab);
-    this.win?.contentView.addChildView(view);
-    this.raiseTray();
-    tab.view = view; tab.crashed = false; tab.loading = false; tab.title = log ? 'Mockups' : things ? 'Your things' : 'Settings';
-    wc.on('before-input-event', (e, input) => {
-      this.inTab(tab);
-      // Sheet 107 v4: Esc leaves Mockups, from the sheet's frame too; the page decides (Esc first closes the mark's menu).
-      if (log && input.type === 'keyDown' && input.key === 'Escape' && !input.isAutoRepeat) { e.preventDefault(); wc.send('mocklog:esc'); return; }
-      if (this.key(input)) e.preventDefault();
-    });
-    wc.on('render-process-gone', () => { this.inTab(tab); tab.crashed = true; this.place(); this.sendTabs(); });
-    if (log) wc.once('did-finish-load', () => { this.mockLogSig = ''; this.pushMockLog(); });
-    void wc.loadURL(`${this.o.origin}/${log ? 'mocklog' : things ? 'things' : 'settings'}.html`).catch(() => {});
-  }
+  wakeHush = new Set<number>();
   /**
    * The Hyrule tab (2026-11-03, BG4): his Breath of the Wild map and Journal as a tab of its own, like Settings. Its
    * files are Nintendo's art and his save, so they live in their own private folder (never in Samara's code): Samara
@@ -3415,426 +2002,21 @@ export class SamaraBrowser {
    * screen button (sheet 19) asks for the page's own full screen, which fills the screen like a video's: band and drawer
    * gone, back as they were on F, Esc or the button.
    */
-  private hyrulePages: Promise<PageServer> | null = null;
-  // The page is made at once, like every tab's (the window lays the tab out as soon as it is picked: a page that came
-  // later left it null and threw, 2026-11-03); it loads the map once its server is up.
-  private wakeHyrule(tab: Tab): void {
-    const dir = this.o.hyruleDir;
-    if (!dir) return;
-    // BG10: the pages hear a rewritten live file (state.json, pos.json...) on GET /live/events, watched through live/.
-    this.hyrulePages ??= servePages(dir, '/index.html', { live: path.join(dir, 'live') });
-    // BG5: its own small preload (hyrulepreload.cjs), only the notes' doors.
-    const view = new WebContentsView({ webPreferences: { ...SAFE_WEB_PREFERENCES, preload: path.join(path.dirname(this.o.thingsPreloadPath), 'hyrulepreload.cjs') } });
-    const wc = view.webContents;
-    view.setBackgroundColor('#06121c');
-    try { view.setBorderRadius(PAGE_RADIUS); } catch { /* square */ }
-    view.setVisible(false);
-    this.inTab(tab);
-    this.win?.contentView.addChildView(view);
-    this.raiseTray();
-    tab.view = view; tab.crashed = false; tab.loading = true; tab.title = 'Hyrule';
-    wc.on('before-input-event', (e, input) => { this.inTab(tab); if (this.key(input)) e.preventDefault(); });
-    wc.on('render-process-gone', () => { this.inTab(tab); tab.crashed = true; if (this.fullTab === tab.id) this.pageFullOff(tab, view); this.place(); this.sendTabs(); });
-    wc.on('did-finish-load', () => { tab.loading = false; this.sendTabs(); this.routeDeliver(); });
-    wc.on('enter-html-full-screen', () => { this.inTab(tab); this.pageFullOn(tab, view); });
-    wc.on('leave-html-full-screen', () => { this.inTab(tab); this.pageFullOff(tab, view); });
-    this.hyrulePages.then((pages) => {
-      if (wc.isDestroyed()) return;
-      lockDown(wc, { sameOrigin: pages.origin });
-      void wc.loadURL(`${pages.origin}/index.html`).catch(() => {});
-    }, (e: Error) => { this.hyrulePages = null; console.error('hyrule: the map could not be served: ' + e.message); });
-  }
-  /**
-   * The Hyrule key (2026-11-03: "this was behaviour I cut out with the mockups"): like Mockups, never a tab in
-   * his list. The key takes the page area over and lights up; the key again (or any of his tabs) puts him back on the
-   * tab he was on, and the map stays where he left it for next time. Nothing happens on a machine without the map's folder.
-   */
-  openHyrule(): boolean {
-    if (!this.o.hyruleDir) return false;
-    if (!this.win || this.win.isDestroyed()) { this.whenOpen.push(() => this.openHyrule()); if (!this.lastPane()) this.createPane(); return true; }
-    let t = this.tabs.find((x) => x.internal === 'hyrule');
-    const was = this.cur();
-    if (t && was === t) { this.hyruleLeave(); return true; }
-    if (was && was.internal !== 'hyrule') this.hyruleFrom = was.id;
-    if (!t) {
-      t = { id: ++this.seq, internal: 'hyrule', view: null, opener: null, title: 'Hyrule', url: 'samara:hyrule', favicon: '', loading: false, audible: false, muted: false, crashed: false,
-        scrollY: 0, zoom: 0, lastSeen: Date.now(), blocked: null, trail: null, done: false, lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id };
-      this.tabs.push(t);
-    }
-    this.activate(t.id);
-    this.win?.focus();
-    return true;
-  }
+  hyrulePages: Promise<PageServer> | null = null;
   /** The tab he was on before the Hyrule key. */
-  private hyruleFrom: number | null = null;
-  /** Back from Hyrule to the tab he was on (the newest of his own if that one is gone, else a new one). */
-  hyruleLeave(): void {
-    const h = this.tabs.find((x) => x.internal === 'hyrule');
-    if (!h) return;
-    const mine = (x: Tab) => x !== h && !x.done && x.pane === h.pane;
-    const back = this.tabs.find((x) => x.id === this.hyruleFrom && mine(x)) ?? [...this.tabs].filter((x) => mine(x) && !x.internal).sort((a, b) => b.lastSeen - a.lastSeen)[0];
-    this.hyruleFrom = null;
-    if (back) this.activate(back.id); else this.newTab(this.HOME);
-  }
-  isSettings(sender: Electron.WebContents): boolean { const t = this.tabs.find((x) => x.internal === 'settings' && x.view?.webContents === sender); if (t) this.inTab(t); return Boolean(t); }
-  /** Open Settings (or bring its tab forward), at a section. */
-  openSettings(section = 'general'): void {
-    if (!this.win || this.win.isDestroyed()) return;
-    let t = this.tabs.find((x) => x.internal === 'settings');
-    if (!t) {
-      t = { id: ++this.seq, internal: 'settings', view: null, opener: null, title: 'Settings', url: 'samara:settings', favicon: '', loading: false, audible: false, muted: false, crashed: false,
-        scrollY: 0, zoom: 0, lastSeen: Date.now(), blocked: null, trail: null, done: false, lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id };
-      this.tabs.push(t);
-    }
-    this.activate(t.id);
-    this.win?.focus();
-    const wc = t.view?.webContents;
-    if (wc) { const go = () => wc.send('settings:section', String(section).slice(0, 20)); if (wc.isLoading()) wc.once('did-finish-load', go); else go(); }
-  }
-  private vaultChecking = false;
-  /** Everything Settings shows. Plain data only. */
-  async settingsData(): Promise<Record<string, unknown>> {
-    // The Bitwarden check takes over 2 seconds (it starts a whole program), so Settings draws with the last
-    // known answer and is updated when the fresh one comes in.
-    const vault = this.vault.known;
-    if (!this.vaultChecking) {
-      this.vaultChecking = true;
-      void this.vault.state().then((v) => { this.vaultChecking = false; if (v !== vault) this.pushSettings(); }, () => { this.vaultChecking = false; });
-    }
-    return {
-      home: this.prefs.home !== DEFAULT_HOME ? this.prefs.home : '', homeNow: this.HOME,
-      search: this.prefs.search, aiBox: this.prefs.aiBox, startup: this.prefs.startup,
-      ads: this.prefs.ads, popups: this.prefs.popups, sounds: this.sounds, dark: this.prefs.dark, tabSize: this.tabSize,
-      popupOk: [...this.popupOk].sort(), trusted: [...this.trusted].sort(), httpOk: [...this.httpOk].sort(), sites: this.yourSites(),
-      marks: this.marks.slice(0, 400).map((m) => ({ title: m.title, url: m.url, favicon: this.iconOf(m.url) })), markCount: this.marks.length,
-      vault, phish: this.phish.count(),
-      // -1: no key yet (off); otherwise how many of Google's fingerprints are kept on this PC.
-      safeBrowsing: this.sb ? (this.sb.key() ? this.sb.count() : -1) : -2,
-      afSounds: this.prefs.afSounds, lockAfter: this.prefs.lockAfter,
-      autofill: { details: this.details.get(), pin: this.pinSeal.has(), pinLen: this.pinSeal.has() ? this.pinSeal.length() : 0, sounds: this.prefs.afSounds },
-      versions: { electron: process.versions.electron, chrome: process.versions.chrome }, mac: process.platform === 'darwin' || Boolean(this.o.tvAt),
-      // Sheet 99: his TV (kept on this Mac only, tv-remote.json; the PC has no TV link)
-      ...(() => { const c = this.tvCfg(); return { tv: { name: c.name, linked: c.linked }, tvAnswer: c.answer, tvPause: c.pause }; })(),
-    };
-  }
-  private pushSettings(): void {
-    const wc = this.tabs.find((x) => x.internal === 'settings')?.view?.webContents;
-    if (wc && !wc.isDestroyed()) void this.settingsData().then((d) => { if (!wc.isDestroyed()) wc.send('settings:data', d); });
-  }
-  /** A change made in Settings. Only these keys; anything else is ignored. */
-  setSetting(key: string, value: unknown): void {
-    switch (key) {
-      case 'home': this.setHome(String(value ?? '')); break;
-      case 'search': this.prefs.search = value === 'ddg' || value === 'google' ? value : 'brave'; setSearch(this.prefs.search, this.prefs.aiBox); this.savePrefs(); break;
-      case 'aiBox': this.prefs.aiBox = value === true; setSearch(this.prefs.search, this.prefs.aiBox); this.savePrefs(); break;
-      case 'startup': this.prefs.startup = value === 'home' ? 'home' : 'tabs'; this.savePrefs(); break;
-      case 'ads': case 'popups': case 'sounds': case 'dark': this.setPref(key, value === true); break;
-      // Autofill (sheet 77): his details, the sound switch, and his PIN (set while Bitwarden is open).
-      case 'afDetails': this.details.set(cleanDetails(value)); this.sync?.changed('prefs'); break;
-      case 'afSounds': this.prefs.afSounds = value === true; this.savePrefs(); break;
-      case 'afPin': void this.afSetPin(value); return;
-      case 'tvAnswer': this.saveTvCfg({ ...this.tvCfg(), answer: value === true }); break;
-      case 'tvPause': this.saveTvCfg({ ...this.tvCfg(), pause: value === true }); break;
-      case 'lockAfter': this.prefs.lockAfter = lockPick(value); this.vault.setLockAfter(LOCK_AFTER[this.prefs.lockAfter]); this.savePrefs(); break;
-      case 'tabSize': {
-        this.tabSize = value === 's' || value === 'm' ? value : 'l';
-        try { writeFileAtomic(this.localFile, JSON.stringify({ tabSize: this.tabSize })); } catch { /* this run only */ }
-        // The list layer hears it at once, open or not, so its next slide starts at the new width.
-        for (const p of this.panes) {
-          // ...and is drawn again out of sight at the new size, so the first open after the change is smooth too.
-          if (p.trayV && !p.trayV.webContents.isDestroyed()) { p.trayV.webContents.send('browser:tray', { size: this.tabSize }); if (!p.trayOn) { const v = p.trayV; setTimeout(() => this.warmTray(p, v), 150); } }
-          if (p.trayOn) { const was = this.pane; this.pane = p; this.placeTray(); this.pane = was; }
-        }
-        break;
-      }
-      default: return;
-    }
-    this.sendTabs();
-    this.pushSettings();
-  }
-  /** Take one entry off a list he made (sites allowed popups, trusted for downloads, opened without https, bookmarks). */
-  removeEntry(list: string, value: string): void {
-    const v = String(value ?? '').slice(0, 2000);
-    const save = (f: string, s: Set<string>) => { try { writeFileAtomic(f, JSON.stringify([...s])); } catch { /* best effort */ } };
-    if (list === 'popupOk' && this.popupOk.delete(v)) save(this.popupOkFile, this.popupOk);
-    else if (list === 'trusted' && this.trusted.delete(v)) save(this.trustedFile, this.trusted);
-    else if (list === 'httpOk' && this.httpOk.delete(v)) save(this.httpOkFile, this.httpOk);
-    else if (list === 'marks') { const i = this.marks.findIndex((m) => m.url === v); if (i >= 0) { this.marks.splice(i, 1); this.saveMarks(); } }
-    else if (list !== 'trusted' && list !== 'httpOk') return;
-    if (list === 'trusted' && this.peerTrusted.delete(v)) save(this.trustedFile.replace(/[.]json$/, '-other.json'), this.peerTrusted);
-    if (list === 'httpOk' && this.peerHttp.delete(v)) save(this.httpOkFile.replace(/[.]json$/, '-other.json'), this.peerHttp);
-    if (list !== 'marks') this.sync?.changed('prefs');
-    this.sendTabs();
-    this.pushSettings();
-  }
-  /**
-   * Sheet 83 (2026-10-23): the address he is typing in Settings, looked up with OpenStreetMap (Photon), so he
-   * picks it and the rest fills in. Only what he typed in that box goes out, and only from Settings; answers are plain text.
-   */
-  async addressLookup(text: string): Promise<{ line: string; street: string; city: string; region: string; postal: string; country: string }[]> {
-    const q = String(text ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 200);
-    if (q.length < 4) return [];
-    const clip = (v: unknown, n = 120) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, n);
-    try {
-      const r = await within(net.fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&lang=en`, { credentials: 'omit', redirect: 'error' }).then((x) => (x.ok ? x.json() : null)), 6000, null);
-      const out: { line: string; street: string; city: string; region: string; postal: string; country: string }[] = [];
-      for (const f of (r as { features?: { properties?: Record<string, unknown> }[] } | null)?.features ?? []) {
-        const p = f.properties ?? {};
-        const road = clip(p.street ?? (p.type === 'street' ? p.name : ''));
-        if (!road) continue;
-        const street = [clip(p.housenumber, 20), road].filter(Boolean).join(' ');
-        const city = clip(p.city ?? p.town ?? p.village ?? p.district ?? p.county), region = clip(p.state), postal = clip(p.postcode, 20).toUpperCase(), country = clip(p.country, 80);
-        const line = [street, city, region].filter(Boolean).join(', ');
-        if (!out.some((o) => o.line === line)) out.push({ line, street, city, region, postal, country });
-        if (out.length === 5) break;
-      }
-      return out;
-    } catch { return []; }
-  }
-  settingsAct(act: string): void {
-    if (act === 'import') void this.importMarks().then(() => this.pushSettings());
-    else if (act === 'import-chrome' || act === 'import-safari') void this.importFrom(act === 'import-chrome' ? 'chrome' : 'safari').then(() => this.pushSettings());
-    else if (act === 'lockvault') { this.vault.lock(); this.pushSettings(); }
-    else if (act === 'afforgetpin') { this.pinSeal.wipe(); this.pushSettings(); }
-    else if (act === 'tvunlink') { this.saveTvCfg({ ...this.tvCfg(), linked: false }); console.log('shell: TV: unlinked'); this.pushSettings(); }
-    else if (act === 'signout') { this.pinSeal.wipe(); void this.vault.signOut().then(() => this.pushSettings()); }
-  }
-
-  // ------------------------------------------------------------------ Your things: History and Downloads (2026-10-12)
-  isThings(sender: Electron.WebContents): boolean { const t = this.tabs.find((x) => x.internal === 'things' && x.view?.webContents === sender); if (t) this.inTab(t); return Boolean(t); }
-  /** Open Your things (or bring its tab forward), at History or Downloads. */
-  openThings(section: 'history' | 'downloads' = 'history'): void {
-    if (!this.win || this.win.isDestroyed()) return;
-    let t = this.tabs.find((x) => x.internal === 'things');
-    if (!t) {
-      t = { id: ++this.seq, internal: 'things', view: null, opener: null, title: 'Your things', url: 'samara:things', favicon: '', loading: false, audible: false, muted: false, crashed: false,
-        scrollY: 0, zoom: 0, lastSeen: Date.now(), blocked: null, trail: null, done: false, lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id };
-      this.tabs.push(t);
-    }
-    this.activate(t.id);
-    this.win?.focus();
-    const wc = t.view?.webContents;
-    if (wc) { const go = () => wc.send('things:section', section); if (wc.isLoading()) wc.once('did-finish-load', go); else go(); }
-  }
-  /** One page of History, newest first, for what he typed. Plain data. */
-  historyPage(q: string, offset: number): { items: { url: string; title: string; at: number; favicon: string }[]; more: boolean } {
-    const r = searchVisits(this.visits.list, String(q ?? '').slice(0, 200), Math.max(0, Math.min(100_000, Math.floor(offset) || 0)), 100);
-    return { items: r.items.map((v) => ({ ...v, favicon: this.iconOf(v.url) })), more: r.more };
-  }
-  /** His History changes: take one page off, or clear the last hour, today, or everything. */
-  historyAct(act: string, url?: string, at?: number): void {
-    const now = Date.now();
-    if (act === 'forget' && typeof url === 'string' && Number.isFinite(at)) this.visits.forget(url, Number(at));
-    else if (act === 'clearhour') this.visits.clear(now - 3_600_000);
-    else if (act === 'cleartoday') { const d = new Date(now); d.setHours(0, 0, 0, 0); this.visits.clear(d.getTime()); }
-    else if (act === 'clearall') this.visits.clear(0);
-    else return;
-    this.pushThings('history');
-  }
-  /** Open a page from History: always a new tab, so Your things stays where it was. */
-  openFromThings(url: string): void { if (isWeb(url)) this.newTab(url); }
-  private dlView(d: Dl): Record<string, unknown> {
-    const g = this.got.get(d.id);
-    const left = g && g.total > 0 && g.rate > 1 ? Math.round((g.total - g.got) / g.rate) : null;
-    return { id: d.id, name: d.name, kind: kindOf(d.name), site: d.site, size: d.size, at: d.at, state: d.state,
-      got: g?.got ?? 0, total: g?.total ?? d.size, left, gone: d.state === 'done' && !existsSync(d.file) };
-  }
-  /**
-   * Sheet 106 v7: a finished download is a notice from the download key whose parchment holds the download tray's own
-   * row, dragged out by the row. Files that finish while it is up (or waiting) join it: one notice, a row each.
-   */
-  private dlNotice(d: Dl): void {
-    const row = { id: d.id, kind: kindOf(d.name), name: d.name, meta: `${mbOf(d.size)}${d.site ? ' · ' + d.site : ''} · now` };
-    const was = this.notices.group('dl');
-    if (was?.files) {
-      const files = [...was.files.filter((f) => f.id !== d.id), row].slice(-6);
-      this.notices.update(was.id, cleanNotice({ ...was, kick: `${files.length} downloads`, title: 'All ready', files }));
-      return;
-    }
-    const mac = process.platform === 'darwin';
-    this.notices.push(cleanNotice({ kind: 'done', from: 'dl', group: 'dl', kick: 'Downloaded', title: 'Ready', files: [row],
-      keys: [{ label: mac ? 'Show in Finder' : 'Show in folder', act: 'show' }, { label: 'Got it', act: 'ok', plain: true }] }), (act, _v, n) => {
-      // Show in Finder: the one file, or the Downloads folder when several came together
-      if (act === 'show') { if (n.files?.length === 1) this.dlAct('show', n.files[0].id); else this.dlAct('folder', 0); }
-    });
-  }
-  /** The Downloads page: every download kept (200), newest first. */
-  downloadsPage(): Record<string, unknown>[] { return [...this.dls.list].reverse().map((d) => this.dlView(d)); }
-  private pushThings(what: 'history' | 'downloads'): void {
-    const wc = this.tabs.find((x) => x.internal === 'things')?.view?.webContents;
-    if (wc && !wc.isDestroyed()) wc.send('things:changed', what);
-  }
-  /**
-   * The tray in the band: this run's newest 5. Its key shows only while the tray has something (2026-10-12).
-   * pop: a download just finished, so the tray drops open by itself for a moment. Progress goes out at most 4 times a second.
-   */
-  private sendDownloads(pop: boolean | 'pop' = false): void {
-    const go = () => {
-      this.dlSendTimer = null;
-      const tray = trayOf(this.dls.list, this.traySince, Date.now());
-      const data = { items: tray.map((d) => this.dlView(d)), pop: pop === 'pop' };
-      for (const p of this.panes) if (this.alive(p)) p.win!.webContents.send('browser:dls', data);
-      this.pushThings('downloads');
-      // When nothing is coming in, the tray empties an hour after the newest download: look again then.
-      if (this.trayTimer) { clearTimeout(this.trayTimer); this.trayTimer = null; }
-      if (tray.length && !tray.some((d) => d.state === 'going')) this.trayTimer = setTimeout(() => this.sendDownloads(true), Math.max(1000, tray[0].at + 60 * 60_000 - Date.now() + 500));
-    };
-    if (pop) { if (this.dlSendTimer) clearTimeout(this.dlSendTimer); go(); return; }
-    if (!this.dlSendTimer) this.dlSendTimer = setTimeout(go, 250);
-  }
-  /** The frame asks again (it just loaded). */
-  resendDownloads(): void { this.sendDownloads(true); }
-  /** His click on a download: open it, show it in its folder, stop it, take it off the list; or the tray's own two. */
-  dlAct(act: string, id: number): void {
-    if (act === 'clear') { this.traySince = Date.now(); this.sendDownloads(true); return; }
-    if (act === 'folder') { void shell.openPath(app.getPath('downloads')); return; }
-    if (act === 'page') { this.openThings('downloads'); return; }
-    const d = this.dls.get(id);
-    if (!d) return;
-    if (act === 'stop') { this.live.get(id)?.cancel(); return; }
-    if (act === 'forget') { if (d.state !== 'going') { this.dls.remove(id); this.sendDownloads(true); } return; }
-    // Only files this browser saved, and only once they are whole. Windows checks them (the Mark of the Web) as they open.
-    if (d.state !== 'done' || !existsSync(d.file)) { this.sendDownloads(true); return; }
-    if (act === 'open') void shell.openPath(d.file).then((err) => { if (err) this.note('', { kind: 'bad', from: 'dl', icon: 'wont', kick: 'Could not open', title: d.name, rows: [{ g: 'Why', v: err }] }); });
-    else if (act === 'show') shell.showItemInFolder(d.file);
-  }
-  /**
-   * Drag a finished download out of the tray or the page, into Claude, the companion, a folder or the desktop. Only a file on
-   * this browser's own list: the page names a number, never a path. The picture under the mouse is its paper icon.
-   */
-  dlDrag(sender: Electron.WebContents, id: number): void {
-    const d = this.dls.get(id);
-    if (!d || d.state !== 'done' || !existsSync(d.file)) return;
-    let icon = nativeImage.createFromPath(path.join(path.dirname(this.o.preloadPath), '..', 'pages', 'art', 'browser', `file_${kindOf(d.name)}.png`));
-    if (icon.isEmpty()) icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/6XqRwAAAABJRU5ErkJggg==');
-    try { sender.startDrag({ file: d.file, icon }); } catch (e) { console.error('shell: drag failed: ' + (e as Error).message); }
-  }
-
-  /**
-   * Freeze or thaw a tab's page through Chromium's own developer channel (Page.setWebLifecycleState, tested in this engine
-   * 2026-10-23: timers stop, and stay stopped after the channel is let go; thawing picks up where it left off). Never a
-   * page Claude's driver holds that channel on.
-   */
-  private async freeze(t: Tab, on: boolean): Promise<void> {
-    const wc = t.view?.webContents;
-    if (!wc || wc.isDestroyed() || Boolean(t.frozen) === on) return;
-    const dbg = wc.debugger;
-    if (dbg.isAttached()) return;
-    if (on) {
-      t.freezing = true;
-      const at = await run<number | null>(wc, VIDEO_AT_JS, { ms: 800, fallback: null }); if (typeof at === 'number') t.videoAt = at;
-      // He may have come back to it while its spot was read (2026-10-30, stability check): never freeze the tab in front.
-      if (!t.freezing || !this.mayRest(t) || wc.isDestroyed() || dbg.isAttached()) { t.freezing = false; return; }
-    }
-    try {
-      dbg.attach('1.3');
-      // Marked only when Chromium answered: a slow thaw on the busy Mac used to count as done and left the page dead.
-      const answered = await within(dbg.sendCommand('Page.setWebLifecycleState', { state: on ? 'frozen' : 'active' }).then(() => true), 1500, false);
-      if (answered) t.frozen = on;
-      // A freeze that did not answer in time may still land: it is undone, so a page never stays frozen unmarked.
-      // Picked while it froze: thawed again at once, before the channel is let go.
-      if (on && (!answered || !t.freezing || !this.mayRest(t))) { await within(dbg.sendCommand('Page.setWebLifecycleState', { state: 'active' }).then(() => true), 1500, false); t.frozen = false; }
-    } catch { /* this page will not: it stays as it was */ }
-    finally { t.freezing = false; try { if (dbg.isAttached()) dbg.detach(); } catch { /* gone */ } }
-  }
-  /** Out of sight and quiet: a tab that may be frozen or put to sleep right now. */
-  private mayRest(t: Tab): boolean {
-    return Boolean(t.view) && !t.lent && !t.call && !t.internal && !t.audible && !t.crashed && !this.inFront(t);
-  }
-  /** A freeze still under way is called off (it backs out, or thaws the page itself); a frozen page thaws. */
-  thaw(t: Tab): void { if (t.freezing) { t.freezing = false; return; } if (t.frozen) void this.freeze(t, false); }
-  /** Before a tab sleeps: his spot in its video (a frozen page told it as it froze), and its picture if none is kept. */
-  async rest(t: Tab): Promise<void> {
-    if (!t.view) return;
-    if (!t.frozen) { const at = await run<number | null>(t.view.webContents, VIDEO_AT_JS, { ms: 800, fallback: null }); if (typeof at === 'number') t.videoAt = at; }
-    if (!t.leftShot) { const shot = await this.shotOf(t); if (shot) t.leftShot = shot; }
-    // He may have picked it while its spot and picture were taken: the tab in front is never put to sleep (2026-10-30).
-    if (!this.mayRest(t)) return;
-    this.sleep(t);
-  }
-  /** Put a tab to sleep: its page closes, its snapshot stays, the plaque sinks. */
-  private sleep(tab: Tab): void {
-    if (!tab.view) return;
-    // Its page comes back where it was when it wakes (Chromium's own state, kept with the tab).
-    try { const h = tab.view.webContents.navigationHistory; const s = h.getEntryAtIndex(h.getActiveIndex())?.pageState; if (s && s.length <= PAGE_STATE_MAX && !tab.mock) tab.pageState = s; } catch { /* the scroll is kept as before */ }
-    this.closeView(tab);
-    tab.loading = false; tab.audible = false; tab.frozen = false; tab.slept = true;
-  }
-  private closeView(tab: Tab): void {
-    if (!tab.view) return;
-    const p = this.paneOfTab(tab);
-    try { if (this.alive(p)) p.win!.contentView.removeChildView(tab.view); } catch { /* not shown */ }
-    try { tab.view.webContents.close(); } catch { /* gone */ }
-    tab.view = null;
-  }
-  /**
-   * Tabs sleep the way Chrome's Memory Saver and Edge's sleeping tabs do (2026-10-23: coming back to a sleeping
-   * tab, a video above all, was slow and looked broken). A tab in the background already costs almost nothing (throttled,
-   * its video paused), so it stays alive and comes back instantly. Only when the computer is short on memory do tabs
-   * sleep, the one unseen longest first, a few at a time until it is comfortable; and any tab unseen for 8 hours.
-   */
-  private async sleepIdle(): Promise<void> {
-    // One round at a time (2026-10-30): a round over many tabs on the busy Mac can outlast the minute between rounds.
-    if (this.idleBusy || Date.now() < this.idleQuietUntil) return;
-    this.idleBusy = true;
-    try { await this.sleepIdleRound(); } finally { this.idleBusy = false; }
-  }
-  private idleBusy = false;
+  hyruleFrom: number | null = null;
+  vaultChecking = false;
+  idleBusy = false;
   /** Just back from the computer sleeping: no tidying for a minute and a half while everything wakes. */
-  private idleQuietUntil = 0;
-  private suspendedAt = 0;
-  private async sleepIdleRound(): Promise<void> {
-    const now = Date.now();
-    // Sheet 100 v4 (2026-10-28: "Tuck away old ones"): a mockup tab he has not looked at in 3 days closes by
-    // itself. It is still in the Mockups tab. Never the one in front, never one that arrived and was not seen yet.
-    for (const t of [...this.tabs]) {
-      if (!t.mock || t.mock.unseen || this.panes.some((p) => p.active === t.id)) continue;
-      const seen = this.mockStore?.meta.get(t.mock.sheet)?.opened ?? t.mock.at ?? now;
-      if (now - seen > MOCK_TUCK_MS) this.close(t.id, false);
-    }
-    // A tab a Claude or companion job has (its own, or his lent) never sleeps or freezes: its page is what the job is using.
-    const jobs = (t: Tab) => Boolean(this.driver.pageOfTab(t.id));
-    const can = (t: Tab) => t.view && !t.lent && !t.call && !t.internal && !jobs(t) && !this.inFront(t) && !t.audible && now - t.lastSeen > SLEEP_MIN_MS;
-    let any = false;
-    // Frozen first: out of sight for 5 minutes and silent; a call, the pop-out and Claude's work never.
-    for (const t of this.tabs) if (t.view && !t.frozen && !t.lent && !t.call && !t.internal && !jobs(t) && !t.audible && !this.inFront(t) && now - t.lastSeen > FREEZE_AFTER_MS) await this.freeze(t, true);
-    const rest = async (t: Tab) => { await this.rest(t); any = true; };
-    for (const t of this.tabs) if (can(t) && now - t.lastSeen > SLEEP_AFTER_MS) await rest(t);
-    if (await memoryShort()) {
-      for (const t of this.tabs.filter(can).sort((a, b) => a.lastSeen - b.lastSeen).slice(0, 3)) await rest(t);
-    }
-    if (any) this.sendTabs();
-  }
-
-  /**
-   * Sheet 111: a page for a Claude session, as a real tab in the window in front: in the background, never shown or
-   * focused, never in a trail he has open, out of his list (it shows in Claude's group). Its sound is off.
-   */
-  private claudeTab(url: string, guest: boolean): { tab: number; wc: Electron.WebContents } | null {
-    const w = this.win;
-    if (!w || w.isDestroyed() || !isWeb(url)) return null;
-    const pend = this.pendingTrail, since = this.newSince;
-    this.pendingTrail = null;
-    this.nextTab = { claude: true, guest };
-    const id = this.newTab(url, null, false);
-    this.nextTab = null;
-    this.pendingTrail = pend; this.newSince = since;
-    const t = id === null ? undefined : this.tabs.find((x) => x.id === id);
-    const wc = t?.view?.webContents;
-    if (!t || !wc) return null;
-    t.muted = true; t.playOkAt = undefined;
-    // A tab never shown has no size: its page would lay out at 0 by 0 (no picture, nothing to click). It gets the page
-    // area's size at once, hidden.
-    t.view!.setBounds(this.pageArea());
-    return { tab: t.id, wc };
-  }
-  private nextTab: { claude: boolean; guest: boolean } | null = null;
+  idleQuietUntil = 0;
+  suspendedAt = 0;
+  nextTab: { claude: boolean; guest: boolean } | null = null;
   /**
    * Sheet 111: a tab in the background draws nothing, so Claude's picture of it came back empty. For the picture it is
    * shown UNDER his front page (the bottom of the window's layers), where he never sees it, then hidden again. Only while
    * his front page is shown and covers it; otherwise (the tab list's still picture is up) no picture is taken this way.
    */
-  private async drawnFor<T>(tab: number, fn: () => Promise<T>): Promise<T> {
+  async drawnFor<T>(tab: number, fn: () => Promise<T>): Promise<T> {
     const t = this.tabs.find((x) => x.id === tab), v = t?.view, w = this.win, front = this.cur()?.view;
     if (!v || !w || w.isDestroyed() || v.getVisible() || !front || !front.getVisible()) return fn();
     try {
@@ -3848,670 +2030,19 @@ export class SamaraBrowser {
       if (!v.webContents.isDestroyed() && this.cur()?.id !== tab) v.setVisible(false);
     }
   }
-
-  newTab(address: string, opener: number | null = null, focus = true): number | null {
-    const w = this.win;
-    if (!w || w.isDestroyed()) return null;
-    const url = isWeb(address) ? address : addressFor(address);
-    if (!url) return null;
-    if (this.toPaid(url)) return null;
-    // Phase R (2026-11-24): trails are retired; a tab opened from a link remembers its opener (closing it goes back
-    // there) and sits in Today like any other.
-    const trail: number | null = null;
-    const from = opener !== null ? this.tabs.find((x) => x.id === opener) : undefined;
-    this.pendingTrail = null;
-    const tab: Tab = { id: ++this.seq, view: null, opener, title: 'New tab', url, favicon: '', loading: true, audible: false, muted: false, crashed: false, scrollY: 0, zoom: 0, lastSeen: Date.now(), blocked: null, trail, done: false, lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id, ...(this.nextTab ? { claude: true, guest: this.nextTab.guest } : {}) };
-    if (from) this.tabs.splice(this.tabs.indexOf(from) + 1, 0, tab); else this.tabs.push(tab);
-    tab.pending = url;
-    // 2026-10-25 (: a tab opened from a link while the list is
-    // closed counts on the tab arrow (it breathes and shows +1) until he opens the list.
-    if (opener !== null && !this.trayOn) this.newSince++;
-    // His own new tab, or a link he just clicked: it may play. Tabs Samara reopens never come through here.
-    if (opener === null || Date.now() - (this.lastGesture.get(opener) ?? 0) < PLAY_MS) tab.playOkAt = Date.now();
-    this.wake(tab);
-    if (focus) this.activate(tab.id); else { this.changed(); this.quietHidden(); }
-    return tab.id;
-  }
-
-  activate(id: number): void {
-    const t = this.tabs.find((x) => x.id === id);
-    if (!t) return;
-    // A tab in another window (picked from the address suggestions): that window comes forward.
-    const other = t.pane !== this.pane.id;
-    if (!this.inTab(t)) return;
-    const w = this.win;
-    const prev = this.cur();
-    if (prev) { this.scrollDue.add(prev.id); prev.lastSeen = Date.now(); }   // its scroll is saved at the next save; leaving it counts as seen
-    if (!w || w.isDestroyed()) return;
-    if (other) w.focus();
-    const mine = this.paneTabs();
-    // Sheet 121 (4): the other page of a pair stays shown beside it.
-    const partner = t.lent ? null : this.partnerOf(id);
-    if (partner && !partner.view) this.wake(partner); else if (partner) this.thaw(partner);
-    // Every live tab stays in the window; switching only shows one and hides the rest. Placed first, then
-    // shown, so it never appears for a moment at the last tab's size.
-    if (t.lent) {
-      // Its page is in the popout: the frame shows "playing in the popout" where it was.
-      this.active = id;
-      for (const x of mine) if (x.view && !x.lent) x.view.setVisible(false);
-      this.changed();
-      this.quietHidden();
-      return;
-    }
-    if (!t.view) this.wake(t);                         // an asleep tab wakes exactly where it was left
-    else this.thaw(t);                                 // a frozen one thaws, instantly
-    if (this.watching !== null) this.unwatch(false);
-    if (this.veil && this.veil.tab !== id) this.veilDown(0);
-    if (this.af && this.af.tab !== id) { this.af = null; this.afPin = null; this.lightHide(); this.afBand(); }
-    this.active = id;
-    t.lastSeen = Date.now();
-    if (t.mock) this.mockStore?.opened(t.mock.sheet);       // sheet 100 v4: when he last looked, kept across restarts
-    this.place();
-    for (const x of mine) if (x.id !== id && x.view) { try { x.view.webContents.stopFindInPage('clearSelection'); } catch { /* gone */ } }
-    // A tab still loading with nothing drawn yet (a new tab, a tab waking up): the page he was on stays until the
-    // curtain holds its picture, then the new one fades in as it draws, never a blank frame (2026-10-13).
-    const fresh = !this.drawerOpen && Boolean(t.phase) && t.phase !== 'idle' && !t.drawn;
-    const hold = fresh && prev && prev.id !== id && prev !== partner && prev.view && !prev.lent && !prev.crashed && !prev.blocked && !prev.failed && prev.view.getVisible() ? prev : undefined;
-    // With the drawer open the page stays hidden under it; closing the drawer shows whichever tab is current.
-    if (!this.drawerOpen && !hold) t.view!.setVisible(true);
-    for (const x of mine) if (x.id !== id && x !== hold && x !== partner && x.view && !x.lent) x.view.setVisible(false);
-    if (partner?.view && !this.drawerOpen && !partner.crashed) partner.view.setVisible(true);
-    if (fresh) void this.veilUp(t, hold);
-    // His ask (2026-11-20): he grabs the address bar while Samara is still opening. Tabs coming back used to take the
-    // keyboard, which closed the bar under him. While he is typing there, the page waits.
-    if (!t.crashed && !this.paneOfTab(t)?.slotOpen) t.view!.webContents.focus();
-    // The drawer is open: the page area is a still picture, so take a fresh one of the tab now in front. Without this
-    // a closed tab stayed on screen until the drawer shut (2026-10-12).
-    if (this.drawerOpen) void this.drawer(true);
-    this.changed();
-    this.quietHidden();
-  }
-
-  /** Close a tab. Closing his last tab closes the window, as in every browser (2026-10-12). */
-  close(id: number, lastClosesWindow = true): void {
-    const i = this.tabs.findIndex((x) => x.id === id);
-    if (i < 0) return;
-    if (STREMIO_WEB.test(this.tabs[i]!.url)) this.stremioMoved(this.tabs[i]!, 'about:closed');
-    this.inTab(this.tabs[i]!);
-    const at = this.paneTabs().indexOf(this.tabs[i]!);
-    // A tab playing in the popout comes back first, so its page is closed here and nowhere else.
-    if (this.tabs[i]!.lent) this.onReclaim?.();
-    // Sheet 115: he closed one of Claude's tabs himself: Claude is told with its next step, never a silent disappearance.
-    if (this.tabs[i]!.claude && !this.jobClosing.delete(id)) {
-      const dp = this.driver.pageOfTab(id), dj = dp ? this.driver.job(dp.job) : undefined;
-      if (dp && dj?.kind === 'claude') this.tell(dj.id, `The user closed page ${dp.id}. Your other pages keep going.`, dp.title);
-    }
-    const [t] = this.tabs.splice(i, 1);
-    if (isWeb(t!.url)) { this.closed.push(t!.url); if (this.closed.length > 25) this.closed.shift(); }
-    this.closeView(t!);
-    this.tidyTrails();
-    if (this.active === id) {
-      const rest = this.paneTabs();
-      // Phase R: back to the tab that opened it, else the one he used last (Firefox's rule), never just the neighbour.
-      const back = afterClose(this.railTab(t!), rest.map((x) => this.railTab(x)));
-      const next = rest.find((x) => x.id === back) ?? rest[Math.min(Math.max(0, at), rest.length - 1)];
-      this.active = null;
-      if (next) this.activate(next.id);
-      else if (lastClosesWindow && this.win && !this.win.isDestroyed()) {
-        // Nothing left in the whole browser: remember an empty window (so the closed tabs do not come back next time).
-        if (!this.tabs.length && this.restored) {
-          this.session.keepCopy('empty');
-          this.session.write({ v: 1, active: 0, tabs: [], trails: [], closed: this.closed.slice(-25) }, { now: true, force: true });
-          this.sync?.changed('tabs');
-        }
-        this.win.close();
-      } else this.newTab(this.HOME);
-    } else this.changed();
-  }
-
-  /** A click on one tab's plaque: show it, close it, or mute it. */
-  tabAct(id: number, act: string): void {
-    const t = this.tabs.find((x) => x.id === id);
-    if (!t) return;
-    if (act === 'show') this.activate(id);
-    // His mouse rests on a sleeping tab: it starts loading out of sight (no sound until he looks: waking holds it).
-    else if (act === 'prewake') { if (!t.view && !t.lent && !t.internal && !t.mock) { this.wake(t); this.sendTabs(); } else this.thaw(t); }
-    else if (act === 'close') this.close(id);
-    else if (act === 'mute') { t.muted = !t.muted; t.view?.webContents.setAudioMuted(t.muted); this.changed(); }
-    else if (act === 'reload') { if (t.view && !t.crashed) t.view.webContents.reload(); else if (t.id === this.active) this.act('reload'); }
-    else if (act === 'newwindow') this.newWindowFor(id);
-    else if (act === 'tvwindow') void this.tvWindow(t);
-    else if (act === 'tvvideo') void this.tvVideo(t);
-    else if (act === 'pin' || act === 'unpin') { t.pinned = act === 'pin'; t.lastSeen = Date.now(); this.changed(); }
-    // TONIGHT on a faded tab: he wants it kept, so it counts as seen now.
-    else if (act === 'keep') { t.lastSeen = Date.now(); this.changed(); }
-  }
-
-  reopen(): void { const u = this.closed.pop(); if (u) this.newTab(u); }
-  /**
-   * An item from Samara's taskbar right-click list (2026-10-21; jumplist.ts). Samara comes forward, or opens
-   * if it was closed (his tabs come back first, as always), then does the one thing. New window opens another window
-   * beside the one he has. Reopen closed tab with Samara closed simply opens it: his tabs coming back IS the reopen.
-   */
-  jumpTask(task: 'new-tab' | 'new-window' | 'mockups' | 'hyrule' | 'settings' | 'reopen'): void {
-    if (task === 'new-window') { this.createPane(); return; }
-    // 2026-11-03: the Shrine dock's right-click asks for Hyrule too (openHyrule waits for a window itself)
-    if (task === 'hyrule') { const p = this.lastPane(); if (p) { this.pane = p; bringFront(p.win!); } this.openHyrule(); return; }
-    const go = () => {
-      if (task === 'new-tab') this.act('newtab');
-      else if (task === 'settings') this.openSettings();
-      else if (task === 'mockups') { if (this.mockupsOn) this.reopenMockups(); }
-      else if (task === 'reopen') this.reopen();
-    };
-    const p = this.lastPane();
-    if (p) { this.pane = p; bringFront(p.win!); go(); return; }
-    if (task === 'reopen' || (task === 'mockups' && !this.mockupsOn)) { this.createPane(); return; }
-    this.whenOpen.push(go);
-    this.createPane();
-  }
-
-  /**
-   * A popup he opened (Sign in with Google and the like): the same safety as a tab. Its real address is its title,
-   * so a fake sign-in window cannot hide where it is. Web pages only, fake sites refused, no popups of its own
-   * except the same Chrome rule, and it closes itself when the sign-in is done.
-   */
-  private popupWindow(pw: BrowserWindow): void {
-    const pwc = pw.webContents;
-    softEdge(pw);
-    this.nameFor(pwc);
-    try { if (HONEST_SITES.test(pwc.getURL())) pwc.setUserAgent(this.honestUA); } catch { /* not yet */ }
-    const name = () => { try { const u = new URL(pwc.getURL()); pw.setTitle(`${u.protocol === 'https:' ? '' : 'NOT SECURE  '}${u.hostname}  -  ${pwc.getTitle()}`.slice(0, 200)); } catch { /* not yet */ } };
-    pwc.on('page-title-updated', name);
-    pwc.on('did-navigate', name);
-    // Phase 3: Google refusing the sign-in inside a popup: Chrome is offered the page he was signing in to.
-    const opener = () => this.tabs.find((t) => t.id === this.active)?.url ?? '';
-    pwc.on('did-stop-loading', () => { void this.googleCheck(pwc, opener); });
-    pwc.on('did-navigate-in-page', (_e, _u, main) => { if (main) void this.googleCheck(pwc, opener); });
-    const stop = (e: Electron.Event, u: string) => {
-      if (!isWeb(u)) { e.preventDefault(); return; }
-      if (goesInward(u, pwc.getURL())) { e.preventDefault(); return; }
-      if (this.listed(u).length) { e.preventDefault(); pw.close(); this.note('', { from: 'shield', small: true, icon: 'popup', kick: 'Closed a popup', title: 'A fake site' }); }
-    };
-    pwc.on('will-navigate', stop);
-    pwc.on('will-redirect', (e, u, _inPage, isMain) => { if (isMain) stop(e, u); });
-    // What a popup opens becomes a tab only on his click in the popup (finding 7).
-    let pClick = 0;
-    pwc.on('input-event', (_e, i) => { if (i.type === 'mouseDown' || i.type === 'keyDown') pClick = Date.now(); });
-    pwc.setWindowOpenHandler(({ url: u }) => { if (isWeb(u) && !goesInward(u, pwc.getURL()) && !this.listed(u).length &&(!this.prefs.popups || Date.now() - pClick < GESTURE_MS)) this.newTab(u, this.active, true); return { action: 'deny' }; });
-    pwc.on('will-attach-webview', (e) => e.preventDefault());
-  }
-
-  // ------------------------------------------------------------------ 6.22b: side buttons, the window's place, the right-click menu
-  private sideNav(dir: 'back' | 'forward'): void {
-    const now = Date.now();
-    if (now - this.lastNav < 250) return;
-    this.lastNav = now;
-    this.act(dir);
-  }
-
-  /** The square key's menu (2026-10-23): fill, halves, his other screens, full screen. */
-  private windowMenu(): void {
-    const w = this.win;
-    if (!w || w.isDestroyed()) return;
-    const here = screen.getDisplayMatching(w.getBounds()), a = here.workArea, half = Math.floor(a.width / 2);
-    const put = (r: Electron.Rectangle) => { if (w.isFullScreen()) w.setFullScreen(false); if (w.isMaximized()) w.unmaximize(); w.setBounds(r, true); };
-    const others = screen.getAllDisplays().filter((d) => d.id !== here.id);
-    const moveTo = (d: Electron.Display) => {
-      const b = w.isMaximized() ? null : w.getBounds(), t = d.workArea;
-      if (!b) { w.unmaximize(); w.setBounds({ ...t }, true); w.maximize(); return; }
-      const width = Math.min(b.width, t.width), height = Math.min(b.height, t.height);
-      put({ x: t.x + Math.min(Math.max(0, b.x - a.x), t.width - width), y: t.y + Math.min(Math.max(0, b.y - a.y), t.height - height), width, height });
-    };
-    Menu.buildFromTemplate([
-      { label: w.isMaximized() ? 'Back to its size' : 'Fill the screen', click: () => { if (w.isMaximized()) w.unmaximize(); else w.maximize(); } },
-      { label: 'Left half', click: () => put({ x: a.x, y: a.y, width: half, height: a.height }) },
-      { label: 'Right half', click: () => put({ x: a.x + half, y: a.y, width: a.width - half, height: a.height }) },
-      ...(others.length ? [{ type: 'separator' as const }, ...others.map((d, i) => ({ label: `Move to ${d.label || (others.length > 1 ? `screen ${i + 2}` : 'the other screen')}`, click: () => moveTo(d) }))] : []),
-      { type: 'separator' },
-      { label: w.isFullScreen() ? 'Leave full screen' : 'Full screen', click: () => toggleFull(w) },
-    ]).popup({ window: w });
-  }
   /** Option + drag anywhere on the frame (2026-10-23): the window follows. */
-  private dragFrom: { x: number; y: number; wx: number; wy: number } | null = null;
-  winDrag(sender: Electron.WebContents, phase: string, x: number, y: number): void {
-    const w = BrowserWindow.fromWebContents(sender);
-    if (!w || w.isDestroyed() || w.isFullScreen()) return;
-    if (phase === 'start') { if (w.isMaximized()) return; const [wx, wy] = w.getPosition(); this.dragFrom = { x, y, wx: wx!, wy: wy! }; return; }
-    const d = this.dragFrom;
-    if (!d) return;
-    if (phase === 'move') w.setPosition(d.wx + x - d.x, d.wy + y - d.y);
-    else this.dragFrom = null;
-  }
-  private backToSetupSpot(): void {
-    const w = this.panes[0]?.win;
-    if (!w || w.isDestroyed() || w.isFullScreen()) return;
-    let p: { x: number; y: number; width: number; height: number; maximized?: boolean } | undefined;
-    p = readJson<any>(this.placeFile, null)?.setups?.[this.screensNow()];
-    if (!p || ![p.x, p.y, p.width, p.height].every(Number.isFinite)) return;
-    if (w.isMaximized()) w.unmaximize();
-    w.setBounds({ x: Math.round(p.x), y: Math.round(p.y), width: Math.round(p.width), height: Math.round(p.height) });
-    if (p.maximized) w.maximize();
-  }
-  /** Which screens are plugged in, as a name for this setup: the laptop alone, or with the monitor (2026-10-23). */
-  private screensNow(): string { return screen.getAllDisplays().map((d) => `${d.id}:${d.bounds.width}x${d.bounds.height}`).sort().join('|'); }
-  /** Where the window was last time, if that spot is still on a screen he has. */
-  private savedPlace(): { x: number; y: number; width: number; height: number; maximized: boolean } | null {
-    try {
-      const all = readJson<any>(this.placeFile, null);
-      // Each screen setup keeps its own spot (2026-10-23); a setup never seen yet uses the last one.
-      const p = all?.setups?.[this.screensNow()] ?? all;
-      const r = { x: Math.round(p.x), y: Math.round(p.y), width: Math.round(p.width), height: Math.round(p.height) };
-      if (!Object.values(r).every(Number.isFinite) || r.width < 720 || r.height < 480) return null;
-      // At least a good piece of the band must land on a screen, or it opens where it opens by default.
-      const ok = screen.getAllDisplays().some((d) => {
-        const a = d.workArea;
-        const w = Math.min(r.x + r.width, a.x + a.width) - Math.max(r.x, a.x);
-        return w >= 200 && r.y >= a.y - 8 && r.y + 40 <= a.y + a.height;
-      });
-      return ok ? { ...r, maximized: p.maximized === true } : null;
-    } catch { return null; }
-  }
-  private keepPlace(): void {
-    const w = this.win;
-    if (!w || w.isDestroyed() || w.isMinimized() || w.isFullScreen()) return;
-    const b = w.getNormalBounds();
-    const spot = { ...b, maximized: w.isMaximized() };
-    let setups: Record<string, unknown> = {};
-    setups = readJson<any>(this.placeFile, null)?.setups ?? {};   // first time: none
-    try { writeFileAtomic(this.placeFile, JSON.stringify({ ...spot, setups: { ...setups, [this.screensNow()]: spot } })); } catch { /* best effort */ }
-  }
-
-  /** Build the right-click menu for what was clicked: a link, a picture, selected words, a text box, or the page. */
-  private pageMenu(tab: Tab, p: Electron.ContextMenuParams): void {
-    const w = this.win;
-    const wc = tab.view?.webContents;
-    if (!w || w.isDestroyed() || !wc || tab.lent) return;
-    // Sheet 62 (2026-10-22): the items are built in pagemenu.ts, with "Send to companion" first in every menu.
-    const items = pageMenuItems(p, {
-      ask: Boolean(this.onAskClaude) && !tab.internal && isWeb(tab.url), send: Boolean(this.onSendToCompanion) && !tab.internal, other: this.onOpenOther ? OTHER_OPEN : null, popout: Boolean(this.onPlayInPopout),
-      popVideo: Boolean(this.popTab) && !tab.internal, canBack: wc.navigationHistory.canGoBack(), pageIsWeb: isWeb(tab.url),
-    });
-    this.menuFor = { tab: tab.id, p };
-    this.menuItems = items;
-    this.menuAt = null;
-    this.menuChats = [];
-    const m = this.ensureMenu();
-    if (!m.webContents.isLoading()) m.webContents.send('pagemenu:items', items);
-    // Sheet 109: the chats are asked for as the menu opens, so the list is there by the time he points at Ask Claude.
-    if (items.some((x) => 'id' in x && x.id === 'askclaude')) {
-      const at = this.menuFor;
-      void (this.claudeChats?.() ?? Promise.resolve([])).catch(() => [] as Chat[]).then((list) => {
-        if (this.menuFor !== at || !this.menu || this.menu.isDestroyed()) return;
-        this.menuChats = list.slice(0, 4);
-        this.menu.webContents.send('pagemenu:chats', this.menuChats.map((c) => ({ name: c.name })));
-      });
-    }
-  }
-  private ensureMenu(): BrowserWindow {
-    if (this.menu && !this.menu.isDestroyed()) return this.menu;
-    const m = new BrowserWindow({
-      frame: false, show: false, alwaysOnTop: true, resizable: false, movable: false, minimizable: false, maximizable: false,
-      // See-through (sheet 109): Ask Claude's list hangs beside the menu, outside its own wood.
-      fullscreenable: false, skipTaskbar: true, width: 220, height: 120, transparent: true, backgroundColor: '#00000000', hasShadow: false, title: 'Menu',
-      webPreferences: { ...SAFE_WEB_PREFERENCES, preload: this.o.preloadPath },
-    });
-    lockDown(m.webContents);
-    m.on('blur', () => this.hideMenu());
-    m.webContents.once('did-finish-load', () => {
-      if (this.menuItems) m.webContents.send('pagemenu:items', this.menuItems);
-      if (this.menuItems && this.menuChats.length) m.webContents.send('pagemenu:chats', this.menuChats.map((c) => ({ name: c.name })));
-    });
-    void m.loadURL(`${this.o.origin}/pagemenu.html`);
-    this.menu = m;
-    return m;
-  }
-  private hideMenu(): void { this.menuItems = null; if (this.menu && !this.menu.isDestroyed() && this.menu.isVisible()) this.menu.hide(); }
-  isMenu(sender: Electron.WebContents): boolean { return Boolean(this.menu && !this.menu.isDestroyed() && sender === this.menu.webContents); }
-  /** The menu measured itself: put it at the pointer, flipped so it never leaves the screen. */
-  menuSize(width: number, height: number, sub = 0): void {
-    const m = this.menu;
-    if (!m || m.isDestroyed() || !this.menuItems) return;
-    const h = Math.min(600, Math.max(30, Math.round(height)));
-    // Sheet 109: Claude's list opened beside the menu. The menu stays where it is; the list goes right, or left of it
-    // when the screen ends there.
-    if (this.menuAt && sub > 0) {
-      const at = this.menuAt, side = Math.min(360, Math.round(sub));
-      const a = screen.getDisplayNearestPoint({ x: at.x, y: at.y }).workArea;
-      const flip = at.x + at.w + side > a.x + a.width;
-      m.setBounds({ x: flip ? at.x - side : at.x, y: at.y, width: at.w + side, height: Math.min(h, a.y + a.height - at.y) });
-      m.webContents.send('pagemenu:flip', flip);
-      return;
-    }
-    if (this.menuAt) { m.setBounds({ x: this.menuAt.x, y: this.menuAt.y, width: this.menuAt.w, height: h }); return; }
-    const w = Math.min(340, Math.max(160, Math.round(width)));
-    const pt = screen.getCursorScreenPoint();
-    const a = screen.getDisplayNearestPoint(pt).workArea;
-    const x = pt.x + w > a.x + a.width ? Math.max(a.x, pt.x - w) : pt.x;
-    const y = pt.y + h > a.y + a.height ? Math.max(a.y, pt.y - h) : pt.y;
-    this.menuAt = { x, y, w };
-    m.setBounds({ x, y, width: w, height: h });
-    m.show();
-    m.focus();
-  }
-  /** He picked something (or '' for nothing). Everything happens to the tab he right-clicked. */
-  menuPick(id: string): void {
-    const f = this.menuFor;
-    this.menuFor = null;
-    this.hideMenu();
-    const t = f ? this.tabs.find((x) => x.id === f.tab) : undefined;
-    const wc = t?.view?.webContents;
-    if (!f || !t || !wc || wc.isDestroyed() || !this.inTab(t)) return;
-    const p = f.p;
-    // His report (2026-10-20): picking a spelling did nothing. The menu is its own window, so while it was open the tab's
-    // window lost the keyboard, and the word was replaced in a page that was not focused. Give Samara's window the
-    // keyboard back, then the tab, then replace once that has landed.
-    const pw = this.panes.find((x) => x.id === t.pane)?.win;
-    if (pw && !pw.isDestroyed()) pw.focus();
-    wc.focus();
-    const spell = /^spell([0-4])$/.exec(id);
-    if (spell) { const s = p.dictionarySuggestions[Number(spell[1])]; if (s) setTimeout(() => { if (!wc.isDestroyed()) wc.replaceMisspelling(s); }, 40); return; }
-    switch (id) {
-      case 'linktab': if (isWeb(p.linkURL)) this.newTab(p.linkURL, t.id, false); break;
-      case 'linkcopy': if (isWeb(p.linkURL)) clipboard.writeText(p.linkURL); break;
-      case 'linksave': if (isWeb(p.linkURL)) wc.downloadURL(p.linkURL); break;
-      case 'linkpop': if (isWeb(p.linkURL)) this.onPlayInPopout?.(p.linkURL); break;
-      case 'vidpop': this.popTab?.(t.id); break;
-      case 'tocompanion': void this.sendToCompanion(t, p); break;
-      case 'ask0': case 'ask1': case 'ask2': case 'ask3': case 'asknew': void this.askClaude(t, p, id === 'asknew' ? null : this.menuChats[Number(id.slice(3))] ?? null, id === 'asknew'); break;
-      case 'linkother': if (isWeb(p.linkURL)) this.onOpenOther?.(p.linkURL); break;
-      case 'openother': if (isWeb(t.url)) { this.onOpenOther?.(t.url); this.pauseMedia(t.id); } break;
-      case 'imgsave': if (p.srcURL) wc.downloadURL(p.srcURL); break;
-      case 'imgcopy': wc.copyImageAt(p.x, p.y); break;
-      case 'cut': wc.cut(); break;
-      case 'copy': wc.copy(); break;
-      case 'paste': wc.paste(); break;
-      case 'selectall': wc.selectAll(); break;
-      case 'search': { const q = p.selectionText.replace(/\s+/g, ' ').trim().slice(0, 400); if (q) this.newTab(searchFor(q), t.id, true); break; }
-      case 'back': if (wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack(); break;
-      case 'reload': wc.reload(); break;
-      case 'learn': if (p.misspelledWord) wc.session.addWordToSpellCheckerDictionary(p.misspelledWord); break;
-    }
-  }
-
-  /**
-   * Sheet 109: Ask Claude. Only the bit he picked, the tab's name and its address go, fenced as the page's own words
-   * (askclaude.ts pickText), with a pass for that tab: the chat that gets it may read the tab without asking him again.
-   * Into one of his chats through the companion (the companion link slips it in, or starts a turn), or a new chat in the Claude app
-   * with it typed in, for him to send.
-   */
-  private async askClaude(t: Tab, p: Electron.ContextMenuParams, chat: Chat | null, fresh: boolean): Promise<void> {
-    const words = p.selectionText.replace(/\r\n?/g, '\n').trim();
-    if (!words || !isWeb(t.url)) return;
-    const pass = newPass();
-    const now = Date.now();
-    for (const [k, v] of this.tabPasses) if (v.until < now) this.tabPasses.delete(k);
-    this.tabPasses.set(pass, { tab: t.id, until: now + PASS_MS });
-    if (fresh) {
-      const home = path.join(os.homedir(), 'Handoff', 'samara');
-      void shell.openExternal(newChatLink(pickText({ words, title: t.title, url: t.url, tab: t.id, pass }, NEW_CHAT_MAX - 1200), existsSync(home) ? home : null));
-      return;
-    }
-    if (!chat || !this.onAskClaude) return;
-    const why = await this.onAskClaude(chat.id, pickText({ words, title: t.title, url: t.url, tab: t.id, pass })).catch((e) => (e as Error).message);
-    if (why) this.note('', { kind: 'bad', from: 'menu', small: true, claude: true, kick: 'Not sent', title: why.slice(0, 60) });
-  }
-  /** A pass from a pick, still good, for this tab. */
-  passOk(pass: unknown, tab?: number): boolean {
-    const v = typeof pass === 'string' ? this.tabPasses.get(pass) : undefined;
-    return Boolean(v && v.until > Date.now() && (tab === undefined || v.tab === tab));
-  }
-
-  /**
-   * Sheet 62: "Send to companion" on whatever he right-clicked: the words, the picture, the link, or the page (empty space).
-   * The page is someone else's: its title, words and picture are data for the companion, quoted and never obeyed (pagemenu.ts).
-   * A picture is fetched by the tab's own session (his sign-ins, the same rules), 8 MB at most, and handed over as an
-   * image, never as anything to run; the page's text is read with a deadline and cut short.
-   */
-  private async sendToCompanion(t: Tab, p: Electron.ContextMenuParams): Promise<void> {
-    const wc = t.view?.webContents;
-    const kind = sendKindFor(p, isWeb(t.url));
-    if (!kind || !wc || wc.isDestroyed()) return;
-    const site = hostOf(t.url) || 'a page';
-    const base = { kind, site, url: isWeb(t.url) ? t.url : '', samara: true, icon: this.faviconFor(t.url) };
-    if (kind === 'words') { this.onSendToCompanion?.({ ...base, text: p.selectionText, title: t.title }); return; }
-    if (kind === 'link') { this.onSendToCompanion?.({ ...base, url: p.linkURL, title: p.linkText || '', site: hostOf(p.linkURL) || site, icon: this.faviconFor(p.linkURL) || base.icon }); return; }
-    if (kind === 'page') {
-      const text = await run<string>(wc, 'String(document.body ? document.body.innerText : "").slice(0, 6000)', { ms: 1500, fallback: '' });
-      this.onSendToCompanion?.({ ...base, title: wc.getTitle() || t.title, text: typeof text === 'string' ? text : '' });
-      return;
-    }
-    // A picture: fetched with the tab's own session, 8 MB at most, and only if it really is a picture.
-    let img: Electron.NativeImage | undefined;
-    try {
-      if (/^data:image\//.test(p.srcURL)) img = nativeImage.createFromDataURL(p.srcURL.slice(0, 12_000_000));
-      else if (isWeb(p.srcURL)) {
-        const r = await within<Response | null>(wc.session.fetch(p.srcURL), 8000, null);
-        if (r && r.ok && /^image\//.test(r.headers.get('content-type') ?? '') && Number(r.headers.get('content-length') ?? 0) <= 8_000_000) {
-          const buf = Buffer.from(await r.arrayBuffer());
-          if (buf.length <= 8_000_000) img = nativeImage.createFromBuffer(buf);
-        }
-      }
-    } catch { img = undefined; }
-    this.onSendToCompanion?.({ ...base, title: p.altText || p.titleText || '' }, img && !img.isEmpty() ? img : undefined);
-  }
-
-  // ------------------------------------------------------------------ 6.23 the vault (Bitwarden)
-  /** A password box on the page he is looking at? Read-only, with a deadline. Secure pages only. */
-  private async lookForLogin(): Promise<void> {
-    // Perf sweep (2026-10-22, item 10 of samara-perf-baseline.md): this asked the tab in front for a password box every
-    // 1.5 s all day, behind WoW and minimised too, waking that page's process each time. The key is only for a page he is
-    // looking at, so only while one of Samara's windows has the focus; back in Samara, the next look (within 1.5 s) runs.
-    const focused = BrowserWindow.getFocusedWindow();
-    if (!focused || !this.panes.some((p) => p.win === focused)) return;
-    const lp = this.lastPane();
-    if (lp) this.pane = lp;
-    const t = this.cur();
-    const wc = t?.view?.webContents;
-    let has = false;
-    if (wc && !t!.crashed && !t!.blocked && !t!.failed && !t!.lent && t!.url.startsWith('https:')) {
-      has = await run<boolean>(wc, "!!document.querySelector('input[type=password]')", { ms: 800, fallback: false }) === true;
-    }
-    // His pick: the key shows only where Bitwarden has a login for this site. Until the vault has been opened once
-    // there is no list yet, so it shows on any login page, plain, so he can open it the first time.
-    let known = false;
-    if (has && this.sites) { let host = ''; try { host = new URL(t!.url).hostname; } catch { /* none */ } known = this.siteKnown(host); has = known; }
-    if (has !== this.hasLogin || known !== this.loginKnown) { this.hasLogin = has; this.loginKnown = known; this.sendTabs(); }
-  }
-  private loginKnown = false;
-  /** The site itself (with or without www), scrambled with this PC's own key, against the list. Not its parent domains:
-   *  a login for example.com is not for forum.example.com (finding 3). */
-  private siteKnown(host: string): boolean {
-    if (!this.sites || !host) return false;
-    const h = host.toLowerCase().replace(/^www\./, '');
-    return this.sites.has(scramble(this.siteKey, h)) || this.sites.has(scramble(this.siteKey, 'www.' + h));
-  }
-  /** After an unlock: which sites have logins, kept only as scrambled names. */
-  private async learnSites(): Promise<void> {
-    const hosts = await this.vault.loginHosts();
-    if (!hosts) return;
-    if (!this.siteKey) this.siteKey = randomBytes(32).toString('hex');
-    this.sites = new Set(hosts.map((h) => scramble(this.siteKey, h)));
-    try { const locked = lockKey(this.siteKey); writeFileAtomic(this.sitesFile, JSON.stringify({ ...(locked ? { keyLocked: locked } : { key: this.siteKey }), sites: [...this.sites] })); } catch { /* best effort */ }
-    void this.lookForLogin();
-  }
-  /**
-   * Sheet 106 v7: say something as a notice. Each of Samara's lines is sorted on the sheet's table (its kind, big or small,
-   * what it drops from); a line given only as words becomes plain small news, or big with a Got it when it is long.
-   */
-  /** A short line from Samara's own program, said as small news from the ... menu (Send to companion that did not arrive). */
-  say(kick: string, title: string, kind: NoticeIn['kind'] = 'bad'): void { this.note('', { kind, from: 'menu', small: true, kick, title }); }
-  private note(text: string, o?: Partial<NoticeIn>, on?: (act: string) => void): number {
-    const n: NoticeIn = o?.title ? { kind: 'done', from: 'menu', kick: 'Samara', ...o } as NoticeIn : plainNotice(text, o);
-    if (!n.small && !n.keys?.length) n.keys = [{ label: n.kind === 'bad' ? 'Close' : 'Got it', act: 'ok' }];
-    return this.notices.push(cleanNotice(n), on);
-  }
-  /** He clicked the key. */
-  async vaultKey(): Promise<void> {
-    const t = this.cur();
-    if (!t || !t.view || !t.url.startsWith('https:')) { this.note('', { kind: 'bad', from: 'shield', small: true, icon: 'key', kick: 'Not filled', title: 'Not a secure page' }); return; }
-    let host = '';
-    try { host = new URL(t.url).hostname; } catch { return; }
-    this.vaultFor = { tab: t.id, host };
-    const P = this.pane;
-    const s = await this.vault.state();
-    this.pane = P;
-    if (s === 'missing') { this.note('', { kind: 'bad', from: 'shield', icon: 'key', kick: 'Bitwarden', title: 'Not on this computer yet', rows: [{ g: 'Why', v: "Bitwarden's tool is not installed here." }] }); return; }
-    if (s === 'signed-out') { this.note('', { kind: 'need', from: 'shield', icon: 'key', kick: 'Bitwarden', title: 'Sign in once first', rows: [{ g: 'Yourself', v: BW_LOGIN }] }); return; }
-    if (s === 'locked') { this.win?.webContents.send('browser:vault', { mode: 'unlock', host }); return; }
-    await this.vaultList();
-  }
-  /** His master password, straight from the frame's box. Used once by bw, never kept, never logged. */
-  async vaultUnlock(password: string): Promise<void> {
-    const f = this.vaultFor;
-    if (!f) return;
-    const P = this.pane;
-    const ok = await this.vault.unlock(password);
-    this.pane = P;
-    if (!ok) { this.win?.webContents.send('browser:vault', { mode: 'unlock', host: f.host, wrong: true }); return; }
-    void this.learnSites();
-    await this.vaultList();
-  }
-  private async vaultList(): Promise<void> {
-    const f = this.vaultFor;
-    const t = f ? this.tabs.find((x) => x.id === f.tab) : undefined;
-    if (!f || !t) return;
-    const logins: Login[] | null = await this.vault.loginsFor(t.url);
-    if (!this.inTab(t)) return;
-    if (logins === null) { this.note('', { kind: 'bad', from: 'shield', icon: 'key', kick: 'Bitwarden', title: 'Did not answer', rows: [{ g: 'Try', v: 'Press the key again.' }], keys: [{ label: 'Try again', act: 'retry' }, { label: 'Close', act: 'ok', plain: true }] }, (act) => { if (act === 'retry') void this.vaultKey(); }); return; }
-    if (!logins.length) { this.win?.webContents.send('browser:vault', null); this.note('', { kind: 'bad', from: 'shield', small: true, icon: 'key', kick: 'No saved login', title: f.host }); return; }
-    if (logins.length === 1) { await this.vaultPick(logins[0]!.id); return; }
-    this.win?.webContents.send('browser:vault', { mode: 'pick', host: f.host, logins });
-  }
-  /** Fill one login into the page, if it is still the page he clicked the key on. */
-  async vaultPick(id: string): Promise<void> {
-    const f = this.vaultFor;
-    this.vaultFor = null;
-    const t = f ? this.tabs.find((x) => x.id === f.tab) : undefined;
-    if (t) this.inTab(t);
-    this.win?.webContents.send('browser:vault', null);
-    const wc = t?.view?.webContents;
-    if (!f || !t || !wc || wc.isDestroyed() || t.blocked || t.failed) return;
-    let host = '';
-    try { host = new URL(wc.getURL()).hostname; } catch { /* none */ }
-    if (host !== f.host || !wc.getURL().startsWith('https:')) { this.note('', { kind: 'bad', from: 'shield', small: true, icon: 'key', kick: 'Nothing filled', title: 'The page changed' }); return; }
-    const s = await this.vault.secret(id);
-    if (!s) { this.note('', { kind: 'bad', from: 'shield', icon: 'key', kick: 'Bitwarden', title: 'Did not give it back', rows: [{ g: 'Try', v: 'Press the key again.' }], keys: [{ label: 'Try again', act: 'retry' }, { label: 'Close', act: 'ok', plain: true }] }, (act) => { if (act === 'retry') void this.vaultKey(); }); return; }
-    const did = await run<number>(wc, fillScript(s.username, s.password), { world: FILL_WORLD, ms: 2000, fallback: 0 });
-    if (!did) this.note('', { kind: 'bad', from: 'shield', small: true, icon: 'key', kick: 'Nothing filled', title: 'No login box here' });
-  }
-  vaultCancel(): void { this.vaultFor = null; this.win?.webContents.send('browser:vault', null); }
+  dragFrom: { x: number; y: number; wx: number; wy: number } | null = null;
+  loginKnown = false;
 
   // ------------------------------------------------------------------ autofill (sheet 77, 2026-10-23)
   /** The box he is in, on the page in front: what it is, its neighbours' kinds, where it is (page pixels). */
-  private af: { tab: number; kind: FieldKind; kinds: FieldKind[]; empty: boolean; rect: { x: number; y: number; w: number; h: number };
+  af: { tab: number; kind: FieldKind; kinds: FieldKind[]; empty: boolean; rect: { x: number; y: number; w: number; h: number };
     offer: 'details' | 'login' | null; email: number; logins: Login[]; login: number } | null = null;
   /** The address bar asking for his PIN: the digits so far (never shown, never kept), and what to do once it opens. */
-  private afPin: { digits: string; then: 'fill' | 'save'; checking?: boolean } | null = null;
+  afPin: { digits: string; then: 'fill' | 'save'; checking?: boolean } | null = null;
   /** A login he just sent on a page, waiting for him to look at it (kept in memory only, five minutes at most). */
-  private afSave: { tab: number; host: string; user: string; pass: string; at: number; asked: boolean } | null = null;
-  private afBandMode: 'idle' | 'pin' | 'save' = 'idle';
-
-  /** The light's layer for this window, made once and kept hidden. */
-  private lightView(): WebContentsView | null {
-    const w = this.win;
-    if (!w || w.isDestroyed()) return null;
-    if (this.pane.lightV && !this.pane.lightV.webContents.isDestroyed()) return this.pane.lightV;
-    const v = new WebContentsView({ webPreferences: { ...SAFE_WEB_PREFERENCES, preload: path.join(path.dirname(this.o.preloadPath), 'lightpreload.cjs'), backgroundThrottling: false } });
-    lockDown(v.webContents);
-    v.setBackgroundColor('#00000000');
-    v.setVisible(false);
-    void v.webContents.loadURL(`${this.o.origin}/light.html`).catch(() => { /* its window closed while it loaded */ });
-    this.pane.lightV = v;
-    return v;
-  }
-  isLight(sender: Electron.WebContents): boolean {
-    const p = this.panes.find((x) => x.lightV && !x.lightV.webContents.isDestroyed() && x.lightV.webContents === sender);
-    if (p) this.pane = p;
-    return Boolean(p);
-  }
-  // ------------------------------------------------------------------ sheet 102, the address bar's list
-  /**
-   * His pick (2026-10-29): the list sits on its own see-through layer over the LIVE page, as the tab list does, so it
-   * opens at once and the page is never swapped for a still picture of itself (that took 44 to 564 ms). The typing stays
-   * in the bar; the layer only draws and says which row he points at or clicks. Made once per window, kept hidden.
-   */
-  private sugView(): WebContentsView | null {
-    const w = this.win;
-    if (!w || w.isDestroyed()) return null;
-    const P = this.pane;
-    if (P.sugV && !P.sugV.webContents.isDestroyed()) return P.sugV;
-    const v = new WebContentsView({ webPreferences: { ...SAFE_WEB_PREFERENCES, preload: path.join(path.dirname(this.o.preloadPath), 'suggestpreload.cjs'), backgroundThrottling: false } });
-    lockDown(v.webContents);
-    v.setBackgroundColor('#00000000');
-    v.setVisible(false);
-    v.webContents.on('did-finish-load', () => { if (P.sugLast && v.getVisible()) v.webContents.send('suggest:show', { ...P.sugLast, first: true }); });
-    void v.webContents.loadURL(`${this.o.origin}/suggest.html`).catch(() => { /* its window closed while it loaded */ });
-    P.sugV = v;
-    return v;
-  }
-  isSuggest(sender: Electron.WebContents): boolean {
-    const p = this.panes.find((x) => x.sugV && !x.sugV.webContents.isDestroyed() && x.sugV.webContents === sender);
-    if (p) this.pane = p;
-    return Boolean(p);
-  }
-  /** What the bar asks the list to show (checked here: kinds from a fixed few, plain words, his stored icons only), or null to put it away. */
-  suggestShow(m: unknown): void {
-    const w = this.win, P = this.pane;
-    if (!w || w.isDestroyed()) return;
-    if (!m || typeof m !== 'object') {
-      P.sugLast = null;
-      const v = P.sugV && !P.sugV.webContents.isDestroyed() ? P.sugV : null;
-      if (v?.getVisible()) { v.webContents.send('suggest:show', null); setTimeout(() => { if (!P.sugLast && !v.webContents.isDestroyed()) v.setVisible(false); }, 20); }
-      return;
-    }
-    const a = m as Record<string, unknown>, r = (a.rect ?? {}) as Record<string, unknown>;
-    const num = (x: unknown) => (Number.isFinite(Number(x)) ? Math.round(Number(x)) : 0);
-    const str = (x: unknown, n: number) => (typeof x === 'string' ? x.slice(0, n) : '');
-    const rows = (Array.isArray(a.rows) ? a.rows : []).slice(0, 16).map((x: Record<string, unknown>) => ({
-      kind: SUG_KINDS.has(str(x?.kind, 10)) ? str(x.kind, 10) : 'go', title: str(x?.title, 300), url: str(x?.url, 2000),
-      favicon: /^data:image\//.test(str(x?.favicon, 20_000)) ? str(x.favicon, 20_000) : '',
-    }));
-    const [cw, ch] = w.getContentSize();
-    const x = Math.max(0, Math.min(cw - 40, num(r.x))), y = Math.max(0, Math.min(ch - 40, num(r.y)));
-    const width = Math.max(40, Math.min(cw - x, num(r.width)));
-    const show: SugShow = { rows, pick: Number.isInteger(a.pick) ? Number(a.pick) : -1, typed: str(a.typed, 200), from: num(a.from), expect: Math.max(0, Math.min(4, num(a.expect))), first: a.first === true, x, y, width };
-    const first = !P.sugLast || show.first;
-    P.sugLast = show;
-    const v = this.sugView();
-    if (!v) return;
-    // Its height is the list's own (the page says, suggestSize): a first guess until then, rows 40 tall.
-    const b = v.getBounds(), height = first || !v.getVisible() ? Math.min(ch - y, 14 + 40 * Math.max(1, rows.length)) : b.height;
-    v.setBounds({ x, y, width, height });
-    if (first || !v.getVisible()) {
-      w.contentView.addChildView(v); v.setVisible(true);
-      // The list never needs the keyboard (its rows act through suggestAct). Chromium gives it the keyboard when it is
-      // first shown, and the bar then closed under him a moment after he opened it (2026-11-22, grabbed while Samara
-      // opens): it goes straight back to the bar.
-      // (looked for every 10 ms for 400 ms: the bar shuts 120 ms after losing the keyboard)
-      const until = Date.now() + 400;
-      const back = setInterval(() => {
-        if (Date.now() > until || w.isDestroyed() || v.webContents.isDestroyed()) { clearInterval(back); return; }
-        if (v.webContents.isFocused() && P.slotOpen) w.webContents.focus();
-      }, 10);
-    }
-    v.webContents.send('suggest:show', { ...show, first });
-  }
-  /** The list drew this tall: the layer is exactly that, so it never covers the page below the list. */
-  suggestSize(h: number): void {
-    const w = this.win, v = this.pane.sugV;
-    if (!w || w.isDestroyed() || !v || v.webContents.isDestroyed() || !this.pane.sugLast) return;
-    const [, ch] = w.getContentSize(), b = v.getBounds();
-    const height = Math.max(0, Math.min(ch - b.y, Math.round(h)));
-    if (height !== b.height) v.setBounds({ ...b, height });
-  }
-  /** He points at or clicks a row in the list: the bar does it (it holds the typing and the choices). */
-  suggestAct(act: 'hover' | 'pick', i: number): void {
-    const w = this.win;
-    if (w && !w.isDestroyed()) w.webContents.send('browser:suggestAct', { act, i });
-  }
-  /** Shift+Delete on one of his own lines (sheet 102): a past search goes from History, every time he made it; a page, every visit to it. */
-  suggestForget(kind: string, url: string): void {
-    if (typeof url !== 'string' || url.length > 2000) return;
-    const q = kind === 'past' ? searchQueryOf(url)?.toLowerCase() : null;
-    if (kind === 'past' && !q) return;
-    if (kind !== 'past' && kind !== 'history') return;
-    for (const v of [...this.visits.list]) if (q ? searchQueryOf(v.url)?.toLowerCase() === q : v.url === url) this.visits.forget(v.url, v.at);
-  }
+  afSave: { tab: number; host: string; user: string; pass: string; at: number; asked: boolean } | null = null;
+  afBandMode: 'idle' | 'pin' | 'save' = 'idle';
 
   // ------------------------------------------------------------------ sheet 106 v7, notices
   /**
@@ -4519,470 +2050,30 @@ export class SamaraBrowser {
    * see-through layer over the LIVE page (as the address bar's list is), so a video never stops for one. It drops from
    * under what caused it: the frame says where that key is, the layer is placed there, exactly the notice's size.
    */
-  private notices = new NoticeQueue((s) => this.noticeShow(s));
+  notices = new NoticeQueue((s) => this.noticeShow(s));
   /** What the queue last said to show (the layer is told it again once it has loaded), and the window showing it. */
-  private noticeNow: NoticeShown | null = null;
-  private noticePane: Pane | null = null;
+  noticeNow: NoticeShown | null = null;
+  noticePane: Pane | null = null;
   /** Each new placing has a number: a slower one never lands over a newer one. */
-  private noticeGen = 0;
-  private noticeAsk: { seq: number; done: (a: { left: number; right: number; bottom: number } | null) => void } | null = null;
-  private noticeAskSeq = 0;
+  noticeGen = 0;
+  noticeAsk: { seq: number; done: (a: { left: number; right: number; bottom: number } | null) => void } | null = null;
+  noticeAskSeq = 0;
   /** The TV's own asks (link, asleep, setup) as a notice, kept in step with tvAsk. */
-  private tvNotice: { id: number; ask: string; err: string } | null = null;
-  /** The notices' layer for this window, made once and kept hidden. */
-  private noticeView(P: Pane = this.pane): WebContentsView | null {
-    const w = P.win;
-    if (!w || w.isDestroyed()) return null;
-    if (P.noticeV && !P.noticeV.webContents.isDestroyed()) return P.noticeV;
-    const v = new WebContentsView({ webPreferences: { ...SAFE_WEB_PREFERENCES, preload: path.join(path.dirname(this.o.preloadPath), 'noticepreload.cjs'), backgroundThrottling: false } });
-    lockDown(v.webContents);
-    v.setBackgroundColor('#00000000');
-    v.setVisible(false);
-    v.webContents.on('did-finish-load', () => { if (this.noticeNow && this.noticePane === P && v.getVisible()) v.webContents.send('notice:show', { ...this.noticeNow, fresh: true, sound: false }); });
-    void v.webContents.loadURL(`${this.o.origin}/notice.html`).catch(() => { /* its window closed while it loaded */ });
-    P.noticeV = v;
-    return v;
-  }
-  isNotice(sender: Electron.WebContents): boolean {
-    const p = this.panes.find((x) => x.noticeV && !x.noticeV.webContents.isDestroyed() && x.noticeV.webContents === sender);
-    if (p) this.pane = p;
-    return Boolean(p);
-  }
-  /** The queue's word: a new notice drops (the last one rises first), one changes in place, or none is left. */
-  private noticeShow(s: NoticeShown | null): void {
-    this.noticeNow = s;
-    const P = this.noticePane, v = P?.noticeV && !P.noticeV.webContents.isDestroyed() ? P.noticeV : null;
-    if (s && !s.fresh) { if (v && P!.noticeOn === s.notice.id) v.webContents.send('notice:show', s); return; }
-    const gen = ++this.noticeGen, up = Boolean(v?.getVisible());
-    if (up) v!.webContents.send('notice:show', { leave: true });
-    // It rises (0.3 s) before the next one is placed, so one never jumps sideways into the other.
-    setTimeout(() => {
-      if (gen !== this.noticeGen) return;
-      if (v && !v.webContents.isDestroyed()) v.setVisible(false);
-      if (P) P.noticeOn = null;
-      if (!this.noticeNow) { this.noticePane = null; return; }
-      void this.noticePlace(gen);
-    }, up ? 320 : 0);
-  }
-  /** Put the layer under the key it comes from and drop the notice in. */
-  private async noticePlace(gen: number): Promise<void> {
-    const P = this.pane, w = P.win, s0 = this.noticeNow;
-    if (!w || w.isDestroyed() || !s0) return;
-    const a = await this.noticeAnchor(P, s0.notice.from);
-    const s = this.noticeNow;
-    if (gen !== this.noticeGen || !s || w.isDestroyed()) return;
-    const v = this.noticeView(P);
-    if (!v) return;
-    v.setBounds(this.noticeBounds(w, a, s.notice.small === true));
-    w.contentView.addChildView(v);
-    v.setVisible(true);
-    P.noticeOn = s.notice.id; this.noticePane = P;
-    v.webContents.send('notice:show', { ...s, fresh: true, sound: s.notice.kind === 'need' });
-  }
-  /** Under the key: right-hand keys hang it from their right edge, left-hand ones (the shield) from their left. */
-  private noticeBounds(w: BrowserWindow, a: { left: number; right: number; bottom: number } | null, small: boolean, h?: number, wid?: number): Electron.Rectangle {
-    const [cw, ch] = w.getContentSize();
-    const W = wid ?? (small ? 300 : 356) + 32, H = h ?? (small ? 88 : 260);
-    const k = a ?? { left: cw - 140, right: cw - 110, bottom: 64 };
-    const x = (k.left + k.right) / 2 > cw / 2 ? k.right + 12 + 16 - W : k.left - 20 - 16;
-    const y = Math.max(0, Math.round(k.bottom - 6));
-    return { x: Math.max(0, Math.min(cw - W, Math.round(x))), y, width: Math.min(W, cw), height: Math.max(0, Math.min(H, ch - y)) };
-  }
-  /** Ask the frame where the key is (and pulse it); a frame that does not answer in 0.4 s gets the right-hand side. */
-  private noticeAnchor(P: Pane, from: NoticeFrom): Promise<{ left: number; right: number; bottom: number } | null> {
-    const w = P.win;
-    if (!w || w.isDestroyed()) return Promise.resolve(null);
-    if (this.noticeAsk) { this.noticeAsk.done(null); this.noticeAsk = null; }
-    return new Promise((done) => {
-      const seq = ++this.noticeAskSeq;
-      const t = setTimeout(() => { if (this.noticeAsk?.seq === seq) { this.noticeAsk = null; done(null); } }, 400);
-      this.noticeAsk = { seq, done: (a) => { clearTimeout(t); done(a); } };
-      w.webContents.send('browser:noticeFrom', { seq, from });
-    });
-  }
-  /** The frame's answer: the key's left and right edges and where the band (or a chip hanging from it) ends. */
-  noticeAt(m: unknown): void {
-    const a = this.noticeAsk, o = (m ?? {}) as Record<string, unknown>;
-    if (!a || o.seq !== a.seq) return;
-    this.noticeAsk = null;
-    const n = (x: unknown) => (Number.isFinite(Number(x)) ? Math.round(Number(x)) : NaN);
-    const r = { left: n(o.left), right: n(o.right), bottom: n(o.bottom) };
-    a.done(Object.values(r).every(Number.isFinite) ? r : null);
-  }
-  /** The window changed size: the notice moves with its key (no second drop). */
-  private async noticeFollow(): Promise<void> {
-    const P = this.noticePane, s = this.noticeNow, v = P?.noticeV;
-    if (!P || !s || !v || v.webContents.isDestroyed() || !v.getVisible() || !P.win || P.win.isDestroyed()) return;
-    const a = await this.noticeAnchor(P, s.notice.from);
-    if (!v.getVisible() || v.webContents.isDestroyed() || P.win.isDestroyed()) return;
-    const b = v.getBounds();
-    v.setBounds(this.noticeBounds(P.win, a, s.notice.small === true, b.height, b.width));
-  }
-  /** The notice drew this big: the layer is exactly that, so it never covers the page round it. */
-  noticeSize(wd: number, h: number): void {
-    const P = this.pane, w = P.win, v = P.noticeV;
-    if (!w || w.isDestroyed() || !v || v.webContents.isDestroyed() || this.noticePane !== P) return;
-    const [cw, ch] = w.getContentSize(), b = v.getBounds();
-    const width = Math.max(40, Math.min(cw, Math.round(wd))), height = Math.max(0, Math.min(ch - b.y, Math.round(h)));
-    // a wider notice than the guess keeps its right edge (it hangs from a right-hand key)
-    const x = width !== b.width && b.x + b.width >= cw / 2 ? Math.max(0, b.x + b.width - width) : b.x;
-    if (height !== b.height || width !== b.width) v.setBounds({ x, y: b.y, width, height });
-  }
-  /** A button on the notice. The TV's code is checked without the notice going (a wrong code stays, and shakes). */
-  noticeAct(id: number, act: string, value?: string): void {
-    if (act === 'code') { if (this.tvNotice?.id === id && typeof value === 'string') void this.tvAct('code:' + value.slice(0, 6)); return; }
-    this.notices.answer(id, act.slice(0, 40), typeof value === 'string' ? value.slice(0, 200) : undefined);
-  }
-  noticeHover(on: boolean): void { this.notices.hover(on); }
-  /** A download row on the notice: dragged out, or clicked open (only files on the notice showing). */
-  noticeFile(sender: Electron.WebContents, id: number, act: 'drag' | 'open'): void {
-    if (!this.notices.current?.files?.some((f) => f.id === id)) return;
-    if (act === 'drag') this.dlDrag(sender, id); else this.dlAct('open', id);
-  }
-  /** The TV's asks follow tvAsk: link (the code), asleep, setup; playing stays in the TV's own chip. */
-  private tvNoticeSync(): void {
-    const ask = this.tvAsk === 'playing' ? null : this.tvAsk, err = this.tvLinkErr, had = this.tvNotice;
-    if (had && had.ask !== ask) { this.tvNotice = null; this.notices.drop(had.id); }
-    if (!ask) return;
-    if (had && had.ask === ask) { if (had.err !== err) { had.err = err; this.notices.update(had.id, { err: err.slice(0, 200) }); } return; }
-    const name = this.tv?.name ?? this.tvName ?? 'your TV', Name = name === 'your TV' ? 'Your TV' : name;
-    const n: NoticeIn = ask === 'link'
-      ? { kind: 'need', from: 'menu', icon: 'tv', kick: Name, title: 'Link Samara to it', rows: [{ g: '', v: 'Type the code your TV is showing. Only this once.' }], code: true, ...(err ? { err } : {}),
-        keys: [{ label: 'Link', act: 'code' }, { label: 'Not now', act: 'nolink', plain: true }] }
-      : ask === 'asleep'
-        ? { kind: 'bad', from: 'menu', icon: 'tv', kick: Name, title: 'Didn\u2019t wake up', rows: [{ g: 'Try', v: 'Turn it on with its remote, then try again. Or send this window, which works with the TV asleep.' }],
-          keys: [{ label: 'Try again', act: 'retry' }, { label: 'Send window', act: 'send:window', plain: true }, { label: 'Close', act: 'close', plain: true }] }
-        : { kind: 'need', from: 'menu', icon: 'tv', kick: Name, title: 'Show this window there?', rows: [{ g: 'Once only', v: `Your Mac needs ${name} as a second screen. Samara opens the place to turn it on.` }],
-          keys: [{ label: 'Open Displays', act: 'displays' }, { label: 'Not now', act: 'close', plain: true }] };
-    const id = this.notices.push(cleanNotice(n), (act) => { if (this.tvNotice?.id === id) this.tvNotice = null; void this.tvAct(act); });
-    this.tvNotice = { id, ask, err };
-  }
+  tvNotice: { id: number; ask: string; err: string } | null = null;
 
   /** Each showing has a number, so a fade that ends after a new showing never hides the new one. */
-  private lightSeq = 0;
-  private lightHide(): void {
-    const seq = ++this.lightSeq;
-    // The layer goes with its light (after the 90 ms fade): an invisible layer left over the page would catch his clicks.
-    for (const p of this.panes) { const v = p.lightV; if (v && !v.webContents.isDestroyed() && v.getVisible()) { v.webContents.send('light:show', null); setTimeout(() => { if (seq === this.lightSeq && !v.webContents.isDestroyed()) v.setVisible(false); }, 100); } }
-  }
-  /** Beside the box: right of it, half a light's height above its middle. */
-  private lightShow(m: { item: 'letter' | 'card' | 'key'; text: string; count: string }): void {
-    const a = this.af, t = a ? this.tabs.find((x) => x.id === a.tab) : undefined, v = this.lightView(), w = this.win;
-    if (!a || !t?.view || !v || !w || t.id !== this.active || this.drawerOpen) return;
-    const vb = t.view.getBounds(), z = t.view.webContents.getZoomFactor();
-    const W = 440, H = 44;
-    const x = Math.round(vb.x + (a.rect.x + a.rect.w) * z + 2), y = Math.round(vb.y + (a.rect.y + a.rect.h / 2) * z - H / 2);
-    if (y < vb.y - 4 || y + H > vb.y + vb.height + 4) return;            // the box is off the page's visible part
-    v.setBounds({ x, y, width: Math.max(60, Math.min(W, vb.x + vb.width - x)), height: H });
-    this.lightSeq++;
-    w.contentView.addChildView(v);                                          // on top of the page
-    v.setVisible(true);
-    v.webContents.send('light:show', m);
-  }
-  /** What the light offers for the box he is in, if anything; null hides it. */
-  private async afDecide(): Promise<void> {
-    const a = this.af, t = a ? this.tabs.find((x) => x.id === a.tab) : undefined;
-    if (!a || !t?.view || !a.empty) { this.lightHide(); return; }
-    const url = t.view.webContents.getURL();
-    if (!url.startsWith('https:') || this.listed(url).length) { this.lightHide(); return; }
-    let host = ''; try { host = new URL(url).hostname; } catch { return; }
-    const loginBox = a.kind === 'password' || ((a.kind === 'username' || a.kind === 'email') && a.kinds.includes('password'));
-    if (loginBox) {
-      if (this.vault.current()) {
-        const logins = await this.vault.loginsFor(url);
-        if (this.af !== a) return;
-        if (logins && logins.length) { a.offer = 'login'; a.logins = logins; a.login = 0; this.lightShow(this.afLoginLabel()); return; }
-      } else if (a.kind === 'password' && (this.siteKnown(host) || !this.sites)) {
-        // Bitwarden is locked and this site has a login: the bar calls him for his PIN (or the master password).
-        this.lightHide();
-        if (this.pinSeal.has()) { this.afPin = { digits: '', then: 'fill' }; this.afBand('call'); }
-        else { this.afBand('call'); void this.vaultKey(); }
-        return;
-      }
-    }
-    if (DETAIL_KINDS.includes(a.kind)) {
-      const d = this.details.get(), v = detailFor(d, a.kind, 0);
-      if (v || (a.kind !== 'email' && d.name)) { a.offer = 'details'; a.email = 0; this.lightShow(this.afDetailsLabel()); return; }
-    }
-    a.offer = null; this.lightHide();
-  }
-  private afLoginLabel() { const a = this.af!; const l = a.logins[a.login]!; return { item: 'key' as const, text: l.username || l.name, count: a.logins.length > 1 ? `${a.login + 1}/${a.logins.length}` : '' }; }
-  private afDetailsLabel() {
-    const a = this.af!, d = this.details.get();
-    if (a.kind === 'email') return { item: 'letter' as const, text: d.emails[a.email] ?? '', count: d.emails.length > 1 ? `${a.email + 1}/${d.emails.length}` : '' };
-    return { item: 'card' as const, text: d.name || detailFor(d, a.kind), count: '' };
-  }
-  /** The tab says which box he is in (or none, or that he is typing). */
-  afField(sender: Electron.WebContents, m: unknown): void {
-    const t = this.tabs.find((x) => x.view?.webContents === sender);
-    if (!t || t.id !== this.active) return;
-    const o = m as { kind?: unknown; kinds?: unknown; empty?: unknown; rect?: Record<string, unknown>; typing?: unknown } | null;
-    if (!o) { this.af = null; this.lightHide(); if (this.afPin) setTimeout(() => { if (!this.af && this.afPin) { this.afPin = null; this.afBand(); } }, 400); return; }
-    if (o.typing) { if (this.af) this.af.empty = false; this.lightHide(); return; }
-    const kinds = (Array.isArray(o.kinds) ? o.kinds : []).filter((k): k is FieldKind => typeof k === 'string' && /^[a-z]{3,12}$/.test(k)).slice(0, 12);
-    const kind = typeof o.kind === 'string' && /^[a-z]{3,12}$/.test(o.kind) ? o.kind as FieldKind : null;
-    const r = o.rect ?? {}, rect = { x: Number(r.x) || 0, y: Number(r.y) || 0, w: Number(r.w) || 0, h: Number(r.h) || 0 };
-    if (!kind) { this.af = null; this.lightHide(); return; }
-    this.af = { tab: t.id, kind, kinds, empty: o.empty === true, rect, offer: null, email: 0, logins: [], login: 0 };
-    void this.afDecide();
-  }
+  lightSeq = 0;
   /** Keys taken for his PIN whose release has not come yet (finding 1). */
-  private afTaken = new Set<string>();
-  /** He clicked the light, or pressed Tab while it showed (`one`: Tab fills only the box he is in, finding 2). */
-  async afPick(one = false): Promise<void> {
-    const a = this.af, t = a ? this.tabs.find((x) => x.id === a.tab) : undefined, wc = t?.view?.webContents;
-    if (!a || !t || !wc || wc.isDestroyed() || !a.offer) return;
-    this.pane.lightV?.webContents.send('light:show', { give: true });
-    if (a.offer === 'login') {
-      const l = a.logins[a.login];
-      const s = l ? await this.vault.secret(l.id) : null;
-      if (!s || this.af !== a) return;
-      await run<number>(wc, fillScript(s.username, s.password), { world: FILL_WORLD, ms: 2000, fallback: 0 });
-    } else {
-      const d = this.details.get(), values: Partial<Record<FieldKind, string>> = {};
-      for (const k of DETAIL_KINDS) { const v = detailFor(d, k, k === 'email' ? a.email : 0); if (v) values[k] = v; }
-      // Tab fills the box he is in; his click on the light fills the form, and the fill itself finds the form's boxes
-      // (never the page's own list of them) and skips any he cannot see (finding 2).
-      const whole = !one;
-      await run<number>(wc, fillDetailsScript(values, whole), { world: FILL_WORLD, ms: 2000, fallback: 0 });
-    }
-    this.afSound('fill');
-    a.empty = false;
-    setTimeout(() => this.lightHide(), 120);
-  }
-  /** The wheel on the light, or an arrow key in the box: his next email (or login). */
-  afFlick(d: number): void {
-    const a = this.af;
-    if (!a?.offer) return;
-    if (a.offer === 'login' && a.logins.length > 1) { a.login = (a.login + d + a.logins.length) % a.logins.length; this.pane.lightV?.webContents.send('light:show', { flick: true, ...this.afLoginLabel() }); }
-    const n = this.details.get().emails.length;
-    if (a.offer === 'details' && a.kind === 'email' && n > 1) { a.email = (a.email + d + n) % n; this.pane.lightV?.webContents.send('light:show', { flick: true, ...this.afDetailsLabel() }); }
-  }
-  /** Keys in the page, before the page sees them. True: autofill took it. */
-  afKey(tab: Tab, input: Electron.Input): boolean {
-    // Security check 2026-10-24 (finding 1): a key taken for his PIN is taken whole. Stopping only the press let the page
-    // hear each release, and read the PIN from it; the release of the last number comes after the PIN is done, so the
-    // keys taken are remembered until they come up.
-    if (input.type === 'keyUp') { if (this.afTaken.delete(input.code || input.key)) return true; return false; }
-    if (input.type !== 'keyDown' || tab.id !== this.active) return false;
-    if (this.afPin) {
-      const take = () => { this.afTaken.add(input.code || input.key); return true; };
-      if (/^[0-9]$/.test(input.key) && !input.meta && !input.control) { void this.afPinDigit(input.key); return take(); }
-      if (input.key === 'Backspace') { this.afPin.digits = this.afPin.digits.slice(0, -1); this.afBand(); return take(); }
-      if (input.key === 'Escape') { this.afPin = null; this.afBand(); return take(); }
-      return false;
-    }
-    const a = this.af;
-    if (!a?.offer || !a.empty || !this.pane.lightV?.getVisible()) return false;
-    if (input.key === 'Tab' && !input.shift && !input.meta && !input.control && !input.alt) { void this.afPick(true); return true; }
-    if ((input.key === 'ArrowDown' || input.key === 'ArrowUp') && !input.shift && !input.meta) {
-      const many = a.offer === 'login' ? a.logins.length > 1 : a.kind === 'email' && this.details.get().emails.length > 1;
-      if (!many) return false;
-      this.afFlick(input.key === 'ArrowDown' ? 1 : -1); return true;
-    }
-    return false;
-  }
-  private async afPinDigit(d: string): Promise<void> {
-    const p = this.afPin;
-    const len = this.pinSeal.length();
-    if (!p || p.checking || p.digits.length >= len) return;   // keys while a PIN is being checked are dropped
-    p.digits += d;
-    this.afBand();
-    if (p.digits.length < len) return;
-    p.checking = true;
-    const r = await this.pinSeal.open(p.digits);
-    p.digits = ''; p.checking = false;
-    if (r === 'gone') { this.afPin = null; this.vault.lockHard(); this.afBand('wrong'); this.note('', { kind: 'need', from: 'shield', icon: 'key', kick: 'Five wrong PINs', title: 'Master password again', rows: [{ g: 'Why', v: 'Bitwarden needs your master password again.' }] }); void this.vaultKey(); return; }
-    if ('wrong' in r) { this.afBand('wrong'); return; }
-    const ok = await this.vault.useSession(r.session);
-    this.afPin = null;
-    if (!ok) { this.pinSeal.wipe(); this.afBand(); this.note('', { kind: 'need', from: 'shield', icon: 'key', kick: 'Bitwarden', title: 'Master password again', rows: [{ g: 'Do this', v: 'Type it in the Bitwarden box that opens.' }] }); void this.vaultKey(); return; }
-    this.afBand('open');
-    void this.learnSites();
-    if (p.then === 'save') { this.afSaveAsk(); return; }
-    // Open now: the light offers the login, and his click on it fills (finding 3: the PIN alone filled at once, even on a
-    // page that had only put a password box in front of him).
-    setTimeout(() => { void this.afDecide(); }, 450);
-  }
-  /** His PIN, from Settings, while Bitwarden is open: typed twice, sealed with the session. */
-  private async afSetPin(value: unknown): Promise<void> {
-    const v = (value && typeof value === 'object' ? value : {}) as { pin?: unknown; again?: unknown };
-    const pin = String(v.pin ?? ''), again = String(v.again ?? '');
-    const say = (text: string, ok = false) => { this.pushSettings(); const wc = this.tabs.find((x) => x.internal === 'settings')?.view?.webContents; if (wc && !wc.isDestroyed()) wc.send('settings:afpin', { ok, text }); };
-    if (!pinOk(pin)) { say(`A PIN is ${PIN_MIN} to ${PIN_MAX} numbers.`); return; }
-    if (!samePin(pin, again)) { say('The two did not match.'); return; }
-    const session = this.vault.current();
-    if (!session) { say('Open Bitwarden once first (use a login), then set your PIN.'); return; }
-    say((await this.pinSeal.seal(pin, session)) ? 'Your PIN is set.' : 'This computer cannot keep a PIN safely, so none was set.', true);
-  }
-  /** A login he just sent on a page: offered after the page moves on, if it is new or changed. */
-  afCred(sender: Electron.WebContents, m: unknown): void {
-    const t = this.tabs.find((x) => x.view?.webContents === sender);
-    const o = (m && typeof m === 'object' ? m : {}) as { user?: unknown; pass?: unknown };
-    if (!t || typeof o.pass !== 'string' || !o.pass) return;
-    let host = ''; try { const u = new URL(sender.getURL()); if (u.protocol !== 'https:') return; host = u.hostname.replace(/^www\./, ''); } catch { return; }
-    if (this.listed(sender.getURL()).length || bankSite(sender.getURL())) return;
-    this.afSave = { tab: t.id, host, user: String(o.user ?? '').slice(0, 200), pass: o.pass.slice(0, 500), at: Date.now(), asked: false };
-    const mine = this.afSave;
-    setTimeout(() => { void this.afSaveCheck(mine); }, 2500);
-    setTimeout(() => { if (this.afSave === mine) { this.afSave = null; this.afBand(); } }, 5 * 60_000);
-  }
-  private async afSaveCheck(s: NonNullable<typeof this.afSave>): Promise<void> {
-    if (this.afSave !== s) return;
-    const t = this.tabs.find((x) => x.id === s.tab), wc = t?.view?.webContents;
-    if (!wc || wc.isDestroyed()) { this.afSave = null; return; }
-    // Still a password box on the page: it did not work (a wrong password is never offered).
-    const still = await run<boolean>(wc, "!!document.querySelector('input[type=password]')", { ms: 800, fallback: false });
-    if (still) { this.afSave = null; return; }
-    if (this.vault.current()) {
-      const logins = await this.vault.loginsFor('https://' + s.host);
-      for (const l of logins ?? []) if (l.username === s.user) { const sec = await this.vault.secret(l.id, false); if (sec?.password === s.pass) { this.afSave = null; return; } }
-    }
-    if (this.afSave === s) this.afBand();
-  }
-  /** "Save this login" clicked: the card shows exactly what will be kept (needs Bitwarden open: the PIN first). */
-  private afSaveAsk(): void {
-    const s = this.afSave;
-    if (!s) return;
-    if (!this.vault.current()) {
-      if (this.pinSeal.has()) { this.afPin = { digits: '', then: 'save' }; this.afBand('call'); }
-      else void this.vaultKey();
-      return;
-    }
-    this.win?.webContents.send('browser:afsave', { site: s.host, user: s.user, pass: s.pass });
-  }
-  /** The card's Save: what he saw, perhaps edited. */
-  async afSaveGo(m: unknown): Promise<void> {
-    const o = (m && typeof m === 'object' ? m : {}) as { site?: unknown; user?: unknown; pass?: unknown };
-    const site = String(o.site ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-    if (!/^[a-z0-9.-]{3,253}$/.test(site) || typeof o.pass !== 'string' || !o.pass) return;
-    const ok = await this.vault.create(site, String(o.user ?? ''), o.pass);
-    this.afSave = null;
-    this.afBand(ok ? 'open' : undefined);
-    this.note('', ok ? { from: 'shield', small: true, icon: 'key', kick: 'Kept in Bitwarden', title: site } : { kind: 'bad', from: 'shield', icon: 'key', kick: 'Bitwarden', title: 'Did not keep it', rows: [{ g: 'Try', v: 'Again from the key.' }] });
-    if (ok) void this.learnSites();
-  }
-  /** The address bar's key: what it shows now. `beat`: one moment to play (the call, opening, a wrong PIN). */
-  private afBand(beat?: 'call' | 'open' | 'wrong'): void {
-    this.afBandMode = this.afPin ? 'pin' : this.afSave ? 'save' : 'idle';
-    this.win?.webContents.send('browser:af', { mode: this.afBandMode, n: this.afPin?.digits.length ?? 0, of: this.pinSeal.length(), beat: beat ?? null });
-    if (beat === 'call') this.afSound('call');
-    if (beat === 'open') this.afSound('unlock');
-    if (beat === 'wrong') this.afSound('wrong');
-  }
-  private afSound(name: 'call' | 'unlock' | 'fill' | 'wrong'): void { if (this.prefs.afSounds) this.win?.webContents.send('browser:afsound', name); }
-
-  // ------------------------------------------------------------------ site icons for the bookmarks
-  /** Fetch one icon through his own browsing session and keep it as a small data picture. Images only, 64 KB at most. */
-  private async iconData(url: string): Promise<string | null> {
-    if (url.startsWith('data:image/svg+xml')) { const m = /^data:image\/svg\+xml(;base64)?,(.*)$/s.exec(url); try { return m && url.length < 90_000 ? await svgToPng(m[1] ? Buffer.from(m[2]!, 'base64') : Buffer.from(decodeURIComponent(m[2]!))) : null; } catch { return null; } }
-    if (url.startsWith('data:image/')) return url.length < 90_000 ? url : null;
-    if (!isWeb(url) || this.listed(url).length) return null;
-    try {
-      const r = await within(this.ses.fetch(url, { signal: AbortSignal.timeout(6000) }), 7000, null);
-      const type = r?.headers.get('content-type')?.split(';')[0]?.trim() ?? '';
-      if (!r?.ok || !/^image\//.test(type)) return null;
-      const buf = Buffer.from(await r.arrayBuffer());
-      if (!buf.length || buf.length > 64 * 1024) return null;
-      // An SVG is never kept as it is: it is drawn in a sealed page and only the picture of it is kept (svgicon.ts).
-      if (type === 'image/svg+xml') return await svgToPng(buf);
-      return `data:${type};base64,${buf.toString('base64')}`;
-    } catch { return null; }
-  }
-  /**
-   * The first of these that is a picture Samara keeps: the page's icons in its own order, then the site's /favicon.ico
-   * (2026-10-22, his Epomaker bookmark showed only a "K": the page offered just an SVG icon, which is never kept, and
-   * nothing else was tried).
-   */
-  private async keepIcon(host: string, urls: string[]): Promise<void> {
-    let d: string | null = null;
-    for (const u of [...new Set(urls)].slice(0, 6)) { d = await this.iconData(u); if (d) break; }
-    if (!d) return;
-    this.icons.set(host, d);
-    if (this.icons.size > 400) this.icons.delete(this.icons.keys().next().value!);
-    void writeFileAtomicSoon(this.iconsFile, JSON.stringify(Object.fromEntries(this.icons))).catch(() => { /* best effort */ });
-    this.sendTabs();
-  }
-  /** Bookmarks of sites he has not visited yet: ask the site for its icon (its page's icon link, else /favicon.ico). */
-  private async fillMarkIcons(): Promise<void> {
-    if (this.iconsBusy) return;
-    this.iconsBusy = true;
-    try {
-      for (const m of this.marks.slice(0, 60)) {
-        let u: URL;
-        try { u = new URL(m.url); } catch { continue; }
-        if (this.icons.has(u.hostname)) continue;
-        let link: string | null = null;
-        try {
-          const r = await within(this.ses.fetch(u.origin + '/', { signal: AbortSignal.timeout(6000) }), 7000, null);
-          if (r?.ok) {
-            const html = (await r.text()).slice(0, 300_000);
-            const tag = [...html.matchAll(/<link\b[^>]*>/gi)].map((x) => x[0]).find((x) => /rel\s*=\s*["']?[^"'>]*\bicon\b/i.test(x) && !/mask-icon/i.test(x));
-            const href = tag && /href\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1];
-            if (href) link = new URL(href.replace(/&amp;/g, '&'), u.origin + '/').href;
-          }
-        } catch { /* fall back to /favicon.ico */ }
-        let d = link ? await this.iconData(link) : null;
-        if (!d) d = await this.iconData(u.origin + '/favicon.ico');
-        if (d) { this.icons.set(u.hostname, d); this.sendTabs(); }
-      }
-      void writeFileAtomicSoon(this.iconsFile, JSON.stringify(Object.fromEntries(this.icons))).catch(() => { /* best effort */ });
-    } finally { this.iconsBusy = false; }
-  }
+  afTaken = new Set<string>();
   // ------------------------------------------------------------------ M6 one browser on both machines (bsync.ts)
   /** Set by main: "Open on Mac" / "Open on PC", a full tab in the other machine's browser. */
   onOpenOther: ((url: string) => void) | null = null;
-  /** A page sent here from the other machine: a new tab, and the window comes to the front. */
-  openForward(url: string): void {
-    if (!isWeb(url)) return;
-    this.open(url);
-    const w = this.win;
-    if (!w || w.isDestroyed()) return;
-    // Windows only lets a window jump in front of the one he is using with a nudge: on top for a moment, then not.
-    bringFront(w);
-  }
   /** Set by main: open a paid service in the paid-video window. True if it opened. */
   onPaid: ((url: string) => boolean) | null = null;
   /** Netflix refused to play in a tab here: main opens it in the paid-video window instead (true when it did). */
   onPaidFallback: ((url: string) => boolean) | null = null;
-  /**
-   * Netflix plays in the tab now (2026-10-25); if it still answers with one of its error codes, the show goes to the
-   * paid-video window by itself and the tab steps back, so he is never left on an error page.
-   */
-  private watchPlays(tab: Tab, url: string): void {
-    if (!this.onPaidFallback) return;
-    for (const after of [10_000, 25_000]) setTimeout(() => {
-      const wc = tab.view?.webContents;
-      if (!wc || wc.isDestroyed() || wc.getURL() !== url) return;
-      void run<string>(wc, `(document.body && document.body.innerText || '').slice(0, 5000)`, { fallback: '' }).then((text) => {
-        if (!text || !NETFLIX_REFUSED.test(text) || wc.isDestroyed() || wc.getURL() !== url) return;
-        if (!this.onPaidFallback?.(url)) return;
-        this.note('', { from: 'menu', icon: 'video', kick: 'Netflix', title: 'In the video window', rows: [{ g: 'Why', v: 'It would not play in this tab.' }] });
-        if (wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack();
-      });
-    }, after);
-  }
-  /**
-   * Paid video (2026-10-13): this browser has no Widevine, so Netflix, Crave, Disney+, Prime and Crunchyroll
-   * open in the paid-video window instead, by themselves. Caught BEFORE a load starts (a link, an address he typed,
-   * a bookmark, a redirect): stopping a load from inside its own start event crashed the browser (the Mac, and the
-   * PC's window closed). True when it went there, and nothing should load here.
-   */
-  private toPaid(url: string): boolean {
-    const paid = serviceFor(url);
-    if (!paid?.ready || !this.onPaid) return false;
-    if (!this.onPaid(url)) return false;
-    this.note('', { from: 'menu', icon: 'video', kick: paid.label, title: 'In the paid-video window' });
-    return true;
-  }
   /** The sync with the browser on his other machine (startSync). */
   sync: BrowserSync | null = null;
-  /** M6: start syncing with the other machine's browser. `send` reaches it through the companion. */
-  startSync(send: (m: SyncMsg) => void, log?: (s: string) => void): BrowserSync {
-    this.sync = new BrowserSync({ target: this.syncTarget, send, stateDir: this.o.stateDir, ...(log ? { log } : {}) });
-    this.visits.onChange = (c) => { if (c.op === 'add') this.sync?.visited([c.v]); else if (c.op === 'forget') this.sync?.forgot(c.url, c.at); else this.sync?.cleared(c.from); };
-    return this.sync;
-  }
   /** What the sync needs from this browser: plain reads, and quiet writes that do not reload or say anything. */
   readonly syncTarget = {
     marks: () => this.marks.map((m) => ({ ...m })),
@@ -5043,2016 +2134,121 @@ export class SamaraBrowser {
     removeCookie: async (c: SyncCookie) => { await this.ses.cookies.remove(`https://${String(c.domain ?? '').replace(/^\./, '')}${c.path || '/'}`, c.name); },
   };
 
-  /**
-   * M6: the other machine's tabs, made the tabs here ("the same tabs on both"). The window closed: they are
-   * written down and open next time. Open: tabs here that are gone there close (never one in a call or playing in
-   * the popout), new ones arrive asleep, and a tab that went somewhere else there goes there here. What he is looking
-   * at stays in front unless it closed.
-   */
-  private takeTabs(snap: TabSnap): void {
-    const want = (snap?.tabs ?? []).filter((t) => typeof t?.url === 'string' && isWeb(t.url)).slice(0, 80);
-    // Phase R: trails are retired; a machine still on an older Samara may send them, and they are ignored here.
-    const trails: Trail[] = [];
-    const home = this.panes.find((p) => this.alive(p));
-    if (home) this.pane = home;
-    if (!home) {
-      let closed: string[] = [];
-      // The mockup tabs written here stay (sheet 47): they are this PC's own.
-      let mocks: unknown[] = [];
-      try { const s = this.session.peek() as any; if (Array.isArray(s?.closed)) closed = s.closed; if (Array.isArray(s?.tabs)) mocks = s.tabs.filter((t: { mock?: unknown }) => t?.mock).map((t: object) => ({ ...t, opener: null, win: 0 })); } catch { /* none */ }
-      this.session.keepCopy('other-machine');
-      const keepTrails = mocks.length ? [...trails.filter((x) => x.id !== MOCK_TRAIL), { id: MOCK_TRAIL, name: 'MOCKUPS', named: true, mock: true }] : trails;
-      this.session.write({ v: 1, active: 0, tabs: [...want.map((t) => ({ url: t.url, title: t.title, opener: null, scrollY: 0, zoom: 0, muted: false, trail: t.trail, done: t.done })), ...(mocks as SessionData['tabs'])], trails: keepTrails, closed }, { now: true, force: true, why: 'other-machine' });
-      return;
-    }
-    // The mockups (sheet 47) are this PC's alone: the other machine's tabs never close or move them.
-    const live = this.tabs.filter((t) => !t.internal && !t.mock);
-    const fixed = (t: Tab) => t.call === true || t.lent || Boolean(t.mock);
-    if (want.length === live.length) {
-      want.forEach((w, i) => {
-        const t = live[i]!;
-        if (t.url !== w.url && !fixed(t)) {
-          t.title = w.title.slice(0, 300); t.blocked = null; t.failed = null;
-          if (t.view) { t.pending = w.url; void t.view.webContents.loadURL(this.secured(t, w.url)).catch(() => {}); } else t.url = w.url;
-        }
-      });
-    } else {
-      const need = want.map((w) => w.url);
-      for (const t of live) {
-        const k = need.indexOf(t.url);
-        if (k >= 0) need.splice(k, 1);
-        else if (!fixed(t)) this.close(t.id, false);
-      }
-      this.pane = home;
-      for (const u of need) {
-        const w = want.find((x) => x.url === u)!;
-        this.tabs.push({ id: ++this.seq, view: null, opener: null, title: w.title.slice(0, 300) || u, url: u, favicon: '', loading: false, audible: false, muted: false, crashed: false,
-          scrollY: 0, zoom: 0, lastSeen: Date.now(), blocked: null, trail: null, done: false, lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id });
-      }
-    }
-    this.trails = [...trails.filter((x) => x.id !== MOCK_TRAIL), ...this.trails.filter((x) => x.mock)];
-    this.trailSeq = Math.max(this.trailSeq, ...trails.map((x) => x.id), 0);
-    const left = want.slice();
-    for (const t of this.tabs) {
-      if (t.internal || t.mock) continue;
-      const k = left.findIndex((w) => w.url === t.url);
-      if (k < 0) continue;
-      const [w] = left.splice(k, 1);
-      t.trail = null; t.done = false;
-    }
-    this.tidyTrails();
-    // Any window left without a tab in front shows its first one; a window left with no tabs at all closes.
-    for (const p of [...this.panes]) {
-      if (!this.alive(p) || this.tabs.some((t) => t.id === p.active)) continue;
-      this.pane = p;
-      p.active = null;
-      const n = this.paneTabs(p)[0];
-      if (n) this.activate(n.id); else if (p !== home) p.win!.close();
-    }
-    this.pane = home;
-    this.changed();
-  }
-
-  /** A site's favicon as Samara stored it (a data: picture), or ''. Read-only; nothing is fetched (cleanup 2026-10-22). */
-  faviconFor(url: string): string { const d = this.iconOf(url); return /^data:image\//.test(d) && d.length < 20_000 ? d : ''; }
-
-  private iconOf(url: string): string {
-    try { const h = new URL(url).hostname; return this.icons.get(h) ?? this.icons.get(h.replace(/^www\./, '')) ?? this.icons.get('www.' + h) ?? ''; } catch { return ''; }
-  }
-
-  // ------------------------------------------------------------------ 6.23 bookmarks
-  private saveMarks(): void { try { writeFileAtomic(this.marksFile, JSON.stringify(this.marks)); } catch { /* best effort */ } this.sync?.changed('marks'); }
-  /**
-   * "Bring bookmarks from Chrome": he picks the file Chrome's Export bookmarks made (in his Drive or Downloads).
-   * Only the file he picks is read. New ones are added; ones he already has are left as they are.
-   */
-  async importMarks(): Promise<void> {
-    const w = this.win;
-    if (!w || w.isDestroyed()) return;
-    const drive = 'G:\\My Drive';
-    const r = await dialog.showOpenDialog(w, {
-      title: 'Pick the bookmarks file Chrome exported', buttonLabel: 'Bring them in',
-      defaultPath: existsSync(drive) ? drive : app.getPath('downloads'),
-      filters: [{ name: 'Bookmarks file', extensions: ['html', 'htm'] }], properties: ['openFile'],
-    });
-    const file = r.filePaths[0];
-    if (r.canceled || !file) return;
-    let added = 0;
-    try {
-      if (statSync(file).size > 20 * 1024 * 1024) throw new Error('that file is too big to be a bookmarks file');
-      const have = new Set(this.marks.map((m) => m.url));
-      for (const m of parseBookmarks(readFileSync(file, 'utf8'))) if (!have.has(m.url)) { this.marks.push(m); have.add(m.url); added++; }
-      this.marks = this.marks.slice(0, 5000);
-      this.saveMarks();
-    } catch (e) {
-      this.note('', { kind: 'bad', from: 'menu', icon: 'star', kick: 'Bookmarks', title: 'Could not be read', rows: [{ g: 'Why', v: (e as Error).message }] });
-      return;
-    }
-    if (added) void this.fillMarkIcons();
-    this.note('', this.marksNotice(added, 'that file'));
-    this.sendTabs();
-  }
-  /**
-   * 2026-10-13: straight from Chrome or Safari on this machine, no export first. Only their bookmarks file is
-   * read. Safari's needs macOS's Full Disk Access for Samara, which only you can give: the right page opens for him.
-   */
-  /** Bookmarks brought in: big, with where the bar ones went; nothing new is small news. */
-  private marksNotice(added: number, from: string): Partial<NoticeIn> {
-    return added ? { from: 'menu', icon: 'star', kick: 'Bookmarks', title: `Brought in ${added}`, rows: [{ g: 'From', v: from }, { g: 'Where', v: 'The bar ones are on the shelf in the drawer.' }] }
-      : { from: 'menu', small: true, icon: 'star', kick: 'Nothing new', title: `You have all of ${from === 'that file' ? 'them' : from + '\u2019s'}` };
-  }
-  async importFrom(source: 'chrome' | 'safari'): Promise<void> {
-    const P = this.pane;
-    const say = (o: Partial<NoticeIn>) => { if (P.win && !P.win.isDestroyed()) this.note('', { from: 'menu', icon: 'star', kick: 'Bookmarks', ...o }); };
-    let found: Mark[] = [];
-    try {
-      if (source === 'chrome') {
-        const base = process.platform === 'darwin'
-          ? path.join(app.getPath('home'), 'Library', 'Application Support', 'Google', 'Chrome')
-          : path.join(process.env.LOCALAPPDATA ?? '', 'Google', 'Chrome', 'User Data');
-        const profiles = existsSync(base) ? readdirSync(base).filter((d) => d === 'Default' || /^Profile \d+$/.test(d)) : [];
-        for (const p of profiles) {
-          // Bookmarks on this computer, and (newer Chrome) the ones that come with his Google account.
-          for (const name of ['Bookmarks', 'AccountBookmarks']) {
-            const f = path.join(base, p, name);
-            if (existsSync(f) && statSync(f).size < 20 * 1024 * 1024) found.push(...parseChromeBookmarks(readFileSync(f, 'utf8')));
-          }
-        }
-        if (!profiles.length) { say({ kind: 'bad', title: 'Nothing from Chrome', rows: [{ g: 'Why', v: 'Chrome is not on this computer, or it has no bookmarks yet.' }] }); return; }
-      } else {
-        if (process.platform !== 'darwin') return;
-        const f = path.join(app.getPath('home'), 'Library', 'Safari', 'Bookmarks.plist');
-        const json = await new Promise<string>((res, rej) => execFile('/usr/bin/plutil', ['-convert', 'json', '-o', '-', f], { maxBuffer: 32 * 1024 * 1024, timeout: 15_000 }, (e, out) => (e ? rej(e) : res(String(out)))));
-        found = parseSafariBookmarks(json);
-      }
-    } catch (e) {
-      if (source === 'safari') {
-        say({ kind: 'need', kick: 'Safari', title: 'Keeps them private', rows: [{ g: 'Do this', v: 'In the window that opens, turn on Samara under Full Disk Access, then press this again.' }] });
-        void shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles');
-      } else say({ kind: 'bad', title: 'Could not be read', rows: [{ g: 'Why', v: (e as Error).message }] });
-      return;
-    }
-    const have = new Set(this.marks.map((m) => m.url));
-    let added = 0;
-    for (const m of found) if (!have.has(m.url)) { this.marks.push(m); have.add(m.url); added++; }
-    this.marks = this.marks.slice(0, 5000);
-    if (added) { this.saveMarks(); void this.fillMarkIcons(); }
-    say(this.marksNotice(added, source === 'chrome' ? 'Chrome' : 'Safari'));
-    this.sendTabs();
-  }
-  /** The star in the slot: the page he is on goes onto the shelf (its panel then opens to name it). Already there: nothing
-   *  changes here; the panel opens to rename or remove it (2026-10-14: "edit the name it saves as"). */
-  toggleMark(): void {
-    const t = this.cur();
-    if (!t || !isWeb(t.url)) return;
-    if (this.marks.some((m) => m.url === t.url)) return;
-    this.marks.unshift({ title: (t.title || t.url).slice(0, 200), url: t.url, folder: 'Bookmarks bar' });
-    this.saveMarks();
-    this.sendTabs();
-  }
-  /**
-   * The bookmark's own right-click menu (2026-10-20): rename, remove, move, open, play in the pop-out, copy.
-   * Found by its address, which is what the page sends; anything else is ignored.
-   */
-  markOp(act: string, url: string, title = ''): void {
-    const i = this.marks.findIndex((m) => m.url === url);
-    if (i < 0 || !isWeb(url)) return;
-    if (act === 'remove') this.marks.splice(i, 1);
-    else if (act === 'rename') { const name = String(title).replace(/\s+/g, ' ').trim().slice(0, 200); if (!name) return; this.marks[i] = { ...this.marks[i]!, title: name }; }
-    else if (act === 'left' || act === 'right') {
-      const j = act === 'left' ? i - 1 : i + 1;
-      if (j < 0 || j >= this.marks.length) return;
-      [this.marks[i], this.marks[j]] = [this.marks[j]!, this.marks[i]!];
-    }
-    else if (act === 'newtab') { this.newTab(url, null, true); return; }
-    else if (act === 'pop') { this.onPlayInPopout?.(url); return; }
-    else if (act === 'copy') { clipboard.writeText(url); return; }
-    else return;
-    this.saveMarks();
-    this.sendTabs();
-  }
-  /** From the star's panel: rename the bookmark for the page he is on, or take it off. */
-  markAct(act: string, title?: string): void {
-    const t = this.cur();
-    if (!t || !isWeb(t.url)) return;
-    const i = this.marks.findIndex((m) => m.url === t.url);
-    if (i < 0) return;
-    if (act === 'remove') this.marks.splice(i, 1);
-    else if (act === 'rename') { const name = String(title ?? '').replace(/\s+/g, ' ').trim().slice(0, 200); this.marks[i] = { ...this.marks[i]!, title: name || t.title || t.url }; }
-    else return;
-    this.saveMarks();
-    this.sendTabs();
-  }
-
   // ------------------------------------------------------------------ C7 Claude's rune in the band (2026-10-21)
   // Sheet 50: a rune stone in the band while a Claude job runs, waits on him, or has finished and he has not
   // said Nice yet. The companion's claude.jobs / claude.wait reach the Shell (main.ts) and are passed here; the frame only
   // gets the jobs and, of the waiting items, WHICH session waits and for what kind (never Claude's exact input: the rune
   // only needs to turn blue). With no companion (Samara on its own) nothing arrives, so there is no rune.
-  private claudeLast: { jobs: unknown[]; waits: { session: string; kind: string }[] } | null = null;
+  claudeLast: { jobs: unknown[]; waits: { session: string; kind: string }[] } | null = null;
   /** Set by main: a checked pause / play / message for a session, to the companion. */
   onClaude: ((m: Record<string, unknown>) => void) | null = null;
   /** Set by main: open a session in the Claude app (the exact claude:// link, or 'front' / 'mac', claudeOpenTarget). */
   onClaudeOpen: ((target: ClaudeOpen) => void) | null = null;
   /** The companion's news (null: the companion went away, so the rune goes too). Sent to every Samara window's band. */
   // ------------------------------------------------------------------ sheet 60: the notes rail ("Notes for this site")
-  private railNotes: RailNote[] = [];
-  private railCats: string[] = [];
+  railNotes: RailNote[] = [];
+  railCats: string[] = [];
   /** A new note for this site, from the rail (main.ts sends it to the companion). */
   onNoteSave: ((n: RailNote) => void) | null = null;
   /** 2026-11-20 (rule): a Samara window gained or lost the front; the companion's Ctrl and + steps aside so it zooms the page. */
   onFront?: (front: boolean) => void;
-  private frontWas = false;
-  private frontNow(): void {
-    const f = BrowserWindow.getFocusedWindow();
-    const on = Boolean(f && this.panes.some((p) => p.win === f));
-    if (on === this.frontWas) return;
-    this.frontWas = on;
-    try { this.onFront?.(on); } catch { /* the key is the companion's business */ }
-  }
+  frontWas = false;
   /** A note in the rail clicked: it opens where notes open (the companion's bubble). */
   onNoteOpen: ((id: string) => void) | null = null;
-  /** The companion's notes changed: the ones that came from a page (src) go to every window with its rail open. */
-  notesNews(notes: unknown, cats: unknown): void {
-    this.railNotes = (Array.isArray(notes) ? notes : []).filter((n): n is RailNote => !!n && typeof n === 'object' && typeof (n as RailNote).id === 'string' && !!(n as RailNote).src)
-      .slice(0, 60).map((n) => ({ id: n.id, title: String(n.title ?? ''), html: String(n.html ?? ''), cat: typeof n.cat === 'string' ? n.cat : undefined, src: n.src, updated: Number(n.updated) || 0 }));
-    this.railCats = Array.isArray(cats) ? cats.map(String).slice(0, 12) : [];
-    for (const p of this.panes) if (p.railOpen) this.sendNotes(p);
-  }
-  private sendNotes(p: Pane): void {
-    if (!this.alive(p)) return;
-    p.win!.webContents.send('browser:notes', { notes: this.railNotes, cats: this.railCats });
-  }
-  /** "+ note for this site": his words, kept as a note with this page as where it came from. */
-  noteSave(raw: unknown): void {
-    if (!raw || typeof raw !== 'object') return;
-    const r = raw as Record<string, unknown>;
-    const id = String(r.id ?? '');
-    if (!/^n[a-z0-9]{1,20}$/.test(id)) return;
-    // Where it came from is the page in front of THIS window, never what the frame says.
-    const url = this.cur()?.url ?? '';
-    let site = '';
-    try { const u = new URL(url); if (u.protocol !== 'http:' && u.protocol !== 'https:') return; site = u.hostname.replace(/^www\./, ''); } catch { return; }
-    const was = this.railNotes.find((n) => n.id === id);
-    this.onNoteSave?.({ id, title: String(r.title ?? '').slice(0, 60) || 'Note', html: String(r.html ?? '').slice(0, 20_000), cat: typeof r.cat === 'string' ? r.cat.slice(0, 24) : undefined,
-      src: was?.src ?? { url, site }, updated: Date.now() });
-  }
-  noteOpen(id: unknown): void { if (typeof id === 'string' && /^n[a-z0-9]{1,20}$/.test(id)) this.onNoteOpen?.(id); }
   /** BG5: a pin made, moved or taken off on the Hyrule map (main.ts sends it to the companion as notes.place). */
   onNotePlace: ((m: NotePlaceMsg) => void) | null = null;
-  isHyrule(sender: Electron.WebContents): boolean { return this.tabs.some((x) => x.internal === 'hyrule' && x.view?.webContents === sender); }
-  hyruleNotes(): string | null { return hyruleNotesFile(); }
-  hyruleNotePlace(raw: unknown): void { const m = notePlaceMsg(raw); if (m) this.onNotePlace?.(m); }
-  /** Sheet 25 "Note here": a new Zelda note at the spot, opened on his board to type, like his other notes. */
-  hyruleNewNote(raw: unknown): void {
-    const at = (raw as { at?: unknown } | null)?.at;
-    const m = Array.isArray(at) && at.length === 2 ? notePlaceMsg({ x: at[0], z: at[1], title: '', text: '' }) : null;
-    if (m && m.id === undefined) this.onNotePlace?.({ ...m, open: true });
-  }
   /** Sheet 26c: the map's "Ask companion" bar. His words go to the companion as if typed in his box; the answer is the companion's, in his bubble. */
   onAsk: ((text: string) => void) | null = null;
-  hyruleAsk(raw: unknown): void {
-    const text = askText(raw);
-    if (text) this.onAsk?.(text);
-  }
-  /** Settings › Spoilers › Puzzle help, for the guide tools (guide-settings.json beside his save's state). */
-  hyruleGuide(raw: unknown): void { writeGuide(raw); }
   /**
    * Sheet 25: a route ask from the companion (botw_route_add). Kept (hyruleroute.ts) until the Hyrule page is loaded, then
    * handed to its preload, which puts it in the map's own queue. Never brings the map forward: a map he is not looking
    * at takes it when he next opens it, and the companion hears "queued".
    */
   onRouteDone: ((r: { id: string; state: 'planned' | 'queued' | 'off'; title?: string; stops?: number }) => void) | null = null;
-  private routeQ: RouteQueue | null = null;
-  private get routeQueue(): RouteQueue { return this.routeQ ??= new RouteQueue(path.join(this.o.stateDir, 'hyrule-route.json')); }
-  private routeWaiting: { id: string; t: ReturnType<typeof setTimeout> }[] = [];
-  hyruleRoute(raw: unknown): void { const a = routeAsk(raw); if (!a) return; this.routeQueue.add(a); this.routeDeliver(); }
-  private routeDeliver(): void {
-    if (!this.routeQ && !this.routeQueue.size) return;
-    const t = this.tabs.find((x) => x.internal === 'hyrule'), wc = t?.view?.webContents;
-    if (!t || !wc || wc.isDestroyed() || t.loading) { for (const a of this.routeQueue.untold()) this.onRouteDone?.({ id: a.id, state: 'queued' }); return; }
-    for (const a of this.routeQueue.take()) wc.send('hyrule:route', { id: a.id, ...(a.goal ? { goal: a.goal } : { remove: a.remove }) });
-  }
-  /** The preload put it in the map's queue. A hidden map plans it when he opens it; a map on screen reports the route. */
-  hyruleRouteTook(raw: unknown): void {
-    const r = raw as { id?: unknown; hidden?: unknown } | null, id = typeof r?.id === 'string' ? r.id : '';
-    if (!/^route\d{1,9}$/.test(id)) return;
-    if (r!.hidden !== false) { this.onRouteDone?.({ id, state: 'queued' }); return; }
-    const w = { id, t: setTimeout(() => { this.routeWaiting = this.routeWaiting.filter((x) => x !== w); this.onRouteDone?.({ id, state: 'planned' }); }, 6000) };
-    this.routeWaiting.push(w);
-  }
-  hyruleRouteReport(raw: unknown): void {
-    const r = routeReport(raw), w = r && this.routeWaiting.shift();
-    if (!r || !w) return;
-    clearTimeout(w.t); this.onRouteDone?.({ id: w.id, state: 'planned', ...r });
-  }
+  routeQ: RouteQueue | null = null;
+  get routeQueue(): RouteQueue { return this.routeQ ??= new RouteQueue(path.join(this.o.stateDir, 'hyrule-route.json')); }
+  routeWaiting: { id: string; t: ReturnType<typeof setTimeout> }[] = [];
   /**
    * The map's save (2026-11-04). The map keeps everything in hy.* localStorage keys
    * (filters, cooking plan, route, Journal tab, map spot), but its page server takes a new port each launch, so the
    * origin changes and those keys were lost on every Samara restart. The preload mirrors them here and puts them back.
    * Only hy.* string values, at most 4 MB in all.
    */
-  private get hyruleSaveFile(): string { return path.join(this.o.stateDir, 'hyrule-save.json'); }
-  hyruleSaveLoad(): Record<string, string> {
-    try { return hyruleSaveClean(JSON.parse(readFileSync(this.hyruleSaveFile, 'utf8'))) ?? {}; } catch { return {}; }
-  }
-  hyruleSave(raw: unknown): void {
-    if (typeof raw !== 'string' || raw.length > 4_000_000) return;
-    let o: Record<string, string> | null = null;
-    try { o = hyruleSaveClean(JSON.parse(raw)); } catch { return; }
-    if (!o) return;
-    try { const tmp = this.hyruleSaveFile + '.tmp'; writeFileSync(tmp, JSON.stringify(o)); renameSync(tmp, this.hyruleSaveFile); }
-    catch (e) { console.error('hyrule: the map save could not be written: ' + (e as Error).message); }
-  }
-
-  claudeNews(m: { t?: unknown; jobs?: unknown; items?: unknown } | null): void {
-    if (!m) this.claudeLast = null;
-    else {
-      const c = this.claudeLast ?? { jobs: [], waits: [] };
-      if (m.t === 'claude.jobs' && Array.isArray(m.jobs)) c.jobs = m.jobs.slice(0, 50);
-      else if (m.t === 'claude.wait' && Array.isArray(m.items)) c.waits = m.items.slice(0, 50).filter((w) => w && typeof w === 'object')
-        .map((w: Record<string, unknown>) => ({ session: String(w.session ?? '').slice(0, 100), kind: String(w.kind ?? '').slice(0, 20) }));
-      else return;
-      this.claudeLast = c;
-    }
-    for (const p of this.panes) {
-      if (!this.alive(p)) continue;
-      p.win!.webContents.send('browser:claudenews', this.claudeLast);
-      // The rune's layer keeps the same list all along (made with the window), so it opens at once and in step.
-      if (p.runeV && !p.runeV.webContents.isDestroyed()) p.runeV.webContents.send('browser:claudenews', this.claudeLast);
-    }
-  }
-  /** A band that just loaded asks for what it missed. */
-  claudeHello(sender: Electron.WebContents): void { sender.send('browser:claudenews', this.claudeLast); }
-  /** 2026-10-21 (rule): Open in Claude pressed anywhere folds every rune panel away at once (main.ts openInClaude). */
-  claudeFold(): void { const was = this.pane; for (const p of this.panes) if (this.alive(p) && p.runeOn) { this.pane = p; this.rune(false); } this.pane = was; }
-
-  // ------------------------------------------------------------------ the rune's panel, floating over the live page
-  /**
-   * 2026-10-21 . The panel used to freeze the page: the live view was hidden and a still picture of it shown
-   * (drawer(true)), which stalled a playing video and swapped views. Now it is drawn the way the tab list is: in its
-   * own see-through layer ABOVE the live page, sized to the panel. The page is never hidden, frozen or captured.
-   */
-  runeView(): WebContentsView | null {
-    const w = this.win, P = this.pane;
-    if (!w || w.isDestroyed()) return null;
-    if (P.runeV && !P.runeV.webContents.isDestroyed()) return P.runeV;
-    // Never slowed while hidden: its slide must start the moment it shows. It does nothing at rest.
-    const v = new WebContentsView({ webPreferences: { ...SAFE_WEB_PREFERENCES, preload: this.o.preloadPath, backgroundThrottling: false } });
-    lockDown(v.webContents);
-    v.setBackgroundColor('#00000000');
-    v.setVisible(false);
-    // A press anywhere else takes the keyboard from it: it folds (the band's rune knows not to reopen on that press).
-    v.webContents.on('blur', () => { this.pane = P; if (P.runeOn) { P.runeShutAt = Date.now(); this.rune(false); } });
-    v.webContents.on('before-input-event', (e, input) => {
-      this.pane = P;
-      if (input.type === 'keyDown' && input.key === 'Escape') { e.preventDefault(); this.rune(false); }
-    });
-    // Opened before its page had loaded (a click right after start): open once it has.
-    v.webContents.on('did-finish-load', () => { this.pane = P; if (P.runeOn) this.placeRune(); });
-    void v.webContents.loadURL(`${this.o.origin}/runelayer.html`).catch(() => { /* its window closed while it loaded */ });
-    P.runeV = v;
-    return v;
-  }
-  isRune(sender: Electron.WebContents): boolean {
-    const p = this.panes.find((x) => this.alive(x) && x.runeV && !x.runeV.webContents.isDestroyed() && sender === x.runeV.webContents);
-    if (p) this.pane = p;
-    return Boolean(p);
-  }
-  /** The band: open the panel under its rune, or fold it. */
-  runeFromBand(a: Record<string, unknown>): void {
-    if (a.open !== true) { this.rune(false); return; }
-    const n = (x: unknown) => (Number.isFinite(Number(x)) ? Math.round(Number(x)) : NaN);
-    const at = { x: n(a.x), y: n(a.y), left: n(a.left), right: n(a.right) };
-    if (Object.values(at).some((v) => !Number.isFinite(v))) return;
-    this.rune(true, at);
-  }
-  /** The layer: it folded itself (Esc, a press on its edge, Open in Claude), or its panel changed size. */
-  runeFromLayer(a: Record<string, unknown>): void {
-    const sz = a.size as { w?: unknown; h?: unknown } | undefined;
-    if (sz && typeof sz === 'object') {
-      const w = Number(sz.w), h = Number(sz.h);
-      if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) { this.pane.runeSize = { w: Math.min(800, Math.round(w)), h: Math.min(4000, Math.round(h)) }; this.placeRune(); }
-      return;
-    }
-    if (a.open === false) this.rune(false);
-  }
-  /** Open the layer where the band says, or fold it: it slides out (~180 ms), then the layer goes. */
-  rune(open: boolean, at?: { x: number; y: number; left: number; right: number }): void {
-    const w = this.win, P = this.pane;
-    if (!w || w.isDestroyed()) return;
-    if (!open) {
-      if (!P.runeOn) return;
-      P.runeOn = false;
-      const v = P.runeV && !P.runeV.webContents.isDestroyed() ? P.runeV : null;
-      v?.webContents.send('browser:rune', { open: false });
-      w.webContents.send('browser:rune', { open: false });
-      if (P.runeHideT) clearTimeout(P.runeHideT);
-      P.runeHideT = setTimeout(() => { P.runeHideT = null; if (!P.runeOn) v?.setVisible(false); }, 200);
-      return;
-    }
-    if (P.runeOn) return;
-    // The press on the rune that took the keyboard from the open layer has just folded it: that press means "close".
-    if (Date.now() - (P.runeShutAt ?? 0) < 300) return;
-    const v = this.runeView();
-    if (!v) return;
-    if (at) P.runeAt = at;
-    if (P.runeHideT) { clearTimeout(P.runeHideT); P.runeHideT = null; }
-    P.runeOn = true;
-    w.contentView.addChildView(v);             // to the top, over the page (and over the tab list)
-    v.setVisible(true);
-    this.placeRune();                          // shown first, so its slide starts on a page that is drawing
-    v.webContents.focus();
-    w.webContents.send('browser:rune', { open: true });
-  }
-  /** Sheet 50's sums, in window pixels: the panel's right edge a little past the rune, kept inside the band. */
-  placeRune(): void {
-    const w = this.win, P = this.pane, v = P.runeV, at = P.runeAt;
-    if (!w || w.isDestroyed() || !v || v.webContents.isDestroyed() || !P.runeOn || !at) return;
-    const [cw, ch] = w.getContentSize();
-    const PANEL = 384, M = 24;
-    const left = Math.max(at.left + 8, Math.min(at.right - PANEL - 8, at.x - PANEL + 70));
-    const x = Math.max(0, left - M), y = at.y;
-    const width = Math.min(cw - x, P.runeSize?.w ?? PANEL + 2 * M);
-    const maxH = Math.max(120, ch - y - 8 - M - 20);
-    const height = Math.max(40, Math.min(ch - y, P.runeSize?.h ?? ch - y));   // until the panel says its size
-    v.setBounds({ x, y, width: Math.max(0, width), height });
-    v.webContents.send('browser:rune', { open: true, tip: at.x - x, maxH });
-  }
-  /** From the rune's panel: only pause, play and a message, each rebuilt and checked (claudewire.ts) like the cockpit's. */
-  claudeAct(raw: unknown): void {
-    const m = claudeMessage(raw);
-    if (!m || !['claude.pause', 'claude.play', 'claude.send'].includes(String(m.t))) { console.error('browser: refused a Claude message from the band that did not check out'); return; }
-    this.onClaude?.(m);
-  }
-  claudeOpen(raw: unknown): void {
-    // 2026-10-21: a job with no app link (or on the Mac) still brings Claude forward, never nothing (claudeOpenTarget).
-    const target = claudeOpenTarget(raw);
-    if (!target) { console.error('browser: refused an Open in Claude link that was not a Claude session'); return; }
-    this.onClaudeOpen?.(target);
-  }
+  get hyruleSaveFile(): string { return path.join(this.o.stateDir, 'hyrule-save.json'); }
 
   // ------------------------------------------------------------------ lending a tab to the popout ("take the tab with you")
   /** Set by main: bring a lent tab back from the popout (the popout closes and hands it over). */
   onReclaim: (() => void) | null = null;
   /** Set by main: pause/play, pin or close the pop-out, from the tab page it left behind (sheet 40 B). */
   onPopoutAct: ((what: string) => void) | null = null;
-
-  /**
-   * Lend a live tab to the popout: the same page, already playing, signed in, nothing reloaded. It leaves this
-   * window and the frame shows a plate where it was. Null for a tab with no live page (asleep, crashed, blocked).
-   */
-  lend(id: number): { view: WebContentsView; url: string; title: string } | null {
-    const t = this.tabs.find((x) => x.id === id);
-    if (!t?.view || t.internal || t.crashed || t.blocked || t.failed || t.lent || !this.inTab(t)) return null;
-    this.thaw(t);                                      // the pop-out gets a running page
-    t.lent = true;
-    // Sent to the pop-out by him: a woken tab's hush ends there.
-    if (this.wakeHush.delete(t.id) && t.view && !t.view.webContents.isDestroyed()) t.view.webContents.setAudioMuted(t.muted);
-    // A still of the picture for the tab page while it plays in the pop-out (taken before the view leaves the window).
-    t.lentShot = '';
-    void capture(t.view, { ms: 800, quality: 78 }).then((shot) => {
-      if (!shot || !t.lent) return;
-      t.lentShot = shot.dataUrl();
-      this.sendTabs();
-    });
-    try { this.win?.contentView.removeChildView(t.view); } catch { /* not shown */ }
-    try { t.view.webContents.stopFindInPage('clearSelection'); } catch { /* gone */ }
-    this.changed();
-    return { view: t.view, url: t.url, title: t.title };
-  }
-
-  /** The popout hands the tab back: into the window, where it was. If the tab or the window is gone, the page closes. */
-  giveBack(id: number, view: WebContentsView): void {
-    const t = this.tabs.find((x) => x.id === id);
-    if (t) this.inTab(t);
-    const w = t ? this.paneOfTab(t)?.win : null;
-    if (!t || t.view !== view || !w || w.isDestroyed()) { try { view.webContents.close(); } catch { /* gone */ } if (t) { t.view = null; t.lent = false; } return; }
-    t.lent = false;
-    view.setVisible(false);
-    w.contentView.addChildView(view);
-    this.raiseTray();                                   // back from the popout, never over the open tab list (2026-10-14)
-    // At its full size but out of sight for a moment, so the site redoes its layout (popout size to tab size)
-    // where he cannot see it, then shown already settled (2026-10-12, the odd resize coming back).
-    const [cw, ch] = w.getContentSize();
-    view.setBounds({ x: this.inset.left, y: this.inset.top, width: Math.max(0, cw - this.inset.left - this.inset.right), height: Math.max(0, ch - this.inset.top - this.inset.bottom) });
-    setTimeout(() => { if (t.view !== view || t.lent || !this.inTab(t)) return; if (t.id === this.active) this.activate(t.id); else { this.changed(); this.quietHidden(); } }, 250);
-  }
-
-  isLent(id: number): boolean { return Boolean(this.tabs.find((x) => x.id === id)?.lent); }
   /**
    * Address suggestions as he types (6.22b item 6). Local and instant: his open tabs first ("switch to it"), then his
    * bookmarks, then tabs he closed lately. The first row is always what he typed, so Enter never surprises him.
    */
-  private preconnected = '';
-  /**
-   * Sheet 88: his search engine's guesses for what he has typed. Only the words go, from Samara's own session with no cookies; a slow or odd answer is no guesses.
-   */
-  async guesses(text: string): Promise<string[]> {
-    const url = guessesUrl(text);
-    if (!url) return [];
-    try {
-      const r = await within(net.fetch(url, { signal: AbortSignal.timeout(1500), credentials: 'omit' }), 1600, null);
-      if (!r || !r.ok) return [];
-      return parseGuesses(await within(r.json() as Promise<unknown>, 800, null), text);
-    } catch { return []; }
-  }
-  suggest(text: string): { kind: string; title: string; url: string; id?: number }[] {
-    const q = String(text ?? '').trim().toLowerCase().slice(0, 200);
-    // Sheet 102 : a click in the bar, before a letter, shows his last searches, then the sites he uses most.
-    if (!q) {
-      const now = Date.now();
-      return [...pastSearches(this.visits.list, '', now, 3).map((p) => ({ kind: 'past', title: p.query, url: p.url })),
-        ...topSites(this.visits.list, now, 3).map((v) => ({ kind: 'history', title: v.title, url: v.url }))].map((x) => ({ ...x, favicon: this.iconOf(x.url) }));
-    }
-    const typed = addressFor(q);
-    const out: { kind: string; title: string; url: string; id?: number }[] = [];
-    if (typed) out.push({ kind: typed.startsWith('https://search.brave.com') || typed.includes('/search?') || typed.includes('duckduckgo.com/?q=') ? 'search' : 'go', title: String(text).trim().slice(0, 200), url: typed });
-    // Sheet 102: his past searches that hold what he typed, right under his own line, as his words with a clock.
-    for (const p of pastSearches(this.visits.list, q, Date.now(), 2)) out.push({ kind: 'past', title: p.query, url: p.url });
-    const hit = (title: string, url: string) => title.toLowerCase().includes(q) || url.toLowerCase().replace(/^https?:\/\/(www\.)?/, '').includes(q);
-    const seen = new Set(out.map((x) => x.url));
-    for (const t of this.tabs) if (!t.internal && isWeb(t.url) && hit(t.title, t.url) && !seen.has(t.url)) { out.push({ kind: 'tab', title: t.title, url: t.url, id: t.id }); seen.add(t.url); }
-    for (const m of this.marks) if (hit(m.title, m.url) && !seen.has(m.url)) { out.push({ kind: 'mark', title: m.title, url: m.url }); seen.add(m.url); if (out.length >= 9) break; }
-    for (let i = this.visits.list.length - 1, n = 0; i >= 0 && n < 3000 && out.length < 9; i--, n++) { const v = this.visits.list[i]; if (hit(v.title, v.url) && !seen.has(v.url) && !searchQueryOf(v.url)) { out.push({ kind: 'history', title: v.title || v.url, url: v.url }); seen.add(v.url); } }
-    for (const u of [...this.closed].reverse()) if (hit('', u) && !seen.has(u)) { out.push({ kind: 'closed', title: u, url: u }); seen.add(u); if (out.length >= 9) break; }
-    // Start connecting to where Enter will go while he is still typing, as Chrome does: the address lookup and
-    // the secure handshake are done by the time he presses it. A connection only, nothing is fetched or sent.
-    const first = out[0];
-    if (first?.url && isWeb(first.url)) {
-      try {
-        const origin = new URL(first.url).origin;
-        if (origin !== this.preconnected) { this.preconnected = origin; this.ses.preconnect({ url: origin, numSockets: 1 }); }
-      } catch { /* not an address */ }
-    }
-    return out.slice(0, 9).map((x) => ({ ...x, favicon: this.iconOf(x.url) }));
-  }
-
-  /** Everything else that plays pauses: other tabs (the pop-out's lent one too), never a call. And the other machine. */
-  private onePlaying(tab: Tab): void {
-    for (const x of this.tabs) if (x !== tab && x.view && !x.call) this.pauseMedia(x.id);
-    this.onMediaStarted?.();
-    this.sync?.mediaStarted();
-  }
+  preconnected = '';
   /** Set by main: something started playing in a tab, so anything the companion plays elsewhere (the pop-out) stops. */
   onMediaStarted: (() => void) | null = null;
-  /** The other machine started playing something: everything here pauses, never a call. */
-  pauseAll(): void { for (const x of this.tabs) if (x.view && !x.call) this.pauseMedia(x.id); this.onMediaStarted?.(); }
-  /** A tab's address, for the pop-out. */
-  urlOf(id: number): string | null { const t = this.tabs.find((x) => x.id === id); return t && isWeb(t.url) ? t.url : null; }
-  /**
-   * Nothing plays until he asks (2026-10-20). Asked by each page as it starts (tabpreload.cjs): may it start
-   * sound by itself (he asked for it a moment ago: an address, a bookmark, a link he clicked), and can he see it.
-   */
-  mayPlay(sender: Electron.WebContents): { ok: boolean; shown: boolean; hold?: boolean } {
-    const t = this.tabs.find((x) => x.view?.webContents === sender);
-    if (!t) return { ok: true, shown: true };            // a popup he opened: his
-    const at = Math.max(t.playOkAt ?? 0, this.lastGesture.get(t.id) ?? 0);
-    // A woken tab plays nothing by itself (2026-10-23): it comes back paused at his spot; his own click on play
-    // in the page plays it.
-    // hold: nothing on a woken page plays until he clicks in the page itself (clicking its tab does not count).
-    return { ok: !t.waking && Date.now() - at < PLAY_MS, shown: this.seen(t) && !t.waking, hold: Boolean(t.waking) };
-  }
-  /** He can see it, or it may play out of sight: a call, the pop-out, Spotify (his only music). */
-  private seen(t: Tab): boolean {
-    let spotify = false; try { spotify = /(^|\.)spotify\.com$/i.test(new URL(t.url).hostname); } catch { /* not an address */ }
-    return t.lent || t.call === true || spotify || this.inFront(t);
-  }
-  /** His rule (2026-10-20): a tab he leaves pauses, and a tab he is not looking at never starts playing. */
-  private quietHidden(): void {
-    for (const x of this.tabs) {
-      if (!x.view || x.internal) continue;
-      const shown = this.seen(x);
-      if (x.shown === shown) continue;
-      const was = x.shown; x.shown = shown;
-      try { x.view.webContents.send('tab:shown', shown); } catch { /* gone */ }
-      if (!shown && was !== undefined) this.pauseMedia(x.id);
-    }
-  }
-  /** Pause whatever the tab is playing (it went to the pop-out). With a deadline: a dead page never hangs the companion.
-   *  No page check here passes "user gesture" (2026-10-23): that told the site he had clicked, so it let video start by
-   *  itself, against his "nothing plays until I click". */
-  pauseMedia(id: number): void {
-    const wc = this.tabs.find((x) => x.id === id)?.view?.webContents;
-    if (wc) void run(wc, "document.querySelectorAll('video,audio').forEach(m=>{try{m.pause()}catch{}});true", { ms: 800, fallback: null });
-  }
-
-  // ------------------------------------------------------------------ trails and the done shelf (sheet 3 section 3)
-  /** "+ New trail": the next tab he opens starts it. */
-  // ------------------------------------------------------------------ Phase R (2026-11-24): the rail
-  /** What the rail's rules (rail.ts) need of a tab. A tab in front of any window, in a split or lent stays put. */
-  private railTab(t: Tab): RailTab {
-    const front = this.panes.some((p) => p.active === t.id || p.split?.left === t.id || p.split?.right === t.id);
-    const job = (() => { const p = this.driver.pageOfTab(t.id); return p && this.driver.job(p.job)?.kind === 'claude' ? p.job : null; })();
-    return { id: t.id, lastSeen: t.lastSeen, opener: t.opener, pinned: t.pinned || front || t.lent, audible: t.audible, call: t.call,
-      claudeJob: job ?? (t.claude ? -1 : null), internal: t.internal ?? (t.mock || !isWeb(t.url) ? 'own' : undefined) };
-  }
-  /** One tab as Earlier keeps it. */
-  private entryOf(t: Tab, at: number, from?: string): EarlierEntry {
-    return { key: entryKey(t.url, at), url: t.url, title: t.title || t.url, at,
-      ...(t.favicon && /^(https:|data:image\/)/.test(t.favicon) && t.favicon.length < 4000 ? { favicon: t.favicon } : {}),
-      ...(t.scrollY > 0 ? { scrollY: Math.round(t.scrollY) } : {}), ...(t.zoom ? { zoom: t.zoom } : {}), ...(from ? { from } : {}) };
-  }
-  /**
-   * The one-time move (Phase R): trails, the done shelf and the Stash go to Earlier, so nothing he had is lost when trails
-   * go. The files as they were are copied aside first (browser-tabs.v1.json, browser-stash.v1.json) and never touched
-   * again. It runs once (Earlier remembers), and running it twice changes nothing: Earlier keys repeat, so they merge.
-   */
-  private railMove(dir: string): void {
-    if (this.earlier.migrated) return;
-    try {
-      const s = this.session.peek() as (Partial<SessionData> & { tabs?: any[] }) | null;
-      const tabs = Array.isArray(s?.tabs) ? s!.tabs : [];
-      const trails = (Array.isArray(s?.trails) ? s!.trails : []) as V1File['trails'];
-      const own = (trails ?? []).filter((x) => x?.id !== MOCK_TRAIL);
-      const needs = own.length > 0 || tabs.some((t) => t?.done === true) || this.stash.length > 0;
-      if (!needs) { this.earlier.markMigrated(); return; }
-      const aside = (from: string, to: string) => { const a = path.join(dir, from), b = path.join(dir, to); if (existsSync(a) && !existsSync(b)) copyFileSync(a, b); };
-      aside('browser-tabs.json', 'browser-tabs.v1.json');
-      aside('browser-stash.json', 'browser-stash.v1.json');
-      const v1: V1File = { tabs: tabs.filter((t) => typeof t?.url === 'string'), trails, stash: this.stash.map((x) => ({ name: x.name, at: x.at, tabs: x.tabs })) };
-      const { keep, earlier } = migrateV1(v1, Date.now());
-      this.earlier.add(earlier);
-      if (s && tabs.length) {
-        // Indexes in the file (opener, the tab in front, splits) point at the old list: they follow the tabs that stay.
-        const kept = v1.tabs;
-        const map = new Map<number, number>(); keep.forEach((old, i) => map.set(tabs.indexOf(kept[old]), i));
-        const at = (n: unknown) => (Number.isInteger(n) ? map.get(n as number) : undefined);
-        const next: SessionData = { v: 1, closed: Array.isArray(s.closed) ? s.closed : [], trails: [],
-          active: at(s.active) ?? 0,
-          fronts: (Array.isArray(s.fronts) ? s.fronts : []).map((n) => at(n) ?? -1),
-          tabs: keep.map((i) => { const t = { ...kept[i] } as Record<string, unknown>; t.opener = at(t.opener) ?? null; delete t.trail; delete t.done; return t as SessionData['tabs'][number]; }),
-          splits: (Array.isArray(s.splits) ? s.splits : []).flatMap((x: any) => { const l = at(x?.left), r = at(x?.right); return l !== undefined && r !== undefined ? [{ ...x, left: l, right: r }] : []; }) };
-        this.session.write(next, { now: true, force: true, why: 'rail-move' });
-      }
-      this.stash = [];
-      try { writeFileAtomic(this.stashFile, '[]'); } catch { /* the copy aside holds it */ }
-      this.earlier.markMigrated();
-      console.log(`shell: browser: trails retired: ${earlier.length} page${earlier.length === 1 ? '' : 's'} moved to Earlier, ${keep.length} tab${keep.length === 1 ? '' : 's'} stay open`);
-    } catch (e) { console.error('shell: browser: the move to Earlier did not run (nothing changed): ' + (e as Error).message); }
-  }
-  /** The overnight tidy, when it is due (at 3 AM, or on the next start after a night Samara was shut). */
-  railTidy(now = Date.now()): number {
-    if (!this.restored || !railTidyDue(this.earlier.lastTidy, now)) return 0;
-    const ids = toPutAway(this.tabs.map((t) => this.railTab(t)), now, null);
-    this.earlier.tidied(now);
-    if (!ids.length) return 0;
-    const put = this.putAway(ids, now);
-    if (put.length) {
-      this.note('', { from: 'tabs', icon: 'tabs', kick: 'Overnight', title: `${put.length} tab${put.length === 1 ? '' : 's'} moved to Earlier`,
-        rows: [{ g: 'Why', v: 'Not opened in 12 hours. Nothing was closed for good.' }], keys: [{ label: 'Bring them back', act: 'back' }, { label: 'Got it', act: 'ok' }] },
-      (act) => { if (act === 'back') this.earlierBack(put.map((e) => e.key)); });
-    }
-    return put.length;
-  }
-  /** Close these tabs into Earlier (their address, scroll and zoom kept). The tab in front of a window never goes. */
-  private putAway(ids: number[], at: number): EarlierEntry[] {
-    const out: EarlierEntry[] = [];
-    for (const id of ids) {
-      const t = this.tabs.find((x) => x.id === id);
-      if (!t || !isWeb(t.url) || this.panes.some((p) => p.active === id)) continue;
-      out.push(this.entryOf(t, at + out.length));
-      this.closeView(t);
-      this.tabs.splice(this.tabs.indexOf(t), 1);
-    }
-    this.earlier.add(out);
-    this.changed();
-    return out;
-  }
-  /** Bring entries back from Earlier as tabs, asleep (each loads when he opens it), where they were. */
-  private earlierBack(keys: string[], show = false): void {
-    let last: Tab | null = null;
-    for (const k of keys) {
-      const e = this.earlier.take(k);
-      if (!e || !isWeb(e.url)) continue;
-      last = { id: ++this.seq, view: null, opener: null, title: e.title, url: e.url, favicon: e.favicon ?? '', loading: false, audible: false, muted: false, crashed: false,
-        scrollY: e.scrollY ?? 0, zoom: e.zoom ?? 0, lastSeen: Date.now(), blocked: null, trail: null, done: false, lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id };
-      this.tabs.push(last);
-    }
-    if (show && last) this.activate(last.id); else this.changed();
-  }
-  /** Earlier, from the rail: the list (to the tray that asked), open one, or remove one for good. */
-  earlierAct(a: { act: string; key?: string }, reply?: (data: unknown) => void): void {
-    if (a.act === 'list') { reply?.({ entries: this.earlier.entries, now: Date.now() }); return; }
-    if (!a.key) return;
-    if (a.act === 'open') this.earlierBack([a.key], true);
-    else if (a.act === 'remove') { this.earlier.take(a.key); this.sendTabs(); }
-    reply?.({ entries: this.earlier.entries, now: Date.now() });
-  }
-  private pendingTrail: number | null = null;
-  /** A trail with nothing left in it goes. */
-  private tidyTrails(): void {
-    // Sheet 107 (2026-10-30): no MOCKUPS trail any more; Mockups is its one plaque in the tray.
-    this.trails = this.trails.filter((tr) => !tr.mock && (tr.id === this.pendingTrail || this.tabs.some((t) => t.trail === tr.id && !t.done)));
-  }
-  /**
-   * Drag one tab or several (2026-10-21): into a trail (or loose, null), in their order, before another tab (or
-   * at the end of that group), and under a parent tab when he dropped it on a row or slid it right. A tab sits under the
-   * one it came from (its opener), one level deep, as the drawer draws it. Every id must be a real tab; the parent must
-   * be a top tab of that same trail; a tab never goes under itself or under its own child (no loops). False: refused,
-   * nothing moved. A tab under one of the others moving with it keeps its place under it (a parent carries its children).
-   */
-  placeTabs(ids: number[], trail: number | null, before: number | null, parent: number | null): boolean {
-    this.takeFromClaude(ids);
-    const set = new Set(ids);
-    if (!ids.length || set.size !== ids.length) return false;
-    const moving = ids.map((id) => this.tabs.find((x) => x.id === id));
-    if (moving.some((t) => !t)) return false;
-    if (trail !== null && !this.trails.some((x) => x.id === trail)) return false;
-    const mock = trail === MOCK_TRAIL;
-    // Sheet 47's rule, unchanged: the MOCKUPS trail holds Claude's mockups only, and a mockup stays in it.
-    if (moving.some((t) => Boolean(t!.mock) !== mock)) return false;
-    if (before !== null && (set.has(before) || !this.tabs.some((x) => x.id === before))) return false;
-    if (parent !== null) {
-      const p = this.tabs.find((x) => x.id === parent);
-      // A mockup's parent is kept in the mockups' own tree (mockAct), never here; loose tabs are a flat list.
-      if (!p || trail === null || mock || set.has(parent) || p.trail !== trail || p.done) return false;
-      // One level only: the parent must itself be a top tab of that trail.
-      if (p.opener !== null && this.tabs.some((x) => x.id === p.opener && x.trail === trail && !x.done)) return false;
-      // No loops: walking up from the parent must never meet a tab that is moving.
-      const seen = new Set<number>();
-      for (let at: Tab | undefined = p; at && !seen.has(at.id); at = at.opener === null ? undefined : this.tabs.find((x) => x.id === at!.opener)) {
-        if (set.has(at.id)) return false;
-        seen.add(at.id);
-      }
-    }
-    for (const t of moving as Tab[]) {
-      // Phase R: moving a tab in the rail keeps where it came from (closing it still goes back there).
-      if (!mock && (trail !== null || parent !== null)) t.opener = parent === null && trail !== null && t.opener !== null && set.has(t.opener) ? t.opener : parent;
-      t.trail = trail;
-      t.done = false;
-    }
-    // Tabs that were under a tab that is now a child themselves move up beside it: never two levels deep.
-    if (parent !== null) for (const x of this.tabs) if (!set.has(x.id) && x.opener !== null && set.has(x.opener) && x.trail === trail) x.opener = parent;
-    this.tabs = this.tabs.filter((x) => !set.has(x.id));
-    const j = before !== null ? this.tabs.findIndex((x) => x.id === before) : -1;
-    if (j >= 0) this.tabs.splice(j, 0, ...(moving as Tab[]));
-    else {
-      let k = -1;
-      this.tabs.forEach((x, n) => { if (x.trail === trail) k = n; });
-      this.tabs.splice(k + 1, 0, ...(moving as Tab[]));
-    }
-    this.tidyTrails();
-    this.changed();
-    return true;
-  }
+  pendingTrail: number | null = null;
   // ------------------------------------------------------------------ Sheet 47: the MOCKUPS trail (2026-10-21)
   /** Mockups are on here: there is a git repo beside the Shell (not on his Mac). */
   get mockupsOn(): boolean { return Boolean(this.mockServer && this.mockStore); }
-  /**
-   * Claude opened a mockup (a .mockup file in open-urls, main.ts). Its version as it is now (HEAD) goes into the history,
-   * and its sheet's tab shows it: a newer version of a sheet already open updates that same tab, never a new one .
-   * branch: the branch Claude was told to file it in (mockups.ts fileInto has the rules).
-   */
-  async openMockup(sheet: string, title = '', branch: string | null = null, o: { project?: string | null; icon?: string | null } = {}): Promise<MockVersion | null> {
-    if (!this.mockServer || !this.mockStore) return this.mockNo("Samara's Mockups trail is not on.");
-    if (cleanSheet(sheet) !== sheet) return this.mockNo(`${sheet.slice(0, 200)} is not a sheet name Samara takes.`);
-    if (!(await this.mockReady)) return this.mockNo("Samara's mockup server did not start.");
-    // 2026-10-22: a live page has no versions to look up: it is shown as it is, always V1.
-    const where = this.mockWhere(sheet);
-    const r = sheetKind(sheet) === 'live' ? { commit: '', key: 'live', title: liveTitle(sheet) } : where ? await resolveVersion(where.repo, where.rel) : null;
-    if (!r) return this.mockNo(`${sheet} is not in the repo's last commit, not opened. Commit it into the private mockups repo (${this.mockHomeWant || '~/projects/mockups'}, under <project folder>/<same path>), never a public project repo, then send again.`);
-    const ver = this.mockStore.add(sheet, title || r.title, r.commit, r.key, Date.now(), { project: o.project ?? null });
-    // A branch Claude named (checked in cleanBranch): the same move as his Move to branch, children following.
-    if (branch) this.mockStore.fileInto(ver.sheet, branch, o);
-    // Sheet 107: NEW on it until he opens it, and Mockups opens right on it, in its project's tab.
-    this.mockStore.setFresh(ver.sheet, true);
-    this.showMockup(ver);
-    this.sendTabs();
-    return ver;
-  }
   /** Sheet 107: the sheet Mockups opens on next (a new one from Claude, or one picked elsewhere); n counts the asks. */
-  private mockFocus: { n: number; sheet: string; id: number } | null = null;
-  /**
-   * A .mockup file (main.ts), any of its three kinds (2026-10-22): a sheet of this repo, a page in another session's repo
-   * (registered by name in mockups.json, then @<name>/<path>), or a live page on this computer.
-   */
-  async openMockupDrop(m: MockupDrop): Promise<MockVersion | null> {
-    if (!this.mockStore) return this.mockNo("Samara's Mockups trail is not on.");
-    this.mockHomeAdopt();
-    const o = { project: m.project ?? null, icon: m.icon ?? null };
-    if (m.url) return this.openMockup(m.url, m.title, m.branch, o);
-    // 2026-10-31: a page from any project is copied into the mockups home and shown from there (mockhome.ts).
-    if (this.mockHome) return this.mockKeep(m);
-    if (!m.repo) return this.openMockup(m.path, m.title, m.branch, o);
-    const same = (a: string, b: string) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
-    // the repo Samara lives in, named by its folder: its own rules (only the mockup folders are served).
-    if (this.mockRepo && same(path.resolve(m.repo), path.resolve(this.mockRepo))) return cleanPath(m.path) ? this.openMockup(m.path, m.title, m.branch, o) : this.mockNo('In this repo, mockups live under docs/, src/Shell/pages/ or assets/.');
-    if (!findRepo(m.repo)) return this.mockNo('not a git repo, not opened: ' + m.repo);
-    const sheet = `@${this.mockStore.repoName(path.resolve(m.repo))}/${m.path}`;
-    this.mockFindLogo(path.resolve(m.repo), m.project ?? this.mockStore.projectOf(sheet));
-    return this.openMockup(`@${this.mockStore.repoName(path.resolve(m.repo))}/${m.path}`, m.title, m.branch, o);
-  }
-  /** openMockupDrop, with why it was not opened (Samara's mockup door answers Claude with it, never a silent no). */
-  async openMockupDropWhy(m: MockupDrop): Promise<MockVersion | string> {
-    this.mockWhy = '';
-    const v = await this.openMockupDrop(m);
-    return v ?? (this.mockWhy || 'Samara did not open it (see shell.log).');
-  }
+  mockFocus: { n: number; sheet: string; id: number } | null = null;
   /** The mockups home's folder (~/projects/mockups), or '' when it is not cloned on this machine. */
-  private mockHome = '';
-  private mockSeenFile = '';
+  mockHome = '';
+  mockSeenFile = '';
   /** Where the home should be. 2026-11-03: a home cloned after Samara started is taken at the next show, not ignored
    *  until a restart (that day ten sheets were refused as "not in the repo's last commit" while it sat ready). */
-  private mockHomeWant = '';
-  private mockHomeAdopt(): void {
-    const home = this.mockHomeWant;
-    if (this.mockHome || !home || !this.mockStore || !this.mockServer || !homeReady(home)) return;
-    this.mockHome = home;
-    this.mockStore.setHome(home);
-    this.mockServer.art = (commit, rel) => this.mockArt(commit, rel);
-    setTimeout(() => { void this.mockHomeWake(); }, 8000).unref?.();
-    setInterval(() => { void this.mockHomeWake(); }, 20 * 60_000).unref?.();
-  }
+  mockHomeWant = '';
   /** Why the last mockup was not opened, in words Claude can act on (the door answers with it). */
-  private mockWhy = '';
-  private mockNo(why: string): null { this.mockWhy = why; console.log('shell: mockups: ' + why); return null; }
-  /**
-   * A page Claude showed, kept in the mockups home (2026-10-31): the page, its helper folder and what it links,
-   * copied from its project's folder as it is now under <project>/<same path>, committed, sent to GitHub for the other
-   * machine, and opened from there. Samara's own art stays out (served by mockArt). The project is never touched.
-   */
-  private async mockKeep(m: MockupDrop): Promise<MockVersion | null> {
-    const root = m.repo ?? this.mockRepo;
-    if (!root || !this.mockStore) return this.mockNo('The page has no project folder.');
-    const samara = isSamaraRepo(path.basename(root)) || (!!this.mockRepo && path.resolve(root) === path.resolve(this.mockRepo));
-    const project = projectName(m.project) ?? (m.branch ? branchHome(m.branch).project : null) ?? (samara ? 'Samara' : plainName(path.basename(root)));
-    const files = await gather(diskReader(root), m.path, samara ? (rel) => ART_DIRS.some((d) => rel.startsWith(d)) : undefined);
-    if (!files.has(m.path)) return this.mockNo(`${m.path} could not be read in ${root}, not kept.`);
-    // Which Samara the art comes from: the repo's commit now (and the repo, remembered by name for the art).
-    let art = '';
-    if (samara) { this.mockStore.repoName(path.resolve(root)); art = await homeHead(root); }
-    const kept = await keep(this.mockHome, projectFolder(project), files, { page: m.path, title: m.title, topic: m.branch ?? '', project, icon: m.icon ?? '', art: /^[0-9a-f]{40}$/.test(art) ? art : '' });
-    if (!kept) return this.mockNo(`${m.path} could not be committed into the mockups repo ${this.mockHome} (git failed there).`);
-    this.mockFindLogo(path.resolve(root), project);
-    void pushHome(this.mockHome).then((ok) => { if (!ok) console.log('shell: mockups: the home could not be sent to GitHub now; the next show or start tries again'); });
-    const v = await this.openMockup(`@${HOME_NAME}/${kept.sheet}`, m.title, m.branch, { project, icon: m.icon ?? null });
-    if (v) this.mockSaySeen(kept.commit);
-    return v;
-  }
-  /** The newest home commit already filed here, so a start files only what came after (Claude's own, the other machine's). */
-  private mockSaySeen(commit: string): void {
-    if (!this.mockSeenFile || !/^[0-9a-f]{40}$/.test(commit)) return;
-    void homeHead(this.mockHome).then((h) => { if (h === commit) writeFileAtomic(this.mockSeenFile, JSON.stringify({ head: h })); });
-  }
-  /**
-   * The home, when Samara starts (and every 20 minutes): the other machine's mockups pulled in, and every page a commit
-   * files (Mockup: lines, his fallback rule: Claude saved it while Samara was off) put in the trail, marked NEW. Then
-   * anything not yet on GitHub is sent.
-   */
-  async mockHomeWake(): Promise<number> {
-    const st = this.mockStore, home = this.mockHome;
-    if (!st || !home) return 0;
-    await pullHome(home);
-    const seen = readJson<{ head?: unknown }>(this.mockSeenFile, {}).head;
-    const list = await newShown(home, typeof seen === 'string' ? seen : '');
-    let n = 0;
-    for (const t of list) {
-      const sheet = `@${HOME_NAME}/${t.sheet}`;
-      if (st.list.some((x) => (x.sheet === sheet || srcOf(x) === sheet) && x.commit === t.commit)) continue;
-      const r = await resolveVersion(home, t.sheet, t.commit);
-      if (!r) continue;
-      const project = projectName(t.project) ?? null;
-      const ver = st.add(sheet, t.title || r.title, r.commit, r.key, t.at, { project });
-      if (t.topic) st.fileInto(ver.sheet, t.topic, { project, icon: t.icon || null });
-      st.setFresh(ver.sheet, true);
-      n++;
-    }
-    const head = await homeHead(home);
-    if (/^[0-9a-f]{40}$/.test(head)) writeFileAtomic(this.mockSeenFile, JSON.stringify({ head }));
-    if (n) { console.log(`shell: mockups: ${n} kept while Samara was off, filed now`); this.mockLogSig = ''; this.pushMockLog(); this.sendTabs(); }
-    void pushHome(home);
-    return n;
-  }
+  mockWhy = '';
   /** Which Samara commit each home commit was shown with (read once each). */
-  private readonly mockArtAt = new Map<string, string>();
-  /**
-   * Samara's own art for one of its sheets in the home (src/Shell/pages/..., assets/...): from Samara's repo at the commit
-   * the sheet was shown with, else as it is in that repo now, else from this Samara's own files.
-   */
-  private async mockArt(commit: string, rel: string): Promise<Buffer | null> {
-    if (!this.mockHome) return null;
-    if (!this.mockArtAt.has(commit)) this.mockArtAt.set(commit, await artOf(this.mockHome, commit));
-    const at = this.mockArtAt.get(commit)!;
-    const repos = [this.mockRepo, ...[...(this.mockStore?.repos ?? new Map<string, string>())].filter(([n]) => isSamaraRepo(n)).map(([, d]) => d)].filter((d) => d && findRepo(d));
-    for (const repo of repos) {
-      const b = at ? await git(repo, ['cat-file', 'blob', `${at}:${rel}`], true) : null;
-      if (Buffer.isBuffer(b)) return b;
-    }
-    const shell = path.join(import.meta.dirname, '..');
-    const spots = [...repos.map((d) => path.join(d, ...rel.split('/'))),
-      rel.startsWith('src/Shell/pages/') ? path.join(shell, 'pages', ...rel.slice('src/Shell/pages/'.length).split('/')) : path.join(shell, ...rel.split('/')),
-      path.join(shell, '..', '..', ...rel.split('/'))];
-    for (const f of spots) { try { if (statSync(f).isFile()) return readFileSync(f); } catch { /* not here */ } }
-    return null;
-  }
-  /** Where a sheet's file is: its repo's folder and its path inside it. Null for a live page or an unknown repo. */
-  private mockWhere(sheet: string): { repo: string; rel: string } | null {
-    const k = sheetKind(sheet);
-    if (k === 'home') return this.mockRepo ? { repo: this.mockRepo, rel: sheet } : null;
-    if (k !== 'repo') return null;
-    const r = splitRepoSheet(sheet), dir = r ? this.mockStore?.repoPath(r.name) : null;
-    return r && dir ? { repo: dir, rel: r.rel } : null;
-  }
-  /**
-   * One version, exactly as it was (sheet 107, 2026-10-30): Mockups opens on it, inside Mockups, at its true size.
-   * No tab of its own any more. Opens Samara if it is closed.
-   */
-  private showMockup(ver: MockVersion): void {
-    this.mockFocus = { n: (this.mockFocus?.n ?? 0) + 1, sheet: ver.sheet, id: ver.id };
-    this.mockStore?.opened(ver.sheet);
-    this.openMockLog();
-    this.mockLogSig = '';
-    this.pushMockLog();
-  }
-  /** "Mockups" in the ... menu: the trail comes back, even after he closed it, and the Mockups tab opens. */
-  reopenMockups(): void {
-    if (!this.mockStore) return;
-    void this.mockTidy(false);
-    if (!this.mockStore.list.length) { this.note('No mockups yet. When Claude opens one, it lands here.'); this.sendTabs(); return; }
-    this.openMockLog();
-  }
+  readonly mockArtAt = new Map<string, string>();
   /** A branch just made from a tab's menu: the frame opens its name for typing, once. */
-  private freshBranch = 0;
+  freshBranch = 0;
   /**
    * Send a mockup to the companion (2026-10-21): set by main only while the companion's body is running, like Send to companion for
    * words. The frame shows the item only while it is set, so a change redraws.
    */
-  private sendMock: ((m: MockSend) => void) | null = null;
+  sendMock: ((m: MockSend) => void) | null = null;
   get onSendMockup(): ((m: MockSend) => void) | null { return this.sendMock; }
   set onSendMockup(fn: ((m: MockSend) => void) | null) { const was = Boolean(this.sendMock); this.sendMock = fn; if (was !== Boolean(fn)) this.sendTabs(); }
-  /** One version as it travels: everything from mockups.json and git, the picture from its tab or a hidden page. */
-  private async mockItem(ver: MockVersion, picture: boolean): Promise<MockSendItem> {
-    const st = this.mockStore!;
-    const branchId = st.placeOf(ver.sheet).branch;
-    // A live page (2026-10-22) has no file to read notes from; another repo's sheet is read from its own repo.
-    const where = ver.commit ? this.mockWhere(ver.sheet) : null;
-    const html = where ? await git(where.repo, ['cat-file', 'blob', `${ver.commit}:${where.rel}`]) : null;
-    return {
-      kind: 'mockup', title: ver.title, version: 'V' + ver.v, branch: st.branches.find((b) => b.id === branchId)?.name ?? null,
-      sheet: ver.sheet, commit: ver.commit, url: this.mockServer!.url(ver.commit, ver.sheet),
-      notes: typeof html === 'string' ? notesFrom(html) : '', picture: picture ? await this.mockShot(ver) : null,
-    };
-  }
   /** Sheet 100: Samara's folder for mockup pictures; its sibling mocklogos holds each project's own logo. */
-  private mockThumbs = '';
-  /** Sheet 100: each project's own logo, when it has one (served as /p/<slug>.png), by project name. */
-  private mockLogos(): Record<string, string> {
-    const out: Record<string, string> = {};
-    if (!this.mockServer || !this.mockStore || !this.mockThumbs) return out;
-    const dir = path.join(path.dirname(this.mockThumbs), 'mocklogos');
-    const names = new Set([...this.mockStore.list.map((x) => this.mockStore!.projectOf(x.sheet)), ...this.mockStore.branches.map((b) => b.project ?? '')].filter(Boolean));
-    for (const n of names) if (existsSync(path.join(dir, logoSlug(n) + '.png'))) out[n] = `${this.mockServer.origin}/p/${logoSlug(n)}.png`;
-    return out;
-  }
-  /** A repo a mockup came from: its logo, found in the usual spots, kept for its project (once; his own choice is never replaced). */
-  private mockFindLogo(repo: string, project: string): void {
-    if (!this.mockThumbs) return;
-    const dir = path.join(path.dirname(this.mockThumbs), 'mocklogos'), to = path.join(dir, logoSlug(project) + '.png');
-    if (existsSync(to)) return;
-    for (const spot of LOGO_SPOTS) {
-      const f = path.join(repo, spot);
-      try { const b = readFileSync(f); if (b.length < 4_000_000 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) { mkdirSync(dir, { recursive: true }); writeFileSync(to, b); return; } } catch { /* not here */ }
-    }
-  }
-  /**
-   * A picture of one version. Its own tab when that tab shows exactly this picture; otherwise a hidden window off screen,
-   * in a session of its own that keeps nothing, opened on the versioned page and closed again.
-   */
-  private async mockShot(ver: MockVersion): Promise<string | null> {
-    const t = this.tabs.find((x) => x.mock?.sheet === ver.sheet && x.mock.key === ver.key && x.view && !x.crashed && !x.lent && !x.loading);
-    // A tab hidden under the drawer gives an empty picture: then the hidden page below takes it.
-    if (t?.view) { const shot = fitShot(await capture(t.view, SAMARA_SHOT)); if (shot) return shot; }
-    const w = new BrowserWindow({ show: false, width: 1280, height: 860, webPreferences: { ...SAFE_WEB_PREFERENCES, partition: 'samara-mockshot', offscreen: true } });
-    try {
-      lockDown(w.webContents);
-      const loaded = await within(w.loadURL(this.mockServer!.url(ver.commit, ver.sheet)).then(() => true), 8000, false);
-      if (!loaded) return null;
-      await new Promise((r) => setTimeout(r, 500));
-      return fitShot(await capture(w, SAMARA_SHOT));
-    } catch { return null; }
-    finally { if (!w.isDestroyed()) w.destroy(); }
-  }
-  /** Send to companion: one version (a tab's, or a history line's), or a whole branch. Ids only, each looked up here. */
-  private async mockSend(what: 'tab' | 'version' | 'branch', id: number): Promise<MockSend | null> {
-    const st = this.mockStore, send = this.sendMock;
-    if (!st || !send || !Number.isInteger(id)) return null;
-    let out: MockSend | null = null;
-    if (what === 'version') { const v = st.get(id); if (v) out = await this.mockItem(v, true); }
-    else if (what === 'tab') {
-      const t = this.tabs.find((x) => x.id === id && x.mock);
-      const v = t ? [...st.list].filter((x) => x.sheet === t.mock!.sheet && x.key === t.mock!.key).sort((a, b) => b.at - a.at)[0] : undefined;
-      if (v) out = await this.mockItem(v, true);
-    } else {
-      const b = st.branches.find((x) => x.id === id);
-      if (b) {
-        // Each mockup in the branch (children too), its newest version, newest first; pictures for the first 4 only.
-        const sheets = [...new Set(st.list.map((x) => x.sheet))].filter((s) => st.placeOf(s).branch === b.id);
-        const newest = sheets.map((s) => st.list.filter((x) => x.sheet === s).sort((p, q) => q.at - p.at || q.id - p.id)[0]!).sort((p, q) => q.at - p.at).slice(0, 20);
-        const items: MockSendItem[] = [];
-        for (const [i, v] of newest.entries()) items.push(await this.mockItem(v, i < 4));
-        if (items.length) out = { kind: 'mockups', branch: b.name, items };
-      }
-    }
-    if (out && this.sendMock) this.sendMock(out);
-    return out;
-  }
-  /**
-   * The frame's clicks: a version to show, the history list opened or shut, the broom, and his moves in the family tree
-   * (2026-10-21: branches > mockups > children, all by hand, kept in mockups.json with the history).
-   */
-  /** Sheet 79: every marked version, for Claude (and the companion): which sheet, which version, which stage, his words. */
-  mockStages(): unknown[] { return this.mockStore?.stages() ?? []; }
-  /**
-   * Claude's mark on one version of a sheet in his repo (sheet 79): approved only with his words from the chat (it shows
-   * as APPROVED · CHAT), built once it is in Samara, fix with a note, park, or clear. The newest version unless `v`.
-   */
-  mockMark(a: { repo: string; sheet: string; v: number | null; stage: string; said: string; note: string }): string {
-    const st = this.mockStore;
-    if (!st) return "This Samara has no Mockups trail.";
-    const names = a.repo ? [...st.repos.entries()].filter(([, p]) => path.resolve(p) === path.resolve(a.repo)).map(([n]) => `@${n}/${a.sheet}`) : [];
-    const keys = [a.sheet, ...names];
-    // 2026-10-31: a page kept in the mockups home is <project folder>/<its path in the project> there.
-    for (const x of st.list) { const m = new RegExp(`^@${HOME_NAME}/[^/]+/(.+)$`).exec(x.sheet); if (m && m[1] === a.sheet && !keys.includes(x.sheet)) keys.push(x.sheet); }
-    // Sheet 107: a page shown from another folder (a worktree) may have joined the sheet it already was; its address finds it.
-    const found = new Set(st.list.filter((x) => keys.includes(x.sheet) || keys.includes(srcOf(x))).map((x) => x.sheet));
-    const mine = st.list.filter((x) => found.has(x.sheet));
-    if (!mine.length) return 'That sheet is not in the Mockups trail yet: show it first (show_mockup).';
-    const v = a.v === null ? mine.reduce((m, x) => (x.v > m.v ? x : m)) : mine.find((x) => x.v === a.v);
-    if (!v) return `That sheet has no version ${a.v}.`;
-    const map: Record<string, MockStage | null> = { approved: 'chat', built: 'built', fix: 'fix', park: 'park', clear: null };
-    if (!(a.stage in map)) return 'stage is one of: approved, built, fix, park, clear.';
-    if (a.stage === 'approved' && !a.said.trim()) return "An approval needs his own words from the chat in said (what he wrote when he said yes).";
-    const why = st.setStage(v.id, map[a.stage]!, { said: a.said, note: a.note, by: 'claude' });
-    if (!why) { this.sendTabs(); this.sync?.changed('mstages'); }
-    return why;
-  }
-  mockAct(act: string, a: { id?: number; sheet?: string; to?: string | number | null; name?: string; open?: boolean } = {}): void {
-    const st = this.mockStore;
-    if (!st) return;
-    const known = (s: unknown): s is string => typeof s === 'string' && st.list.some((x) => x.sheet === s);
-    let why = '';
-    switch (act) {
-      case 'show': { const v = Number.isInteger(a.id) ? st.get(a.id!) : undefined; if (v) this.showMockup(v); return; }
-      // Send to companion: the page names a number only; the Shell builds what goes.
-      case 'send': case 'sendtab': case 'sendbranch': if (Number.isInteger(a.id)) void this.mockSend(act === 'send' ? 'version' : act === 'sendtab' ? 'tab' : 'branch', a.id!); return;
-      // The tidy (2026-10-22): "Tidy now" in the trail's head; Archive, Restore and Picked from a sheet's menu.
-      case 'tidy': void this.mockTidy(true); return;
-      case 'archive': if (known(a.sheet)) why = st.archive(a.sheet); break;
-      case 'restore': if (known(a.sheet)) why = st.restore(a.sheet); break;
-      case 'pick': if (known(a.sheet)) why = st.setPicked(a.sheet, a.open === true); break;
-      // Sheet 79: his mark on one version (FIX with a note, APPROVED, PARKED), or taking it off (null).
-      case 'stage': { const sg = a.to === null || a.to === '' ? null : String(a.to) as MockStage;
-        if (Number.isInteger(a.id) && (sg === null || ['fix', 'ok', 'park'].includes(sg))) why = st.setStage(a.id!, sg, { note: String(a.name ?? '').slice(0, 300), by: 'you' });
-        if (!why) this.sync?.changed('mstages');
-        break; }
-      // Sheet 100: the magnifier on the trail's head, the quest log.
-      case 'log': this.openMockLog(); break;
-      // The broom (rule): only when he presses it, and only exact duplicates.
-      case 'broom': { const n = st.sweep(); if (n) this.note('', { from: 'tabs', small: true, icon: 'tabs', kick: 'Tidied', title: `Removed ${n} duplicate${n === 1 ? '' : 's'}` }); break; }
-      case 'branchnew': if (known(a.sheet)) { const id = st.newBranch(); why = st.toBranch(a.sheet, id); this.freshBranch = id; } break;
-      case 'branch': if (known(a.sheet)) why = st.toBranch(a.sheet, typeof a.to === 'number' ? a.to : null); break;
-      case 'top': if (known(a.sheet)) why = st.toBranch(a.sheet, null); break;
-      case 'parent': if (known(a.sheet) && known(a.to)) why = st.toParent(a.sheet, a.to); break;
-      case 'brename': if (Number.isInteger(a.id)) why = st.renameBranch(a.id!, String(a.name ?? '')); break;
-      case 'bfold': if (Number.isInteger(a.id)) why = st.foldBranch(a.id!); break;
-      case 'bdelete': if (Number.isInteger(a.id)) why = st.deleteBranch(a.id!); break;
-      default: return;
-    }
-    if (why === 'it has children of its own') this.note('That mockup has its own children, so it cannot be a child. Move its children first.');
-    this.sendTabs();
-    if (this.freshBranch && act !== 'branchnew') this.freshBranch = 0;
-  }
-  /** A mockup tab's version tag, where it sits in the tree, and its sheet's versions (one line per V, its newest time). */
-  private mockTab(t: Tab): Record<string, unknown> {
-    const sheet = t.mock!.sheet;
-    const list = this.mockStore?.list.filter((x) => x.sheet === sheet) ?? [];
-    const byV = new Map<number, MockVersion>();
-    for (const x of list) { const o = byV.get(x.v); if (!o || x.at >= o.at) byV.set(x.v, x); }
-    const place = this.mockStore?.placeOf(sheet) ?? { branch: null, parent: null };
-    return {
-      sheet, branch: place.branch, parent: place.parent, kids: this.mockStore?.childrenOf(sheet).length ?? 0, project: this.mockStore?.projectOf(sheet) ?? '',
-      // Its name in the trail ("88 · The address bar"), for the address bar (2026-10-25: not the number address).
-      title: [...list].reverse().find((x) => x.key === t.mock!.key)?.title ?? list[list.length - 1]?.title ?? '',
-      v: list.find((x) => x.key === t.mock!.key)?.v ?? 0,
-      // Sheet 81: the stage of the version this tab shows, on its own V chip; its id, for marking it from the tab's menu.
-      ...(() => { const sh = list.filter((x) => x.key === t.mock!.key); const m = sh.find((x) => x.stage); return { vid: sh[sh.length - 1]?.id ?? null, stage: m?.stage ?? null, said: m?.said ?? '' }; })(),
-      at: t.mock!.at ?? list.filter((x) => x.key === t.mock!.key).reduce((m, x) => Math.max(m, x.at), 0), unseen: t.mock!.unseen === true,
-      versions: [...byV.values()].sort((a, b) => b.v - a.v).slice(0, 30).map((x) => ({ id: x.id, v: x.v, at: x.at, now: x.key === t.mock!.key })),
-    };
-  }
+  mockThumbs = '';
   /**
    * The tidy (2026-10-22): merge duplicates, fold old versions, archive sheets gone from the repo or superseded
    * and untouched for two weeks (mockuptidy.ts has the rules). All plain code and git reads: no quota, no Qwen. Runs by
    * itself at most once a day (start, the trail coming back, the history opening); "Tidy now" runs it at once and always
    * says what it did. Nothing is deleted: the Archive in the history list has a Restore on every sheet.
    */
-  private mockTidying = false;
-  async mockTidy(manual: boolean): Promise<string> {
-    const st = this.mockStore;
-    if (!st || this.mockTidying || (!manual && !tidyDue(st.tidiedAt, Date.now()))) return '';
-    this.mockTidying = true;
-    try {
-      const sheets = [...new Set(st.list.map((x) => x.sheet))];
-      // Which files are in their repo at HEAD: one ls-tree per repo. A repo git cannot read says nothing (never "gone").
-      const known = new Map<string, boolean>();
-      const byRepo = new Map<string, { dir: string; rels: Map<string, string> }>();
-      for (const s of sheets) {
-        const w = sheetKind(s) === 'live' ? null : this.mockWhere(s);
-        if (!w) continue;
-        const r = byRepo.get(w.repo) ?? { dir: w.repo, rels: new Map<string, string>() };
-        r.rels.set(w.rel, s); byRepo.set(w.repo, r);
-      }
-      for (const r of byRepo.values()) {
-        const rels = [...r.rels.keys()];
-        for (let i = 0; i < rels.length; i += 100) {
-          const part = rels.slice(i, i + 100);
-          const out = await git(r.dir, ['ls-tree', '-r', '--name-only', 'HEAD', '--', ...part]);
-          if (typeof out !== 'string') continue;
-          const have = new Set(out.split(/\r?\n/).filter(Boolean));
-          for (const rel of part) known.set(r.rels.get(rel)!, have.has(rel));
-        }
-      }
-      // What each sheet says about itself (a "decided" strip, a DECIDED stamp), read again only when its newest version changed.
-      let reads = 0;
-      for (const s of sheets) {
-        if (st.archived(s) || reads >= 80) continue;
-        const v = st.list.filter((x) => x.sheet === s).sort((a, b) => b.at - a.at || b.id - a.id)[0];
-        const w = v?.commit ? this.mockWhere(s) : null;
-        if (!v || !w || st.meta.get(s)?.dkey === v.key) continue;
-        reads++;
-        const html = await git(w.repo, ['cat-file', 'blob', `${v.commit}:${w.rel}`]);
-        if (typeof html === 'string') st.setDecided(s, v.key, saysDecided(html));
-      }
-      const open = new Set(this.tabs.filter((t) => t.mock).map((t) => t.mock!.sheet));
-      const r = st.tidy(open, (s) => known.get(s) ?? null);
-      const line = tidyLine(r);
-      if (line || manual) this.note(line || 'The mockups are already tidy.');
-      this.sendTabs();
-      return line;
-    } catch (e) {
-      console.error('shell: mockups: the tidy failed: ' + (e as Error).message);
-      return '';
-    } finally { this.mockTidying = false; }
-  }
-  /** Sheet 107: what the tray's Mockups plaque needs: that mockups are on here, and how many sheets are NEW (its gem). */
-  private mockView(): Record<string, unknown> | null {
-    const st = this.mockStore;
-    if (!st) return null;
-    const fresh = new Set(st.list.map((x) => x.sheet).filter((x) => st.meta.get(x)?.fresh && !st.archived(x))).size;
-    return { fresh, toCompanion: Boolean(this.sendMock), branches: st.branches.map((b) => ({ ...b })) };
-  }
-  /**
-   * Sheet 107 (2026-10-30): Mockups as the menu draws it. A tab per project (the five he has first, then any
-   * new one), its topics as sub headings, its Done (built, parked, put away) at the bottom; each sheet with its number as
-   * that project shows it, NEW until he opens it, its mark and its versions, each with the address it opens at.
-   */
-  private mockTree(): Record<string, unknown> {
-    const st = this.mockStore!;
-    const bySheet = new Map<string, MockVersion[]>();
-    for (const x of st.list) bySheet.set(x.sheet, [...(bySheet.get(x.sheet) ?? []), x]);
-    for (const l of bySheet.values()) l.sort((a, b) => b.at - a.at || b.id - a.id);
-    const node = (sheet: string, project: string) => {
-      const items = bySheet.get(sheet)!, top = items[0]!, src = srcOf(top);
-      // One line per version, the newest time of each, oldest first; a mark on any of its lines is its mark.
-      const byV = new Map<number, MockVersion[]>();
-      for (const x of items) byV.set(x.v, [...(byV.get(x.v) ?? []), x]);
-      const versions = [...byV.entries()].sort((a, b) => a[0] - b[0]).map(([v, l]) => {
-        const x = l[0]!, m = l.find((y) => y.stage);
-        return { id: x.id, v, at: x.at, url: this.mockServer!.url(x.commit, srcOf(x)), ...(m ? { stage: m.stage, said: m.said ?? '', note: m.note ?? '' } : {}) };
-      });
-      // A sheet put away (the Archive of before) with no mark of its own reads as parked, in Done.
-      const mark = [...versions].reverse().find((x) => x.stage)?.stage ?? (st.archived(sheet) ? 'park' : null);
-      const lab = sheetLabel(cleanTitle(top.title), src);
-      return { sheet, num: shownNum(project, top.title, src), name: lab.name, at: top.at, fresh: st.meta.get(sheet)?.fresh === true, mark, archived: st.archived(sheet), versions };
-    };
-    type Node = ReturnType<typeof node>;
-    const rank = (n: Node) => { const k = parseInt(n.num.replace(/^[A-Z]/, ''), 10); return Number.isFinite(k) ? k * 100 + (/[a-z]$/.test(n.num) ? n.num.charCodeAt(n.num.length - 1) - 96 : 0) : -1; };
-    const byRank = (a: Node, b: Node) => rank(b) - rank(a) || b.at - a.at;
-    const byProject = new Map<string, Node[]>();
-    for (const s of bySheet.keys()) { const p = st.projectOf(s); byProject.set(p, [...(byProject.get(p) ?? []), node(s, p)]); }
-    const lastAt = (p: string) => Math.max(...byProject.get(p)!.map((n) => n.at));
-    const known = (p: string) => { const i = KNOWN_PROJECTS.indexOf(p); return i < 0 ? 99 : i; };
-    const names = [...byProject.keys()].sort((a, b) => known(a) - known(b) || lastAt(b) - lastAt(a));
-    const projects = names.map((name) => {
-      const all = byProject.get(name)!;
-      const isDone = (n: Node) => n.archived || n.mark === 'built' || n.mark === 'park';
-      const open = all.filter((n) => !isDone(n));
-      const topicOf = (n: Node) => st.placeOf(n.sheet).branch;
-      const topics = st.branches.map((b) => ({ id: b.id as number | string, name: b.name, icon: b.icon ?? null, sheets: open.filter((n) => topicOf(n) === b.id).sort(byRank) }))
-        .filter((t) => t.sheets.length);
-      const loose = open.filter((n) => !st.branches.some((b) => b.id === topicOf(n))).sort(byRank);
-      if (loose.length) topics.push({ id: 'loose', name: NO_TOPIC, icon: null, sheets: loose });
-      // What he worked on last first; Other last of all.
-      topics.sort((a, b) => Number(a.name === NO_TOPIC) - Number(b.name === NO_TOPIC) || Math.max(...b.sheets.map((n) => n.at)) - Math.max(...a.sheets.map((n) => n.at)));
-      // Sheet 119 (2026-11-09): a project wears the icon Claude named with its first topic, so a new one is never a letter.
-      const icon = st.branches.filter((b) => b.icon && (b.project ?? null) === name).sort((a, b) => a.id - b.id)[0]?.icon ?? null;
-      return { name, count: all.length, fresh: all.filter((n) => n.fresh).length, icon, topics, done: all.filter(isDone).sort(byRank) };
-    });
-    return { projects };
-  }
-  // ---- Sheet 100 (2026-10-28: "Quest log page and the picture strip"): every mockup in a page of its own,
-  // projects and topics on the left, that topic's sheets in the middle, the one he picks big on the right with its
-  // versions under it. A tab like Settings: its own small preload (mocklogpreload.cjs), only these doors.
-  isMockLog(sender: Electron.WebContents): boolean { const t = this.tabs.find((x) => x.internal === 'mocklog' && x.view?.webContents === sender); if (t) this.inTab(t); return Boolean(t); }
-  /** Open the quest log (or bring its tab forward). */
-  openMockLog(): void {
-    if (!this.mockStore) return;
-    if (!this.win || this.win.isDestroyed()) { this.whenOpen.push(() => this.openMockLog()); if (!this.lastPane()) this.createPane(); return; }
-    let t = this.tabs.find((x) => x.internal === 'mocklog');
-    // Sheet 107 v4: the tab he was on, for Back to Samara.
-    const was = this.cur();
-    if (was && was.internal !== 'mocklog') this.mockFrom = was.id;
-    if (!t) {
-      t = { id: ++this.seq, internal: 'mocklog', view: null, opener: null, title: 'Mockups', url: 'samara:mockups', favicon: '', loading: false, audible: false, muted: false, crashed: false,
-        scrollY: 0, zoom: 0, lastSeen: Date.now(), blocked: null, trail: null, done: false, lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id };
-      this.tabs.push(t);
-    }
-    this.activate(t.id);
-    this.win?.focus();
-  }
+  mockTidying = false;
   /** Sheet 107 v4: the tab he was on before Mockups opened. */
-  private mockFrom: number | null = null;
-  /**
-   * Sheet 107 v4 (2026-10-30: "a way to get out of mockups and back to my regular samara"): Back to Samara, or
-   * Esc: he is back on the tab he was on (the newest of his own tabs if that one is gone, else a new one). Sheet 107 v5:
-   * Mockups stays where he left it (same project, same sheet) for the plaque to bring back; it is not a tab in his list.
-   */
-  mockLogLeave(): void {
-    const log = this.tabs.find((x) => x.internal === 'mocklog');
-    if (!log) return;
-    const mine = (x: Tab) => x !== log && !x.done && x.pane === log.pane;
-    const back = this.tabs.find((x) => x.id === this.mockFrom && mine(x)) ?? [...this.tabs].filter((x) => mine(x) && !x.internal).sort((a, b) => b.lastSeen - a.lastSeen)[0];
-    this.mockFrom = null;
-    if (back) this.activate(back.id); else this.newTab(this.HOME);
-  }
+  mockFrom: number | null = null;
   /** Sheet 107 v5: where he was in Mockups (project, sheet, version), so a Mockups that slept or was rebuilt opens there. */
-  private mockWhereWas: { p: string; s: string | null; v: number | null; n: number | null } | null = null;
-  mockLogWhere(w: { p: string; s: string | null; v: number | null; n: number | null }): void { this.mockWhereWas = w; }
-  /** What the quest log shows. Plain data, built from mockups.json and git only. */
-  mockLogData(): Record<string, unknown> | null {
-    if (!this.mockStore) return null;
-    return { ...this.mockTree(), logos: this.mockLogos(), focus: this.mockFocus, toCompanion: Boolean(this.sendMock), was: this.mockWhereWas };
-  }
-  private mockLogSig = '';
-  private mockLogTimer: ReturnType<typeof setTimeout> | null = null;
-  /** The quest log follows every change (a new version, a mark, a new picture), only when something it shows changed. */
-  private pushMockLog(): void {
-    const wc = this.tabs.find((x) => x.internal === 'mocklog')?.view?.webContents;
-    if (!wc || wc.isDestroyed() || wc.isLoading()) return;
-    const d = this.mockLogData(), sig = JSON.stringify(d);
-    if (sig === this.mockLogSig) return;
-    this.mockLogSig = sig;
-    wc.send('mocklog:data', d);
-  }
-  /** Sheet 107: he opened a sheet inside Mockups: it is seen (NEW goes) and counts as opened. */
-  mockLogSeen(sheet: string): void {
-    const st = this.mockStore;
-    if (!st || typeof sheet !== 'string' || !st.list.some((x) => x.sheet === sheet)) return;
-    st.opened(sheet);
-    st.setFresh(sheet, false);
-    this.sendTabs();
-  }
-  /** Sheet 107: his mark on a version, from the mark in Mockups (approve, needs a fix with a note, park, or off). */
-  mockLogStage(id: number, to: string | null, note: string): void { this.mockAct('stage', { id, to, name: note }); }
-  /** Sheet 107: Send to companion from Mockups. */
-  mockLogSend(id: number): void { this.mockAct('send', { id }); }
-
-
-  private cur(): Tab | undefined { return this.tabs.find((x) => x.id === this.active); }
-
-  go(address: string): void {
-    this.pane.slotOpen = false;                         // he pressed Enter: the page he asked for gets the keyboard
-    if (/^\s*samara:hyrule\s*$/i.test(address) && this.openHyrule()) return;
-    const url = addressFor(address);
-    const t = this.cur();
-    if (!url) return;
-    if (this.toPaid(url)) return;
-    if (!t?.view || t.internal) { this.newTab(url); return; }
-    t.crashed = false;
-    const l = this.stopFor(url);
-    if (l.length) { this.block(t, url, l); return; }
-    t.blocked = null; t.failed = null; this.place();
-    t.pending = url;
-    t.playOkAt = Date.now();                             // he typed it: what it plays, he asked for
-    void t.view.webContents.loadURL(this.secured(t, url)).catch(() => {});
-    t.view.webContents.focus();
-  }
-
-  act(what: string): void {
-    const t = this.cur();
-    const wc = t?.view?.webContents;
-    switch (what) {
-      case 'back': if (wc?.navigationHistory.canGoBack()) wc.navigationHistory.goBack(); break;
-      case 'forward': if (wc?.navigationHistory.canGoForward()) wc.navigationHistory.goForward(); break;
-      // A crashed page is rebuilt fresh from its snapshot, never reloaded in place (poking it hangs).
-      case 'reload': if (t) { if (t.crashed) { this.closeView(t); this.activate(t.id); } else wc?.reload(); } break;
-      case 'stop': wc?.stop(); break;
-      case 'mute': if (t) { t.muted = !t.muted; wc?.setAudioMuted(t.muted); this.changed(); } break;
-      case 'zoomin': if (wc && t) { t.zoom = Math.min(5, wc.getZoomLevel() + 0.5); wc.setZoomLevel(t.zoom); this.changed(); } break;
-      case 'zoomout': if (wc && t) { t.zoom = Math.max(-5, wc.getZoomLevel() - 0.5); wc.setZoomLevel(t.zoom); this.changed(); } break;
-      case 'zoomreset': if (wc && t) { t.zoom = 0; wc.setZoomLevel(0); this.changed(); } break;
-      // Sheet 121 (4): "Side by side" in the ⋯ menu, or "Close side by side" while two pages show.
-      case 'split': if (this.splitShown()) this.splitClose(); else this.splitOpen(); break;
-      case 'newtab': this.newTab(this.HOME); this.win?.webContents.send('browser:focusslot'); break;
-      case 'close': if (t) this.close(t.id); break;
-      case 'reopen': this.reopen(); break;
-      case 'reclaim': this.onReclaim?.(); break;
-      // Sheet 40 B: the pop-out's own keys, from the page left behind.
-      case 'poppause': case 'poppin': case 'popclose': this.onPopoutAct?.(what); break;
-      case 'drawer-open': void this.drawer(true); break;
-      // Sheet 60 section 4: "Notes for this site" (the ... menu) opens the rail; the frame says when it opens and goes.
-      case 'siterail-on': this.pane.railOpen = true; this.sendNotes(this.pane); break;
-      case 'siterail-off': this.pane.railOpen = false; break;
-      case 'peek': void this.peek(); break;
-      case 'frozen-ready': this.frozenReady(); break;
-      case 'importmarks': void this.importMarks(); break;
-      case 'settings': this.openSettings(); break;
-      case 'quit': this.onQuit?.(); break;
-      case 'bookmarks': this.openSettings('bookmarks'); break;
-      case 'history': this.openThings('history'); break;
-      case 'downloads': this.openThings('downloads'); break;
-      case 'print': if (wc && t && !t.internal) wc.print({}); break;
-      // The mockups' broom (Phase R, 2026-11-24: tab clean up is retired; the overnight tidy moves old tabs to Earlier).
-      case 'tidy': void this.mockTidy(true); break;
-      case 'mockups': this.reopenMockups(); break;
-      // The blue shield: open the popup he was looking for (as a tab, beside the page), or allow the site from now on.
-      case 'popupopen': case 'popupallow': if (t?.blockedPopup) {
-        const bp = t.blockedPopup;
-        t.blockedPopup = null;
-        if (what === 'popupallow' && bp.site) { this.popupOk.add(bp.site); try { writeFileAtomic(this.popupOkFile, JSON.stringify([...this.popupOk])); } catch { /* best effort */ } this.sync?.changed('prefs'); }
-        if (!this.listed(bp.url).length) this.newTab(bp.url, t.id, true);
-        this.sendTabs();
-      } break;
-      case 'winmin': this.win?.minimize(); break;
-      case 'winmax': if (this.win) this.fillOrShrink(this.win); break;
-      case 'winclose': this.win?.close(); break;
-      // Autofill's save (sheet 77): the key's "Save this login" was clicked, or the card was put away.
-      case 'afsaveask': this.afSaveAsk(); break;
-      case 'afsavecancel': this.afSave = null; this.afBand(); break;
-      // A double-click on the band's wood (2026-10-23: nothing happened on the Mac). Windows does this itself
-      // for the drag area; on the Mac Samara does what his Mac is set to (System Settings, Desktop & Dock: "Double-click a
-      // window's title bar to"): fill the screen and back (the default), tuck it in the Dock, or nothing.
-      // Right-click on the square key: what the Mac's green button offers, which Samara's own keys lost (2026-10-23).
-      case 'winmenu': this.windowMenu(); break;
-      case 'titledbl': if (this.win && process.platform === 'darwin') {
-        const set = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
-        const tuck = set === 'Minimize' || (!set && systemPreferences.getUserDefault('AppleMiniaturizeOnDoubleClick', 'boolean'));
-        if (tuck) this.win.minimize();
-        else if (set !== 'None') this.fillOrShrink(this.win);
-      } break;
-      case 'homehere': { const u = t?.url; if (u && isWeb(u)) { this.prefs.home = u; this.savePrefs(); this.note('', { from: 'menu', small: true, kick: 'Home page', title: 'This page' }); this.sendTabs(); } break; }
-      case 'star': this.toggleMark(); break;
-      // The + key on the shelf in the floating tab list (2026-10-20): its name box opened INSIDE that
-      // see-through layer, out of sight, and the layer hung over the page. Now the list slides away and the band opens
-      // its own box, exactly as the star does.
-      case 'markadd': this.tray(false); this.win?.webContents.send('browser:tray', { open: false, mark: true }); break;
-      case 'vault': void this.vaultKey(); break;
-      case 'vaultcancel': this.vaultCancel(); break;
-      case 'vaultlock': this.vault.lock(); this.note('', { from: 'shield', small: true, icon: 'key', kick: 'Bitwarden', title: 'Locked' }); break;
-      case 'drawer-close': void this.drawer(false); break;
-      // The red plate: the safe way out, or (the held lever) in anyway, for this site, this run.
-      case 'phishback': if (t) { t.blocked = null; if (wc?.navigationHistory.canGoBack()) { this.place(); wc.navigationHistory.goBack(); } else this.close(t.id, false); } break;
-      // A look-alike: the real site, typed fresh, never the link that led here.
-      case 'phishreal': if (t?.blocked?.real) { const u = 'https://' + t.blocked.real + '/'; t.blocked = null; this.place(); if (wc && !wc.isDestroyed()) void wc.loadURL(u).catch(() => {}); } break;
-      // A failed page: try again; or, with no secure version, open the plain one and remember the site.
-      case 'failretry': if (t?.failed && wc) { const u = t.failed.url; t.failed = null; this.place(); void wc.loadURL(this.secured(t, u)).catch(() => {}); } break;
-      case 'httpok': if (t?.failed?.kind === 'insecure' && wc) {
-        const u = t.failed.url;
-        try { const h = new URL(u).hostname; this.httpOk.add(h); this.peerHttp.delete(h); writeFileAtomic(this.httpOkFile, JSON.stringify([...this.httpOk])); writeFileAtomic(this.httpOkFile.replace(/[.]json$/, '-other.json'), JSON.stringify([...this.peerHttp])); this.sync?.changed('prefs'); } catch { /* best effort */ }
-        t.failed = null; t.upgraded = null; this.place(); void wc.loadURL(u).catch(() => {});
-      } break;
-      // His bank: off to Chrome, and this tab steps back (or closes) so Samara never holds the page.
-      case 'bankchrome': if (t?.blocked?.bank) { const u = t.blocked.url; this.toChrome(u); t.blocked = null; if (wc?.navigationHistory.canGoBack()) { this.place(); wc.navigationHistory.goBack(); } else this.close(t.id, false); } break;
-      case 'failback': if (t) { t.failed = null; if (wc?.navigationHistory.canGoBack()) { this.place(); wc.navigationHistory.goBack(); } else this.close(t.id, false); } break;
-      case 'phishopen': if (t?.blocked && !t.blocked.bank) { try { this.letThrough.add(new URL(t.blocked.url).hostname); } catch { /* bad url */ } const u = t.blocked.url; t.blocked = null; this.place(); void wc?.loadURL(u); } break;
-    }
-  }
-
-  /** Find on page (Ctrl+F): a new word searches from the top; Enter goes to the next, Shift+Enter back. */
-  find(text: string, next: boolean, back: boolean): void {
-    const wc = this.cur()?.view?.webContents;
-    if (!wc) return;
-    const q = String(text).slice(0, 200);
-    if (!q) { wc.stopFindInPage('clearSelection'); this.win?.webContents.send('browser:found', { at: 0, of: 0 }); return; }
-    wc.findInPage(q, { forward: !back, findNext: !next });
-  }
-  findStop(): void { this.cur()?.view?.webContents.stopFindInPage('keepSelection'); }
-
-  /** The browser's keys, from the page or the frame. True when the key was ours. */
-  key(i: Electron.Input): boolean {
-    if (i.type !== 'keyDown') return false;
-    const k = i.key.toLowerCase(), c = i.control || i.meta;
-    if (c && i.shift && k === 't') { this.act('reopen'); return true; }
-    if (c && k === 't') { this.act('newtab'); return true; }
-    if (c && k === 'w') { this.act('close'); return true; }
-    if (c && !i.shift && k === 'h') { this.act('history'); return true; }
-    if (c && !i.shift && k === 'j') { this.act('downloads'); return true; }
-    if (c && k === 'l') { this.win?.webContents.focus(); this.win?.webContents.send('browser:focusslot'); return true; }
-    if (c && k === 'f') { this.win?.webContents.focus(); this.win?.webContents.send('browser:findopen'); return true; }
-    if ((c && k === 'r') || k === 'f5') { this.act('reload'); return true; }
-    if (i.alt && k === 'arrowleft') { this.act('back'); return true; }
-    if (i.alt && k === 'arrowright') { this.act('forward'); return true; }
-    if (c && (k === '=' || k === '+')) { this.act('zoomin'); return true; }
-    if (c && k === '-') { this.act('zoomout'); return true; }
-    if (c && k === '0') { this.act('zoomreset'); return true; }
-    // Ctrl+1 to 8 go to that tab, Ctrl+9 to the last, as in Chrome.
-    if (c && !i.shift && /^[1-9]$/.test(k)) {
-      const mine = this.paneTabs();
-      const n = k === '9' ? mine[mine.length - 1] : mine[Number(k) - 1];
-      if (n) this.activate(n.id);
-      return true;
-    }
-    // Sheet 60: Esc closes the notes rail even while the page has the keyboard.
-    // 2026-11-18 (a black full screen he could not close): F11 always toggles the window's full screen on the
-    // PC (Samara has no menu there to give it one; the Mac's is ⌃⌘F), and leaving it takes a page's full screen with it.
-    if (k === 'f11' && process.platform !== 'darwin' && this.win) { toggleFull(this.win); return true; }
-    // Esc in a page's full screen: the page leaves it itself; if it has not a moment later (a hung page), Samara does.
-    if (k === 'escape' && this.fullTab != null) {
-      const t = this.tabs.find((x) => x.id === this.fullTab);
-      if (t) setTimeout(() => { const p = this.paneOfTab(t); if (p && p.fullTab === t.id && t.view) { this.pane = p; this.pageFullOff(t, t.view); } }, 800);
-      return false;
-    }
-    if (k === 'escape' && this.pane.railOpen) { this.pane.railOpen = false; this.win?.webContents.send('browser:railclose'); return true; }
-    if (k === 'escape' && this.cur()?.loading) { this.act('stop'); return false; }
-    if (c && k === 'tab') {
-      const mine = this.paneTabs();
-      const i2 = mine.findIndex((x) => x.id === this.active);
-      const n = mine[(i2 + (i.shift ? -1 : 1) + mine.length) % mine.length];
-      if (n) this.activate(n.id);
-      return true;
-    }
-    return false;
-  }
-
-  // ---------------------------------------------------------------- 6.21 the snapshot
-  /** Something worth keeping changed: redraw now, and write the snapshot shortly (one write per burst). */
-  private changed(): void {
-    this.sendTabs();
-    if (this.saveSoon) return;
-    this.saveSoon = setTimeout(() => { this.saveSoon = null; void this.snapshot(); }, 1500);
-  }
+  mockWhereWas: { p: string; s: string | null; v: number | null; n: number | null } | null = null;
+  mockLogSig = '';
+  mockLogTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Write every tab to disk. Scroll is asked of each live page with a deadline; a page that does not answer keeps its last. */
   /** Tabs he was on since the last save: only their scroll can have moved (measured 2026-10-20). */
-  private scrollDue = new Set<number>();
+  scrollDue = new Set<number>();
   /**
    * His saved tabs have been read back this run (or he starts on the home page). Until then nothing writes the tabs file
    * (2026-10-23: a mockup that arrived while Samara was still starting opened its tab first, that one tab was saved over
    * his list, and then the list read back held only it: every tab gone, twice). A mockup or link that arrives meanwhile
    * waits for the window's first load.
    */
-  private restored = false;
-  private snapshot(all = false): Promise<void> {
-    return this.snapshotNow(all);
-  }
-  private async snapshotNow(all = false): Promise<void> {
-    if (!this.restored) return;
-    if (!this.tabs.length) return;   // nothing to keep; closing the last tab already wrote the empty snapshot
-    // Everything is taken NOW, before waiting on the pages (2026-10-14):
-    // closing the window emptied the tab list while this waited, and an EMPTY list was written, so nothing came back.
-    const keep = this.tabs.filter((t) => isWeb(t.url) && !t.claude);
-    const windows = this.panes.filter((p) => this.alive(p) || p === this.pane);
-    const winOf = new Map(windows.map((p, i) => [p.id, i]));
-    const front = (this.lastPane() ?? this.pane).active;
-    const fronts = windows.map((p) => keep.findIndex((t) => t.id === p.active));
-    const trails: Trail[] = [];
-    const closed = this.closed.slice(-25);
-    const make = () => ({
-      v: 1,
-      // Every window's tabs, each knowing its window (`win`), and the tab in front in each (`fronts`).
-      active: Math.max(0, keep.findIndex((x) => x.id === front)),
-      fronts,
-      tabs: keep.map((t) => ({
-        url: t.url, title: t.title, opener: t.opener === null ? null : keep.findIndex((x) => x.id === t.opener),
-        scrollY: Math.round(t.scrollY), zoom: t.zoom, muted: t.muted, win: winOf.get(t.pane) ?? 0,
-        // Phase R: when he last had it in front (a tab in front counts as now), and pinned.
-        lastSeen: this.panes.some((p) => p.active === t.id) ? Date.now() : t.lastSeen, ...(t.pinned ? { pinned: true } : {}),
-        ...(t.mock ? { mock: { ...t.mock } } : {}),
-        ...(t.pageBg ? { pageBg: t.pageBg } : {}),
-        ...(t.pageState && !t.mock ? { pageState: t.pageState } : {}),
-        ...(t.favicon && /^(https:|data:image\/)/.test(t.favicon) && t.favicon.length < 4000 ? { favicon: t.favicon } : {}),
-      })),
-      trails,
-      closed,
-      // Sheet 121 (4): each window's pair of pages side by side.
-      splits: windows.map((p, i) => { const s = p.split; if (!s) return null; const l = keep.findIndex((t) => t.id === s.left), r = keep.findIndex((t) => t.id === s.right); return l >= 0 && r >= 0 ? { win: i, left: l, right: r, ratio: s.ratio } : null; }).filter(Boolean),
-    });
-    // Closing or quitting: written once at once with what is known (2026-10-28: quitting could end Samara before the
-    // pages answered below, and then nothing of the last few seconds was kept), then again with their scroll spots.
-    if (all) this.session.write(make() as SessionData, { now: true, force: true });
-    // Taken before waiting on the pages: if a tab closes or the other machine's tabs land meanwhile, this save is stale
-    // and dropped (sessionstore.ts), instead of writing the older list back over the newer one.
-    const ticket = this.session.ticket();
-    // Only the tabs in front, and the ones he was on since the last save (measured 2026-10-20: asking every tab every
-    // 8 s woke them all, and on a slow machine ran past its deadline so nothing was saved). Closing asks them all.
-    const due = this.scrollDue; this.scrollDue = new Set();
-    await Promise.all(keep.map(async (t) => {
-      if (!t.view || t.crashed || t.view.webContents.isDestroyed()) return;
-      if (!all && !due.has(t.id) && !this.panes.some((p) => p.active === t.id)) return;
-      const wc = t.view.webContents;
-      const got = await run<[number, string] | null>(wc, PAGE_LOOK_JS, { ms: 800, fallback: null });
-      if (Array.isArray(got) && Number.isFinite(got[0])) { t.scrollY = got[0]; t.pageBg = hexOf(got[1]) ?? t.pageBg; }
-      try { const h = wc.navigationHistory; const s = h.getEntryAtIndex(h.getActiveIndex())?.pageState; t.pageState = s && s.length <= PAGE_STATE_MAX ? s : undefined; } catch { /* kept as it was */ }
-    }));
-    // In the background while he browses; on closing, written before anything else happens.
-    if (!this.session.write(make() as SessionData, { now: all, force: all, ticket })) return;
-    this.sync?.changed('tabs');
-  }
-
-  /** Bring every tab back from the last snapshot. Only the one he was on loads; the rest come back asleep. */
-  private restore(): boolean {
-    this.session.keepCopy('start');
-    this.restored = true;
-    try {
-      const s = this.session.read() as any;
-      if (!s) return false;
-      // Sheet 107 (2026-10-30): mockups open inside Mockups now, so the mockup tabs of before close (every sheet
-      // stays in Mockups).
-      const list = Array.isArray(s?.tabs) ? s.tabs.filter((t: { url?: unknown; mock?: unknown }) => typeof t?.url === 'string' && isWeb(t.url as string) && !t.mock).slice(0, 80) : [];
-      if (!list.length) return false;
-      const at0 = this.tabs.length;
-      const ids: number[] = [];
-      for (const t of list) {
-        const fav = typeof t.favicon === 'string' && /^(https:|data:image\/)/.test(t.favicon) && t.favicon.length < 4000 ? t.favicon : '';
-        const tab: Tab = { id: ++this.seq, view: null, opener: null, title: String(t.title ?? t.url).slice(0, 300), url: t.url, favicon: fav,
-          loading: false, audible: false, muted: t.muted === true, crashed: false, scrollY: Number(t.scrollY) || 0, zoom: Number(t.zoom) || 0,
-          lastSeen: Number.isFinite(t.lastSeen) && t.lastSeen > 0 && t.lastSeen <= Date.now() ? t.lastSeen : Date.now(), blocked: null,
-          trail: null, done: false, ...(t.pinned === true ? { pinned: true } : {}), lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id };
-        if (typeof t.pageBg === 'string' && /^#[0-9a-f]{6}$/.test(t.pageBg)) tab.pageBg = t.pageBg;
-        if (typeof t.pageState === 'string' && t.pageState.length <= PAGE_STATE_MAX && /^[A-Za-z0-9+/=]+$/.test(t.pageState)) tab.pageState = t.pageState;
-        ids.push(tab.id);
-        this.tabs.push(tab);
-      }
-      list.forEach((t: { opener?: unknown }, i: number) => { const o = Number(t.opener); if (Number.isInteger(o) && o >= 0 && o < ids.length && o !== i) this.tabs[at0 + i]!.opener = ids[o]!; });
-      if (Array.isArray(s.closed)) this.closed = s.closed.filter((u: unknown) => typeof u === 'string' && isWeb(u as string)).slice(-25);
-      // Phase R: no trails come back (railMove already put their pages in Earlier).
-      this.tidyTrails();
-      // Every window he had open comes back with its own tabs (2026-10-14). The first one is this window.
-      const wins = new Map<number, Tab[]>();
-      list.forEach((t: { win?: unknown }, i: number) => { const w = Math.max(0, Math.min(6, Number(t.win) || 0)); if (w > 0) { const a = wins.get(w) ?? []; a.push(this.tabs[at0 + i]!); wins.set(w, a); } });
-      const fronts: number[] = Array.isArray(s.fronts) ? s.fronts.map((n: unknown) => Number(n)) : [];
-      const here = this.tabs.filter((t) => ![...wins.values()].some((a) => a.includes(t)));
-      // Sheet 121 (4): the pairs side by side, taken up once both tabs are in their window.
-      this.splitsWanted = (Array.isArray(s.splits) ? s.splits : []).flatMap((x: { left?: unknown; right?: unknown; ratio?: unknown }) => {
-        const L = this.tabs[at0 + Number(x?.left)], R = this.tabs[at0 + Number(x?.right)];
-        return L && R && L !== R && Number.isInteger(Number(x?.left)) && Number.isInteger(Number(x?.right)) ? [{ L, R, ratio: clampSplit(Number(x?.ratio)) }] : [];
-      });
-      this.adoptSplits();
-      const want = this.tabs[at0 + Number(fronts[0])];
-      const a = at0 + Math.min(Math.max(0, Number(s.active) || 0), list.length - 1);
-      this.activate((want && here.includes(want) ? want : here[0] ?? this.tabs[a]!).id);
-      const base = this.win?.getBounds();
-      let n = 0;
-      for (const [w, group] of wins) {
-        n++;
-        const front = this.tabs[at0 + Number(fronts[w])];
-        const ordered = front && group.includes(front) ? [...group.filter((x) => x !== front), front] : group;
-        this.createPane(undefined, ordered, base ? { x: base.x + 40 * n, y: base.y + 40 * n, width: base.width, height: base.height } : undefined);
-      }
-      return true;
-    } catch (e) { console.error('shell: browser: the saved tabs could not be read: ' + (e as Error).message); return false; }
-  }
-
-  /** The rail and the band redraw from this. Plain data only. */
-  private sendTabs(): void {
-    this.tvNoticeSync();
-    this.handPaint();
-    // Sheet 100: an open quest log follows along, a moment later (so a burst of changes draws it once).
-    if (this.tabs.some((t) => t.internal === 'mocklog') && !this.mockLogTimer) this.mockLogTimer = setTimeout(() => { this.mockLogTimer = null; this.pushMockLog(); }, 300);
-    // A site's camera and microphone end when no tab is on it any more.
-    if (this.mediaOk.size || this.shareHosts.size) {
-      const on = new Set(this.tabs.map((t) => hostOf(t.url)));
-      for (const k of [...this.mediaOk.keys()]) if (!on.has(grantTop(k))) this.mediaOk.delete(k);
-      for (const h of [...this.shareHosts]) if (!on.has(h)) this.shareHosts.delete(h);
-    }
-    // A tab with a live call runs at full speed even behind other tabs, and never sleeps (see sleepIdle).
-    let calls = false;
-    for (const t of this.tabs) {
-      const h = hostOf(t.url);
-      const c = Boolean(t.view) && ([...this.mediaOk.keys()].some((k) => grantTop(k) === h) || this.shareHosts.has(h));
-      if (t.view && Boolean(t.call) !== c) { try { t.view.webContents.setBackgroundThrottling(!c); } catch { /* gone */ } }
-      t.call = c;
-      calls ||= c;
-    }
-    this.callNow(calls);
-    const was = this.pane;
-    for (const p of this.panes) { this.pane = p; this.sendPane(); }
-    this.pane = was;
-  }
-  /** One window's frame (and its tray) redraws from this. */
-  private sendPane(): void {
-    const w = this.win;
-    if (!w || w.isDestroyed()) return;
-    const mine = this.paneTabs();
-    const t = this.cur();
-    const wc = t?.view?.webContents;
-    const tray = this.trayV && !this.trayV.webContents.isDestroyed() ? this.trayV.webContents : null;
-    // The tab list only while it is open (measured 2026-10-20: every message went to it hidden too). Opening it sends
-    // the current state first, so it is never stale.
-    // Phase R (2026-11-24): the shut list is kept current too, at most every 150 ms (a burst of changes draws once), so
-    // opening it never rebuilds the list in the middle of its slide. Open, it follows at once as before.
-    const P = this.pane;
-    const send = (data: Record<string, unknown>) => {
-      w.webContents.send('browser:tabs', data);
-      if (!tray) return;
-      if (this.trayOn) { tray.send('browser:tabs', data); return; }
-      P.trayNext = data;
-      // Not while it is still sliding shut either: the list waits until the close is over.
-      P.trayNextT ??= setTimeout(() => { P.trayNextT = null; this.trayFlush(P); }, Math.max(150, (P.trayShutAt ?? 0) + TRAY_SLIDE_MS + 20 - Date.now()));
-    };
-    const now = Date.now();
-    send({
-      active: this.active,
-      // Phase R: how many pages are in Earlier (its button shows the count).
-      earlierN: this.earlier.entries.length,
-      update: this.update, updated: this.updated, checking: this.checking, inCall: this.inCall, canQuit: this.onQuit !== null,
-      canBack: Boolean(wc?.navigationHistory.canGoBack()), canForward: Boolean(wc?.navigationHistory.canGoForward()),
-      // A sleeping tab keeps its logo (2026-10-20): its last one, else the site's from bookmarks.
-      tabs: mine.map((x) => ({ id: x.id, opener: x.opener, title: x.title, url: x.url, favicon: x.favicon || this.iconOf(x.url), loading: x.loading, phase: x.phase ?? (x.loading ? 'loading' : 'idle'), prog: x.prog ?? 0, pending: x.pending ?? null, audible: x.audible, muted: x.muted, crashed: x.crashed, asleep: !x.view, blocked: x.blocked, failed: x.failed, trail: x.trail, done: x.done, lent: x.lent, pinned: x.pinned === true, lastSeen: x.lastSeen, fade: fading(this.railTab(x), now, this.active), popup: x.blockedPopup?.url ?? null, mock: x.mock ? this.mockTab(x) : null, internal: x.internal ? true : undefined, mocklog: x.internal === 'mocklog' ? true : undefined, hyrule: x.internal === 'hyrule' ? true : undefined,
-        // Sheet 111: a tab a Claude job has shows in Claude's group, not in his list.
-        claudeJob: (() => { const p = this.driver.pageOfTab(x.id); return p && this.driver.job(p.job)?.kind === 'claude' ? p.job : undefined; })() })),
-      // Sheet 47: the MOCKUPS trail's history (the whole list only while it is open), or null where mockups are off.
-      mockups: this.mockView(),
-      // 2026-11-03: the Hyrule key above Mockups, only on a machine with the map's folder.
-      hyrule: Boolean(this.o.hyruleDir),
-      // 2026-10-22: the notes rail needs the companion (its notes live in the companion). Samara alone or on the Mac: the row is hidden.
-      notes: Boolean(this.onNoteSave),
-      split: this.splitShown() !== null,
-      // The trails with a tab in this window (or the one about to start here).
-      trails: this.trails.filter((tr) => tr.id === this.pendingTrail || tr.mock || mine.some((x) => x.trail === tr.id)),
-      // Sheet 111: Claude's group rows are real tabs: their name and icon are the tab's, and he may have one (YOU HAVE IT).
-      drivers: this.driver.view().map((j) => ({ ...j, pages: j.pages.map((p) => { const t = p.tab === undefined ? undefined : this.tabs.find((x) => x.id === p.tab);
-        return t ? { ...p, title: t.title || p.title, favicon: t.favicon || this.iconOf(t.url) || p.favicon, held: this.hands.has(p.id) } : p; }) })),
-      // His own tab being driven by a session: the band says so, with STOP (2026-10-14).
-      // Sheet 109: and whether he has it back for now (YOU HAVE IT): Take over and STOP make way while he does.
-      driving: (() => { const w = t?.view?.webContents; const d = w ? this.driver.drivingTab(w) : null; return d ? { ...d, hand: this.hands.get(d.page)?.mode ?? null } : null; })(),
-      watching: this.watching === null ? null : (() => { const p = this.driver.page(this.watching!); const j = p ? this.driver.job(p.job) : undefined; return p && j ? { page: p.id, job: j.id, kind: j.kind, working: j.working, url: p.url, title: p.title } : null; })(),
-      stash: this.stash.map((s) => ({ id: s.id, name: s.name, count: s.tabs.length })),
-      adsPaused: (() => { try { return this.paused.has(new URL(t?.url ?? '').hostname.replace(/^www\./, '')); } catch { return false; } })(),
-      adsOn: Boolean(this.ads),
-      darkHere: this.darkWanted(t?.url ?? ''), darkAll: this.prefs.dark,
-      site: this.siteState(t?.url ?? ''),
-      sounds: this.sounds,
-      prefs: this.prefs,
-      tabSize: this.tabSize,
-      // The shelf: the bar ones first, as in Chrome, then the rest. Only what the shelf can show is sent.
-      marks: [...this.marks.filter((m) => isBar(m.folder)), ...this.marks.filter((m) => !isBar(m.folder))].slice(0, 24).map((m) => ({ title: m.title, url: m.url, favicon: this.iconOf(m.url) })),
-      markCount: this.marks.length,
-      // Sheet 89: what is on his TV, and the TV ask.
-      tv: this.tvState(),
-      // New tabs from links since he last opened the list.
-      newTabs: this.newSince,
-      hasLogin: this.hasLogin,
-      loginKnown: this.loginKnown,
-      maximized: Boolean(w.isMaximized()),
-      home: this.HOME,
-      starred: Boolean(t && this.marks.some((m) => m.url === t.url)),
-      markTitle: (t && this.marks.find((m) => m.url === t.url)?.title) ?? '',
-      // The page's zoom as he would say it: 100%, 120%... (Chromium's level is 20% per step).
-      zoomPct: wc ? Math.round(Math.pow(1.2, wc.getZoomLevel()) * 100) : 100,
-      ...(t?.lent && t.lentShot && this.pane.lentSent !== t.lentShot ? { lentShot: (this.pane.lentSent = t.lentShot) } : {}),
-    });
-    if (t) w.setTitle(`${t.title} - Samara`);
-  }
+  restored = false;
 
   /** Quitting: every window closes at once, and none of their tabs is dropped on the way out. */
-  private quitting = false;
-  /** A Samara window is open (what keeps the Shell running when the companion is off). */
-  hasWindow(): boolean { return this.panes.some((p) => this.alive(p)); }
+  quitting = false;
   /** A Samara window fills the screen (a video, F11): the scheduler holds heavy background jobs. */
   get fullScreen(): boolean { return this.panes.some((p) => this.alive(p) && p.win?.isFullScreen() === true); }
-  /** The Samara window he used last (the Claude job's bar under the lantern goes on it, taskbar.ts), or null. */
-  frontWindow(): BrowserWindow | null { const p = this.lastPane(); return p?.win && !p.win.isDestroyed() ? p.win : null; }
-  closeAll(): void {
-    void this.ses.cookies.flushStore().catch(() => {});
-    // Sheet 115: Claude's jobs as they are now, then nothing written while its tabs close (they come back next start).
-    this.saveClaude(); this.keepFrozen = true;
-    this.driver.closeAll();
-    const open = this.panes.filter((p) => this.alive(p));
-    if (open.length) { this.quitting = true; void this.snapshot(true); }
-    for (const p of open) p.win!.close();
-  }
-
-  // ------------------------------------------------------------------ 6.25a: what the companion asks of the driver
-  /**
-   * One driving step, asked by the companion. The rules are checked HERE, on the browser side, whatever the companion says:
-   * a "never" control is refused outright; a "lever" one comes back as needs:'lever' until the companion has his held
-   * yes and asks again with allowed. Every answer is plain data; page text is marked as the page's own words.
-   */
-  async drive(op: string, a: Record<string, unknown>): Promise<Record<string, unknown>> {
-    // Sheet 109: nothing acts on his tab while he has it (never under him).
-    const pg = Number(a?.page);
-    if (HELD_OPS.has(op) && Number.isInteger(pg) && this.hands.has(pg)) {
-      return { ok: false, error: `The user has the tab (page ${pg}): he took it over. Nothing is done there until he hands it back. Call browser_your_turn with page ${pg} to wait for him, or browser_take_back if he tells you in the chat that you can have it back.` };
-    }
-    let out: Record<string, unknown>;
-    if (op === 'yourturn' || op === 'takeback') {
-      if (!Number.isInteger(pg)) return { ok: false, error: 'page must be a number' };
-      if (op === 'yourturn') out = await this.yourTurn(pg, String(a?.why ?? ''));
-      else { const r = this.handEnd(pg, ''); out = r ? { ok: true, report: r } : { ok: true, none: true }; }
-      if (out.report) out = { ...out, report: reportLines(out.report as HandReport) };
-    } else {
-      // The loop catcher (loopcatch.ts): a step stopped for looping is refused before it runs.
-      const was = Number.isInteger(Number(a?.job)) && a?.job !== undefined ? Number(a.job) : this.driver.page(pg)?.job;
-      const stopped = this.loops.before(was, op, a);
-      out = stopped ? { ok: false, error: stopped } : await this.driveStep(op, a);
-      const loop = stopped ? null : this.loops.after(was, op, a, out);
-      const n = Number.isInteger(Number(a?.n)) && a?.n !== undefined ? Number(a.n) : undefined;
-      if (loop === 'warn') {
-        const why = this.driver.page(pg) ? await this.driver.stuck(pg, n).catch(() => [] as string[]) : [];
-        out = { ...out, loop: `${LOOP_WARN}${why.length ? `\nWhat Samara sees:\n- ${why.join('\n- ')}` : ''}` };
-      }
-      if (loop === 'ask') out = { ...out, loop: await this.stuckAsk(pg, n) };
-      if (loop === 'stop') { out = { ...out, ok: false, error: LOOP_STOP }; console.log(`shell: driver: job ${was} kept looping on ${op} after he was asked; that step is refused now`); }
-      if (op === 'finish' && was !== undefined) this.loops.end(was);
-    }
-    // He handed back while nobody waited: the session hears it with its next step.
-    const job = Number.isInteger(Number(a?.job)) && a?.job !== undefined ? Number(a.job) : this.driver.page(pg)?.job;
-    for (const [page, t] of this.handTold) {
-      if (t.job !== job) continue;
-      this.handTold.delete(page);
-      out = { ...out, handback: { page, ...reportLines(t.report) } };
-      break;
-    }
-    const n = Number.isInteger(job) ? this.news.get(job!) : undefined;
-    if (n?.length) { this.news.delete(job!); out = { ...out, news: n }; }
-    return out;
-  }
-  private async driveStep(op: string, a: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const num = (k: string) => { const v = Number(a?.[k]); if (!Number.isInteger(v)) throw new Error(`${k} must be a number`); return v; };
-    const d = this.driver;
-    try {
-      // His tab lent for reading only: nothing that acts on it (2026-10-14).
-      if (['key', 'select', 'back', 'forward', 'upload', 'hover', 'drag'].includes(op) && Number.isInteger(Number(a?.page)) && d.readOnly(Number(a?.page))) return { ok: false, error: 'that is his tab, lent for reading only. To act in it, ask with browser_drive_tab (he is asked)' };
-      switch (op) {
-        // His browsing history, for the companion, only when he asks (2026-10-13): titles and addresses, never a money site.
-        case 'history': {
-          const days = Number(a?.days); const q = String(a?.q ?? '').slice(0, 200);
-          return { ok: true, items: forCompanion(this.visits.list, q, Number.isFinite(days) ? days : 14, 15, Date.now()) };
-        }
-        case 'start': {
-          const pl = a?.plan as { login?: unknown; denied?: unknown; steps?: unknown; allowed?: unknown } | undefined;
-          const plan = pl ? { login: Array.isArray(pl.login) ? pl.login.map(String) : [], denied: Array.isArray(pl.denied) ? pl.denied.map(String) : [], steps: Array.isArray(pl.steps) ? pl.steps.map(String) : [], allowed: Array.isArray(pl.allowed) ? pl.allowed.map(String) : [] } : undefined;
-          const j = d.startJob(a?.kind === 'claude' ? 'claude' : 'companion', String(a?.name ?? ''), plan);
-          return { ok: true, job: j.id };
-        }
-        case 'finish': d.finish(num('job')); return { ok: true };
-        // Sheet 111: the connector asks before a new plan whether its job can still take one.
-        case 'jobstate': { const j = d.job(num('job')); return { ok: true, live: Boolean(j && !j.stopped), planned: Boolean(j?.planned), pages: j?.pages.length ?? 0 }; }
-        case 'planstep': return this.planStep(num('job'), a?.done === true ? null : num('at'));
-        case 'rename': d.rename(num('job'), String(a?.name ?? '').slice(0, 40)); return { ok: true };
-        case 'open': {
-          const job = num('job'), url = String(a?.url ?? '').slice(0, 2000);
-          // AI lockdown G1/G2 (2026-10-14): using his login outside the job's sites, or sending what looks like private
-          // details to a site in the address, waits for his OK.
-          const login = a?.signedIn === true ? d.needsLogin(job, url) : '';
-          if (login && a?.allowed !== true) return { ok: false, needs: 'lever', what: `use your login on ${login} for this job` };
-          if (login) d.allowSite(job, url);
-          const leak = carriesData(url);
-          if (leak && a?.allowed !== true) { let s = ''; try { s = new URL(url).hostname; } catch { /* none */ } return { ok: false, needs: 'lever', what: `open ${s} with ${leak} in the address` }; }
-          const r = await d.open(job, url); const note = this.siteNote(r.url); return { ok: true, ...r, ...(note ? { note } : {}) };
-        }
-        // Per-site notes (driver v2 part 3): what worked on a site, written by Claude for its next session there.
-        case 'note': {
-          const host = this.noteHost(String(a?.site ?? ''));
-          if (!host) return { ok: false, error: 'say which site (an address or a name like linkedin.com)' };
-          if (a?.text === undefined) return { ok: true, site: host, note: this.siteNote('https://' + host) };
-          this.setSiteNote(host, String(a.text));
-          return { ok: true, site: host, saved: true };
-        }
-        case 'read': return { ok: true, ...(await d.read(num('page'), { ...(Number.isInteger(Number(a?.within)) && a?.within !== undefined ? { within: Number(a.within) } : {}), changes: a?.changes === true, full: a?.full === true })) };
-        case 'find': return { ok: true, ...(await d.find(num('page'), String(a?.q ?? '').slice(0, 200), a?.more === true)) };
-        case 'waitfor': return { ok: true, ...(await d.waitFor(num('page'), String(a?.text ?? '').slice(0, 200), a?.gone === true, Number(a?.ms) || 8000)) };
-        case 'jobs': return { ok: true, ...(await d.jobCards(num('page'))) };
-        case 'sweep': return { ok: true, ...d.startSweep(num('page'), { keywords: Array.isArray(a?.keywords) ? (a.keywords as unknown[]).map(String) : [], ...(a?.path ? { path: String(a.path) } : {}), ...(a?.card ? { card: String(a.card) } : {}), ...(Number(a?.spacing) ? { spacing: Number(a.spacing) } : {}) }) };
-        case 'sweep_status': return { ok: true, ...d.sweepStatus(num('id')) };
-        case 'form': return { ok: true, ...(await d.form(num('page'), a?.within === undefined ? undefined : num('within'))) };
-        // The fixed page readers, hover and drag, and the developer views (2026-10-14: the Chrome extension's tools).
-        case 'extract': return { ok: true, ...(await d.extract(num('page'), String(a?.kind ?? ''))) };
-        case 'hover': return { ok: true, ...(await d.hover(num('page'), num('n'))) };
-        case 'drag': {
-          if (d.readOnly(num('page'))) return { ok: false, error: 'that is his tab, lent for reading only. To act in it, ask with browser_drive_tab (he is asked)' };
-          return { ok: true, ...(await d.drag(num('page'), num('n'), { ...(a?.to !== undefined ? { n: num('to') } : {}), dx: Number(a?.dx) || 0, dy: Number(a?.dy) || 0 })) };
-        }
-        case 'resize': return { ok: true, ...d.resize(num('page'), Number(a?.width), Number(a?.height)) };
-        case 'console': return { ok: true, ...d.console(num('page'), { ...(a?.pattern ? { pattern: String(a.pattern) } : {}), errors: a?.errors === true, limit: Number(a?.limit) || 30 }) };
-        case 'network': {
-          if (d.readOnly(num('page')) || d.isLent(num('page'))) return { ok: false, error: "his own tabs' network is never watched; open the page in your own tab" };
-          return { ok: true, ...(await d.network(num('page'), { ...(a?.pattern ? { pattern: String(a.pattern) } : {}), limit: Number(a?.limit) || 30 })) };
-        }
-        case 'record': {
-          if (a?.stop === true) { const r = await d.stopRecording(num('page')); return r ? { ok: true, ...r } : { ok: false, error: 'that page is not being recorded' }; }
-          return { ok: true, started: true, ...(await d.startRecording(num('page'))) };
-        }
-        case 'upload': {
-          const page = num('page'), n = num('n'), file = String(a?.file ?? '');
-          // Checked before he is asked (code audit M7): he is never asked about a file that would be refused, and the
-          // question names the real file, its folder and its size.
-          const up = d.checkUpload(file);
-          if (a?.allowed !== true) return { ok: false, needs: 'lever', what: `upload ${up.label} to ${d.describe(page, n).replace(/^.* on /, '')}` };
-          return { ok: true, ...(await d.upload(page, n, file)) };
-        }
-        case 'collect': return { ok: true, ...(await d.collectJobs(num('page'), Math.max(1, Math.min(120, Number(a?.max) || 60)))) };
-        case 'back': case 'forward': return { ok: true, ...(await d.history(num('page'), op === 'back')) };
-        case 'select': return { ok: true, ...(await d.choose(num('page'), num('n'), String(a?.option ?? '').slice(0, 200))) };
-        case 'key': {
-          // Space and Enter are judged by what they would do where the cursor is (2026-10-31): moving through
-          // a page and picking are free; anything that would send asks him; buying and passwords never. The other keys
-          // are free.
-          const page = num('page');
-          let key = String(a?.key ?? '').toLowerCase().replace(/\s+/g, '');
-          let swapped = false;
-          if (key === 'enter' || key === 'space') {
-            const t = await d.keyTarget(page);
-            const w = keyWeigh(key, t);
-            const where = t ? `"${t.label || t.kind}"` : 'the page';
-            if (w === 'never') return { ok: false, error: `that would act on ${where}, and buying, passwords and card details are never done for him` };
-            if (w === 'lever' && a?.allowed !== true) return { ok: false, needs: 'lever', what: `press ${key === 'enter' ? 'Enter' : 'Space'} on ${where} (it could send the form)` };
-            if (w === 'pick') { key = 'space'; swapped = true; }
-          }
-          // Phase 1: a key that looks free is pressed with the effect guard, unless he already allowed it.
-          const r = await d.key(page, key, a?.allowed !== true);
-          if ('needs' in r) return { ok: false, needs: r.needs, what: r.what };
-          return { ok: true, ...(swapped ? { ...r, changed: ['Enter there would have sent the form, so Space was pressed instead: it only picks', ...r.changed] } : r) };
-        }
-        case 'click': case 'type': {
-          const page = num('page'), n = num('n');
-          if (d.readOnly(page)) return { ok: false, error: 'that is his tab, lent for reading only. To act in it, ask with browser_drive_tab (he is asked)' };
-          const w = op === 'click' ? d.weightOf(page, n, 'click') : d.weightOf(page, n, 'type');
-          const we = op === 'type' && a?.enter === true ? d.weightOf(page, n, 'enter') : 'free';
-          const worst = w === 'never' || we === 'never' ? 'never' : w === 'lever' || we === 'lever' ? 'lever' : 'free';
-          if (worst === 'never') return { ok: false, error: `that is ${d.describe(page, n)}, and buying, passwords and card details are never done for him. He has to do it himself` };
-          if (worst === 'lever' && a?.allowed !== true) return { ok: false, needs: 'lever', what: `${op === 'click' ? 'press' : 'fill in and send'} ${d.describe(page, n)}` };
-          // His details typed on a site outside the job's sites (a fake "quick apply" sees every key): asks him (G3).
-          if (op === 'type' && a?.allowed !== true && d.offFence(page)) { const what = personal(String(a?.text ?? ''), this.privateWords()); if (what) return { ok: false, needs: 'lever', what: `type ${what} into ${d.describe(page, n)}` }; }
-          const r = op === 'click' ? await d.click(page, n, a?.allowed === true) : await d.type(page, n, String(a?.text ?? ''), a?.enter === true);
-          if ('needs' in r) return { ok: false, needs: r.needs, what: r.what };
-          return { ok: true, ...r };
-        }
-        case 'scroll': await d.scroll(num('page'), a?.down !== false); return { ok: true };
-        // ---- his own tabs (2026-10-14): "look at what I'm looking at", "fill this in for me". Each asks him first.
-        case 'tabs': {
-          // One OK is enough (2026-10-20): a plan he allowed covers seeing his tab list for that session.
-          const pj = d.job(num('job'));
-          if (a?.allowed !== true && !pj?.planned) return { ok: false, needs: 'lever', what: 'see the list of your open tabs' };
-          const cur = this.cur();
-          return { ok: true, tabs: this.tabs.filter((t) => isWeb(t.url) && !t.internal).map((t) => ({ tab: t.id, title: neverKeep(t.url) ? '(a bank or money site: hidden)' : t.title.slice(0, 120), url: neverKeep(t.url) ? '' : t.url.slice(0, 300), active: t.id === cur?.id, asleep: !t.view })) };
-        }
-        case 'look': case 'drivetab': {
-          const t = a?.tab === undefined ? this.cur() : this.tabs.find((x) => x.id === num('tab'));
-          if (!t || !isWeb(t.url) || t.internal) return { ok: false, error: 'there is no web page in that tab' };
-          if (neverKeep(t.url)) return { ok: false, error: 'that tab is a bank or money site: never read or driven for a session' };
-          let site = ''; try { site = new URL(t.url).hostname.replace(/^www\./, ''); } catch { /* none */ }
-          // ...and reading or driving his tab on a site that plan named: he already said yes to that site this session.
-          const pj = d.job(num('job'));
-          const inPlan = Boolean(pj?.allowed && [...pj.allowed].some((s) => site === s || site.endsWith('.' + s)));
-          // ...or reading the tab he pointed Claude at (sheet 109: Ask Claude hands that chat a pass for it).
-          const passed = op === 'look' && this.passOk(a?.pass, t.id);
-          if (a?.allowed !== true && !inPlan && !passed) return { ok: false, needs: 'lever', what: op === 'look' ? `read your tab on ${site}` : `drive your tab on ${site} while you watch (STOP ends it)` };
-          if (!t.view) this.wake(t); else this.thaw(t);
-          const wc = t.view?.webContents;
-          if (!wc) return { ok: false, error: 'that tab could not be woken' };
-          // A tab that was asleep has no address until its page starts loading again: borrowing it in the same instant
-          // read a blank address and refused (2026-10-30, the borrow-a-tab check broke once idle tabs slept sooner).
-          if (!wc.getURL()) await new Promise<void>((res) => { const done = () => { clearTimeout(to); wc.off('did-navigate', done); wc.off('did-fail-load', done); res(); }; const to = setTimeout(done, 10_000); wc.once('did-navigate', done); wc.once('did-fail-load', done); });
-          if (wc.isDestroyed() || !wc.getURL()) return { ok: false, error: 'that tab was asleep and did not wake in time: ask again in a moment' };
-          const r = d.borrow(num('job'), wc, t.id, op === 'drivetab');
-          this.sendTabs();
-          return { ok: true, ...r, yours: true };
-        }
-        case 'picture': {
-          const what = a?.what === 'view' || a?.what === 'marks' ? a.what as 'view' | 'marks' : Number.isInteger(Number(a?.what)) ? Number(a?.what) : 'best';
-          const r = await d.picture(num('page'), what);
-          const p = d.page(num('page'));
-          return { ok: true, png: r.png.toString('base64'), video: r.video, width: r.width, height: r.height, url: p?.url ?? '', title: p?.title ?? '' };
-        }
-        // His pick (2026-10-30): Samara's whole window as he sees it, for Claude and companion. His own tabs are in it, so the
-        // first look in a session asks him; after his OK that session may look again.
-        case 'window': {
-          const j = d.job(num('job'));
-          if (!j) return { ok: false, error: 'no such session' };
-          if (!j.windowOk && a?.allowed !== true) return { ok: false, needs: 'lever', what: 'see your Samara window (a picture of it as you see it, kept on this computer)' };
-          j.windowOk = true;
-          const r = await this.seeWindow({ maxWidth: SIZES.claude, quality: 75, ms: 2500 });
-          if (!r.window && !r.popout) return { ok: false, error: r.size === 'no Samara window is open' ? 'no Samara window is open' : 'the window gave no picture' };
-          return { ok: true, size: r.size, window: r.window?.base64() ?? null, popout: r.popout?.base64() ?? null, missing: [...(r.window?.missing ?? []), ...(r.popout?.missing ?? [])].length };
-        }
-        case 'close': d.close(num('page')); return { ok: true };
-        default: return { ok: false, error: 'unknown step' };
-      }
-    } catch (e) { return { ok: false, error: (e as Error).message }; }
-  }
-
-  /** His own words a driving session must not type outside its job's sites without asking (private-words.json, optional:
-   *  his name, street, and the like; emails and phone numbers are caught anyway). */
-  private privateWords(): string[] { const j = readJson<unknown>(path.join(this.o.stateDir, 'private-words.json'), null); return Array.isArray(j) ? j.map(String).slice(0, 50) : []; }
   /** Notes per site for driving sessions, kept between runs. Claude's own words for its next visit. */
-  private notesOfSites: Record<string, string> | null = null;
-  private get siteNotes(): Record<string, string> {
+  notesOfSites: Record<string, string> | null = null;
+  get siteNotes(): Record<string, string> {
     this.notesOfSites ??= readJson<Record<string, string>>(path.join(this.o.stateDir, 'driver-notes.json'), {});
     return this.notesOfSites!;
-  }
-  private noteHost(site: string): string {
-    const t = site.trim().toLowerCase();
-    // The site's own name, so one site can never write the note another reads (AI lockdown G8: "*.github.io" shared one).
-    try { return siteOf(new URL(/^https?:/.test(t) ? t : 'https://' + t).hostname); } catch { return ''; }
-  }
-  private siteNote(url: string): string { const h = this.noteHost(url); return h ? this.siteNotes[h] ?? '' : ''; }
-  private setSiteNote(host: string, text: string): void {
-    const n = this.siteNotes;
-    const t = text.replace(/[\u0000-\u001f]+/g, ' ').trim().slice(0, 1500);
-    if (t) n[host] = t; else delete n[host];
-    try { writeFileAtomic(path.join(this.o.stateDir, 'driver-notes.json'), JSON.stringify(n)); } catch { /* best effort */ }
-  }
-
-  /** A driven page's site, for naming its job list. */
-  pageHost(id: number): string { try { return new URL(this.driver.page(id)?.url ?? '').hostname.replace(/^www\./, ''); } catch { return 'page'; } }
-  /** The page a sweep runs on, or null. */
-  sweepPage(id: number): number | null { return this.driver.sweepPage(id); }
-  /** The job a driven page belongs to, or null. */
-  pageJob(id: number): number | null { return this.driver.page(id)?.job ?? null; }
-  /**
-   * The held lever for a Claude session (the Claude door): asked in the band of the window he last used, every time.
-   * Null when no browser window is open to ask in; the door then says so instead of acting.
-   */
-  /**
-   * Show a plan and wait for his answer: in the companion's bubble when the PC has one, else dropped from Samara's band (opened
-   * if needed). Null when nothing could show it, or nobody answered in five minutes.
-   */
-  async askPlan(card: Omit<PlanCard, 'id'>): Promise<PlanAnswer | null> {
-    const c: PlanCard = { ...card, id: 'samara:' + ++this.planSeq };
-    // His rule (2026-11-13: "if samara needs permissions it should come from samara so i havent been able to approve the
-    // smaara plan for gemini"): a plan is always asked here, in Samara's own band, never only in the companion's bubble. Before, it
-    // went to the bubble first and waited there up to five minutes; a bubble he could not see (the companion just started, no
-    // place yet, centred on his other screen and cut off) meant he never got to say yes.
-    if (!this.lastPane()) { this.open(); await new Promise((r) => setTimeout(r, 1500)); }
-    const p = this.lastPane();
-    if (!p || !this.win || this.win.isDestroyed()) return null;
-    this.pane = p;
-    if (this.win.isMinimized()) this.win.restore();
-    const answer = new Promise<PlanAnswer | null>((done) => {
-      this.planWait.set(c.id, done);
-      setTimeout(() => { if (this.planWait.delete(c.id)) { done(null); this.win?.webContents.send('browser:plan', null); } }, 5 * 60_000);
-    });
-    this.win.webContents.send('browser:plan', c);
-    this.win.show();
-    const a = await answer;
-    return a ? this.planClean(c, a) : null;
-  }
-  /** His answer from the band's plan tray. Only a card that is waiting can be answered. */
-  planReply(id: string, a: { go?: unknown; change?: unknown; keep?: unknown; note?: unknown }): void {
-    const done = this.planWait.get(id);
-    if (!done) return;
-    this.planWait.delete(id);
-    this.win?.webContents.send('browser:plan', null);
-    done({ go: a.go === true, change: a.change === true, keep: Array.isArray(a.keep) ? a.keep.map(String) : [], note: String(a.note ?? '') });
-  }
-  /** Whatever came back, only the card's own sites can be kept, and the note is plain words, short. */
-  private planClean(c: PlanCard, a: PlanAnswer): PlanAnswer {
-    const ours = new Set(c.sites.map((x) => x.site));
-    return { card: c.id, go: a.go === true && a.change !== true, change: a.change === true, keep: a.keep.filter((x) => ours.has(x)).slice(0, 20), note: String(a.note ?? '').replace(/\s+/g, ' ').trim().slice(0, 500) };
-  }
-  /** The live checklist: Claude says which step it is on (or that it is done). */
-  planStep(jobId: number, at: number | null): { ok: boolean; step?: string } {
-    const j = this.driver.job(jobId);
-    if (!j?.planned || !j.steps) return { ok: false };
-    const card = this.planOfJob.get(jobId);
-    // Done (2026-10-20: "if you're done driving something close it and close the session title header"): his
-    // tabs go back to him, the session's own pages close, and its group goes.
-    if (at === null) { if (card) this.onPlanStep?.(card, null); try { this.onPlanDone?.(jobId); } catch { /* a record only */ } this.driver.endJob(jobId); this.sendTabs(); return { ok: true }; }
-    j.step = Math.max(0, Math.min(j.steps.length - 1, Math.round(at)));
-    if (card) this.onPlanStep?.(card, j.step);
-    this.sendTabs();
-    return { ok: true, step: j.steps[j.step] };
-  }
-  /** Remember which card a planned job came from. */
-  planJob(jobId: number, card: string): void { this.planOfJob.set(jobId, card); }
-  /** Would this plan site use his login? Only where his rules say so: the job sites for a job scan, or "use my login". */
-  planLogin(task: string, site: string): boolean {
-    const r = this.rules.login(site);
-    return r === true || (r === undefined && jobTask(task) && JOB_SITES.includes(siteOf(siteKey(site))));
-  }
-  /** The site's own icon for the card, if Samara has seen it. */
-  planIcon(site: string): string { return this.iconOf('https://' + siteKey(site) + '/'); }
-
-  askForClaude(what: string): Promise<boolean | null> {
-    const p = this.lastPane();
-    if (!p) return Promise.resolve(null);
-    this.pane = p;
-    // Sheet 106 scene 7: from Claude's rune, Claude's own spark on a white gem.
-    const w = what.slice(0, 120).trim(), title = w.charAt(0).toUpperCase() + w.slice(1) + '?';
-    return new Promise((done) => this.ask({ host: 'Claude', what: title, kick: 'Claude \u00b7 the companion', from: 'rune', claude: true,
-      text: `${title.length > 30 ? `Let Claude ${w}? ` : ''}In its own tab in your browser. Only if you say yes, and only this once.`, yes: 'Allow once', no: 'No' }, done));
-  }
-
-  /** Sheet 115 B: a chat's "update the companion now" while Claude works: asked first, in the same notice as Claude's other asks. */
-  askUpdate(version: string, text: string): Promise<boolean | null> {
-    const p = this.lastPane();
-    if (!p) return Promise.resolve(null);
-    this.pane = p;
-    return new Promise((done) => this.ask({ host: 'Claude', what: `Restart Samara for ${version.slice(0, 20)}?`, kick: 'Claude \u00b7 the companion', from: 'rune', claude: true,
-      text: text.slice(0, 200), yes: 'Restart now', no: 'Not now' }, done));
   }
 
   // ------------------------------------------------------------------ 6.25a: his view of the companion's pages
@@ -7065,428 +2261,39 @@ export class SamaraBrowser {
    * there, or by telling Claude in the chat (browser_take_back). Either way Claude is told what changed: the page he is
    * on, the names of the fields he filled (never what he typed), what he clicked, and his note.
    */
-  private hands = new Map<number, Hand>();
+  hands = new Map<number, Hand>();
   /** Claude waiting in browser_your_turn, by page: answered when he hands back (null: the job ended). */
-  private handWait = new Map<number, (r: HandReport | null) => void>();
+  handWait = new Map<number, (r: HandReport | null) => void>();
   /** Handed back with no one waiting: told with the session's next step. */
-  private handTold = new Map<number, { job: number; report: HandReport }>();
+  handTold = new Map<number, { job: number; report: HandReport }>();
   /** Frame F: the card shows what Claude was told for a few seconds after he hands back. */
-  private handAfter: { tab: number; rows: [string, string][]; until: number } | null = null;
-  private handAfterT: NodeJS.Timeout | null = null;
+  handAfter: { tab: number; rows: [string, string][]; until: number } | null = null;
+  handAfterT: NodeJS.Timeout | null = null;
   /** The address bar's bottom right (window pixels), from the band: the card hangs from there. */
-  private handSpot: { x: number; y: number } | null = null;
-
-  /** He pressed Take over on the band, on the tab in front. Only that key takes over; his clicks in the page never do. */
-  private takeOver(job: number): void {
-    const wc = this.cur()?.view?.webContents;
-    const d = wc ? this.driver.drivingTab(wc) : null;
-    if (!d || d.job !== job || !d.working || this.hands.has(d.page)) return;
-    if (!this.handStart(d.page, 'you', '')) return;
-    const p = this.driver.page(d.page);
-    this.tell(job, `The user took over page ${d.page}: it is his until he hands it back. Leave it alone. Your other pages keep going. You will be told when he hands it back.`, p?.title ?? '');
-  }
-  private handStart(page: number, mode: 'you' | 'turn', why: string): Hand | null {
-    const p = this.driver.page(page);
-    if (!p?.borrowed) return null;
-    const h: Hand = { page, job: p.job, tab: p.borrowed.tab, mode, why, filled: [], clicked: [], at: Date.now() };
-    this.hands.set(page, h);
-    this.handTold.delete(page);
-    try { p.wc.send('tab:watchhim', true); } catch { /* gone */ }
-    this.sendTabs();
-    return h;
-  }
-  /** He handed back (the card's key, or Claude took it back when he said so in the chat). */
-  private handEnd(page: number, note: string): HandReport | null {
-    const h = this.hands.get(page);
-    if (!h) return null;
-    this.hands.delete(page);
-    const p = this.driver.page(page);
-    if (p) { try { p.wc.send('tab:watchhim', false); } catch { /* gone */ } }
-    const r = reportOf(h, p?.wc.getTitle() || p?.title || '', p?.wc.getURL() || p?.url || '', note);
-    const w = this.handWait.get(page);
-    if (w) { this.handWait.delete(page); w(r); } else this.handTold.set(page, { job: h.job, report: r });
-    // Frame F: what Claude is told, on the card for a few seconds.
-    this.handAfter = { tab: h.tab, rows: cardRows(r), until: Date.now() + 6000 };
-    if (this.handAfterT) clearTimeout(this.handAfterT);
-    this.handAfterT = setTimeout(() => { this.handAfter = null; this.handPaint(); }, 6100);
-    this.sendTabs();
-    return r;
-  }
-  /** The card's Hand back, from the layer it is on: the hand on that window's tab in front. */
-  handBack(sender: Electron.WebContents, note: unknown): void {
-    const P = this.panes.find((x) => x.handV && !x.handV.webContents.isDestroyed() && x.handV.webContents === sender);
-    if (!P) return;
-    const t = this.tabs.find((x) => x.id === P.active);
-    const h = t ? [...this.hands.values()].find((x) => x.tab === t.id) : undefined;
-    if (h) this.handEnd(h.page, String(note ?? '').slice(0, 300));
-  }
-  handSize(sender: Electron.WebContents, h: number): void {
-    const P = this.panes.find((x) => x.handV && !x.handV.webContents.isDestroyed() && x.handV.webContents === sender);
-    if (!P || !Number.isFinite(h) || h <= 0 || P.handH === Math.round(h)) return;
-    P.handH = Math.round(h);
-    this.handPlace(P);
-  }
-  /** The band says where its address bar ends. */
-  setHandSpot(x: number, y: number): void {
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-    if (this.handSpot?.x === x && this.handSpot?.y === y) return;
-    this.handSpot = { x, y };
-    this.handPaint();
-  }
-  /** A tab's page asks whether he has it (it then names what he fills and clicks; never values). */
-  handWatching(wc: Electron.WebContents): boolean { return [...this.hands.values()].some((h) => this.driver.page(h.page)?.wc === wc); }
-  handDid(wc: Electron.WebContents, m: unknown): void {
-    const h = [...this.hands.values()].find((x) => this.driver.page(x.page)?.wc === wc);
-    if (h && m && typeof m === 'object') noteDid(h, m as { kind?: unknown; name?: unknown });
-  }
-  private handView(P: Pane): WebContentsView | null {
-    const w = P.win;
-    if (!w || w.isDestroyed()) return null;
-    if (P.handV && !P.handV.webContents.isDestroyed()) return P.handV;
-    const v = new WebContentsView({ webPreferences: { ...SAFE_WEB_PREFERENCES, preload: path.join(path.dirname(this.o.preloadPath), 'handpreload.cjs'), backgroundThrottling: false } });
-    lockDown(v.webContents);
-    v.setBackgroundColor('#00000000');
-    v.setVisible(false);
-    v.webContents.on('did-finish-load', () => { P.handReady = true; P.handLast = ''; this.handPaint(); });
-    void v.webContents.loadURL(`${this.o.origin}/handcard.html`).catch(() => { /* its window closed while it loaded */ });
-    P.handV = v;
-    return v;
-  }
-  /** Card width plus the layer's room for the frame's caps and shadow (handcard.css). */
-  private handPlace(P: Pane): void {
-    const v = P.handV, w = P.win, s = this.handSpot;
-    if (!v || v.webContents.isDestroyed() || !w || w.isDestroyed() || !s) return;
-    const [cw, ch] = w.getContentSize();
-    const W = 330 + 24, H = (P.handH ?? 200) + 12 + 34;
-    // Hung under the address bar's end, 18 px down, its right edge 4 px in (the sheet's frames D to F).
-    const x = Math.max(0, Math.min(cw - W, Math.round(s.x - 4 - 330 - 12))), y = Math.round(s.y + 18 - 12);
-    v.setBounds({ x, y, width: W, height: Math.max(0, Math.min(H, ch - y)) });
-  }
-  /** Show the card for the tab in front of each window, or hide it. Cheap: only a change is sent. */
-  private handPaint(): void {
-    // A job that ended (STOP, done) takes its hands with it, and Claude's wait is answered.
-    for (const [page, h] of [...this.hands]) {
-      const j = this.driver.job(h.job);
-      if (this.driver.page(page) && j?.working) continue;
-      this.hands.delete(page);
-      const p = this.driver.page(page);
-      if (p) { try { p.wc.send('tab:watchhim', false); } catch { /* gone */ } }
-      const w = this.handWait.get(page); if (w) { this.handWait.delete(page); w(null); }
-      if (this.handAfter?.tab === h.tab) this.handAfter = null;
-    }
-    for (const P of this.panes) {
-      if (!P.win || P.win.isDestroyed()) continue;
-      const h = [...this.hands.values()].find((x) => x.tab === P.active);
-      const after = !h && this.handAfter && this.handAfter.tab === P.active && this.handAfter.until > Date.now() ? this.handAfter : null;
-      const show = !this.handSpot || P.drawerOpen || P.watching !== null ? null
-        : h ? { kick: h.mode === 'turn' ? 'YOUR TURN' : 'YOU HAVE IT', title: h.mode === 'turn' ? h.why || 'Your turn' : this.driver.job(h.job)?.name || 'Your tab', hand: true }
-        : after ? { kick: 'CLAUDE IS TOLD', title: 'What changed', rows: after.rows } : null;
-      const key = JSON.stringify(show);
-      if (key === P.handLast) continue;
-      P.handLast = key;
-      if (!show) { if (P.handV && !P.handV.webContents.isDestroyed()) { P.handV.webContents.send('hand:show', null); P.handV.setVisible(false); } continue; }
-      const v = this.handView(P);
-      if (!v) continue;
-      if (!P.handReady) { P.handLast = ''; continue; }   // drawn once it has loaded
-      this.handPlace(P);
-      P.win.contentView.addChildView(v);                                    // on top of the page
-      v.setVisible(true);
-      v.webContents.send('hand:show', show);
-    }
-  }
-  /** Claude gave him the turn: the card says why, and this waits (up to ~3 minutes) for him to hand back. */
-  /**
-   * The second loop (loopcatch.ts): he is asked to take over, on the tab, the way browser_your_turn asks ("Stuck on
-   * "Apply". Take over?"), and the session waits for him. A page he cannot take (the companion's hidden pages) or a session that
-   * cannot wait gets words to tell him itself.
-   */
-  private async stuckAsk(page: number, n: number | undefined): Promise<string> {
-    const p = this.driver.page(page);
-    if (!p?.borrowed?.drive || !this.driver.job(p.job)?.working) return 'LOOP AGAIN: this step is still not working. Stop repeating it, and tell the user in one line what is stuck and what you tried.';
-    const label = n !== undefined ? (this.driver.describe(page, n).match(/^"([^"]*)"/)?.[1] ?? '') : '';
-    console.log(`shell: driver: job ${p.job} looped twice on page ${page}; asking him to take over`);
-    // Two minutes, not the full wait: the step itself already took some of the door's three (claude-door-mcp.mjs post).
-    const r = await this.yourTurn(page, label ? `Stuck on "${label}". Take over?` : 'Stuck here. Take over?', 120_000);
-    if (r.still) return `LOOP AGAIN: Samara asked the user to take over page ${page} (he has not answered yet). Do not repeat the step: call browser_your_turn with page ${page} to keep waiting for him.`;
-    if (!r.ok) return String(r.error ?? 'The user was asked to take over, and the job has ended');
-    const said = reportLines(r.report as HandReport);
-    return `LOOP AGAIN, so Samara asked the user to take over page ${page}. He has handed it back.\n${said.his}\n${said.seen}\nRead the page again before the next step.`;
-  }
-  private async yourTurn(page: number, why: string, ms = YOUR_TURN_MS): Promise<Record<string, unknown>> {
-    const p = this.driver.page(page);
-    if (!p?.borrowed?.drive) return { ok: false, error: 'browser_your_turn is for a tab you are driving (your own, or his with browser_drive_tab). This page is not one: tell him in the chat instead.' };
-    if (!this.driver.job(p.job)?.working) return { ok: false, error: 'this job has ended' };
-    const h = this.hands.get(page);
-    if (!h) this.handStart(page, 'turn', cleanWhy(why) || 'Your turn');
-    else if (why && h.mode === 'turn') { h.why = cleanWhy(why); this.handPaint(); }
-    const prev = this.handWait.get(page);
-    if (prev) prev(null);
-    const r = await new Promise<HandReport | null | 'wait'>((done) => {
-      const t = setTimeout(() => { if (this.handWait.get(page) === f) { this.handWait.delete(page); done('wait'); } }, ms);
-      const f = (x: HandReport | null) => { clearTimeout(t); done(x); };
-      this.handWait.set(page, f);
-    });
-    if (r === 'wait') return { ok: true, still: true };
-    if (!r) return { ok: false, error: 'The user pressed STOP (or the tab closed), so this job has ended' };
-    return { ok: true, report: r };
-  }
-  /**
-   * Sheet 111 (2026-10-31): he dragged tabs out of Claude's group into his own. Each is his now, a plain tab
-   * (close, sleep, trails, tabs under it): the job lets go of it, and the session is told with its next step.
-   */
-  private takeFromClaude(ids: number[]): void {
-    for (const id of ids) {
-      const p = this.driver.pageOfTab(id);
-      const j = p ? this.driver.job(p.job) : undefined;
-      if (!p || j?.kind !== 'claude') continue;
-      this.handOff(p.id);
-      const r = this.driver.release(p.id);
-      const t = this.tabs.find((x) => x.id === id);
-      if (t) { t.claude = false; t.muted = false; try { t.view?.webContents.setAudioMuted(false); } catch { /* gone */ } }
-      if (r) this.tell(r.job, `The user took page ${p.id} for himself: he dragged it out of your group into his own tabs. It is not yours any more: nothing more is done there. Your other pages keep going.`, r.title);
-    }
-  }
-  /** Something he did that the session hears with its next step (sheet 111). The page's own title is marked as data. */
-  private tell(job: number, line: string, title = ''): void {
-    const l = this.news.get(job) ?? [];
-    l.push(title ? `${line}\nThat page's title, the website's own words: ${JSON.stringify(title.slice(0, 120))}` : line);
-    this.news.set(job, l.slice(-8));
-  }
-  private news = new Map<number, string[]>();
+  handSpot: { x: number; y: number } | null = null;
+  news = new Map<number, string[]>();
 
   // ------------------------------------------------------------------ sheet 115: Claude's work survives a restart
   // Every Claude job (its plan, its own tabs, the chat it belongs to) and the typing in its forms are kept in
   // claude-kept.json (claudekeep.ts), and come back with the same job and page numbers when Samara starts again.
-  private get keepFile(): string { return path.join(this.o.stateDir, 'claude-kept.json'); }
+  get keepFile(): string { return path.join(this.o.stateDir, 'claude-kept.json'); }
   /** The chat each job belongs to (its connector's token), and when that chat was last heard from. */
-  private keepTokens = new Map<number, string>();
-  private keepSeen = new Map<number, number>();
+  keepTokens = new Map<number, string>();
+  keepSeen = new Map<number, number>();
   /** The typing in each of Claude's pages, as last looked at. */
-  private forms = new Map<number, KeptForm>();
+  forms = new Map<number, KeptForm>();
   /** Jobs that came back from before a restart, or that a new chat carried on: the door treats them as its own. */
-  private keptJobs = new Set<number>();
-  private refilling = new Set<number>();
-  private keepT: NodeJS.Timeout | null = null;
+  keptJobs = new Set<number>();
+  refilling = new Set<number>();
+  keepT: NodeJS.Timeout | null = null;
   /** Nothing is written over the kept file until it has been read back (or the browser is closing). */
-  private keepLoaded = false;
-  private keepFrozen = false;
+  keepLoaded = false;
+  keepFrozen = false;
   /** Claude's tabs the job itself closes (not him). */
-  private jobClosing = new Set<number>();
+  jobClosing = new Set<number>();
   /** Claude's work changed (the update key's "waits" line). */
   onClaudeWork?: () => void;
-  private lastWork = '';
-
-  /** The door: this chat's token now owns this job. */
-  claudeBind(job: number, token: string): void { if (token) this.keepTokens.set(job, token); this.keepSeen.set(job, Date.now()); this.saveClaudeSoon(); }
-  /** The door: this job's chat called in. */
-  claudeSeen(job: number): void { if (this.driver.job(job)) this.keepSeen.set(job, Date.now()); }
-  /** The door: this job's chat ended. */
-  claudeGone(job: number): void { if (this.driver.job(job)) { this.keepSeen.set(job, 0); this.saveClaudeSoon(); } }
-  /** A job kept from before a restart (or carried on), still here. */
-  claudeKept(job: number): boolean { return this.keptJobs.has(job) && !!this.driver.job(job); }
-  /** May this chat use this job? Another chat's token never; an old connector (no token) as before. */
-  claudeOwner(job: number, token: string): boolean { const t = this.keepTokens.get(job); return !t || !token || t === token; }
-  claudeTokenOf(job: number): string { return this.keepTokens.get(job) ?? ''; }
-  /** A typed form was sent (an allowed send or apply): its kept copy goes (until sent). */
-  formSent(page: number): void { if (this.forms.delete(page)) this.saveClaudeSoon(); }
-
-  private keptOf(j: Job): KeptJob {
-    const pages = this.driver.pagesOf(j).filter((p) => !p.borrowed || p.borrowed.own).map((p) => {
-      const form = this.forms.get(p.id);
-      return { id: p.id, url: p.url, title: p.title, ...(form ? { form } : {}) };
-    });
-    const plan = j.sites ? { login: [...j.sites], denied: [...(j.denied ?? [])], allowed: [...(j.allowed ?? [])], steps: j.steps ?? [], planned: j.planned === true, step: j.step ?? 0 } : null;
-    return { id: j.id, token: this.keepTokens.get(j.id) ?? '', name: j.name, at: j.at, seen: this.keepSeen.get(j.id) || Date.now(), working: j.working, stopped: j.stopped, plan, pages };
-  }
-  saveClaude(): void {
-    if (!this.keepLoaded || this.keepFrozen) return;
-    const jobs = this.driver.jobs.filter((j) => j.kind === 'claude').map((j) => this.keptOf(j)).filter((k) => k.pages.length);
-    try { writeKept(this.keepFile, { v: 1, version: app.getVersion(), at: Date.now(), jobs }); } catch (e) { console.error('shell: claude keep: ' + (e as Error).message); }
-  }
-  private saveClaudeSoon(): void {
-    if (this.keepT) return;
-    this.keepT = setTimeout(() => { this.keepT = null; this.saveClaude(); this.workChanged(); }, 1000);
-  }
-  /** Every 15 seconds: the typing in Claude's pages (his own tabs Claude drives too, for the update's wait). */
-  private async grabForms(): Promise<void> {
-    let changed = false;
-    const now = Date.now();
-    for (const p of [...this.driver.pages]) {
-      const j = this.driver.job(p.job);
-      if (j?.kind !== 'claude' || (p.borrowed && !p.borrowed.own && !p.borrowed.drive) || this.refilling.has(p.id) || p.wc.isDestroyed()) continue;
-      const got = await run<{ url: string; fields: KeptField[] } | null>(p.wc, FORM_GRAB_JS, { ms: 1500, fallback: null });
-      if (!got || !Array.isArray(got.fields)) continue;
-      const had = this.forms.get(p.id), f = cleanForm({ at: now, url: String(got.url), fields: got.fields }, now);
-      if (!f) { if (had) { this.forms.delete(p.id); changed = true; } continue; }
-      if (had && had.url === f.url && JSON.stringify(had.fields) === JSON.stringify(f.fields)) continue;
-      this.forms.set(p.id, f); changed = true;
-    }
-    for (const id of [...this.forms.keys()]) if (!this.driver.page(id) || now - this.forms.get(id)!.at > 24 * 3_600_000) { this.forms.delete(id); changed = true; }
-    if (changed) { this.saveClaude(); this.workChanged(); }
-  }
-  /** Right away, for one page (after Claude typed or picked, and before a restart). */
-  async grabForm(page: number): Promise<void> {
-    const p = this.driver.page(page);
-    if (!p || this.refilling.has(page)) return;
-    const got = await run<{ url: string; fields: KeptField[] } | null>(p.wc, FORM_GRAB_JS, { ms: 1500, fallback: null });
-    if (!got || !Array.isArray(got.fields)) return;
-    const f = cleanForm({ at: Date.now(), url: String(got.url), fields: got.fields }, Date.now());
-    if (f) this.forms.set(page, f); else this.forms.delete(page);
-    this.saveClaudeSoon();
-  }
-  /** Before a restart (the update's Restart now): every form looked at once more, then everything written. */
-  async saveClaudeNow(): Promise<void> {
-    await Promise.race([this.grabForms(), new Promise((r) => setTimeout(r, 3000))]);
-    this.saveClaude();
-  }
-
-  /** Put the kept typing back in a page that came back, as the page draws its fields (up to 12 seconds). */
-  private async refill(page: number, form: KeptForm): Promise<{ put: number; missing: number }> {
-    let r = { put: 0, missing: form.fields.length };
-    for (let i = 0; i < 12; i++) {
-      const p = this.driver.page(page);
-      if (!p) break;
-      const got = await run<{ put: number; missing: number } | null>(p.wc, formFillJs(form.fields), { ms: 2000, fallback: null });
-      if (got && got.put >= r.put) r = got;
-      if (got && got.missing === 0) break;
-      await new Promise((x) => setTimeout(x, 1000));
-    }
-    return r;
-  }
-
-  /** On start: Claude's jobs from before come back, each tab under its own number, with the typing put back. */
-  private async restoreClaude(): Promise<void> {
-    if (this.keepLoaded) return;
-    const k = readKept(this.keepFile, Date.now());
-    this.keepLoaded = true;
-    if (!k.jobs.length) { this.saveClaude(); return; }
-    const ver = app.getVersion(), updated = !!k.version && k.version !== ver;
-    const when = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    this.driver.reserve(Math.max(...k.jobs.map((j) => j.id)), Math.max(0, ...k.jobs.flatMap((j) => j.pages.map((p) => p.id))));
-    let back = 0;
-    for (const kj of k.jobs) {
-      let j: Job;
-      try { j = this.driver.startJob('claude', kj.name, undefined, kj.id); } catch { continue; }
-      if (kj.plan) { j.sites = new Set(kj.plan.login); j.denied = new Set(kj.plan.denied); j.allowed = new Set([...kj.plan.allowed, ...kj.plan.login]); j.steps = kj.plan.steps; j.step = kj.plan.step; j.planned = kj.plan.planned; }
-      j.working = false; j.stopped = kj.stopped === true;
-      this.keptJobs.add(j.id);
-      if (kj.token) this.keepTokens.set(j.id, kj.token);
-      // Not heard from yet: a gone chat until its connector calls in (then a new chat may carry it on).
-      this.keepSeen.set(j.id, 0);
-      const said: string[] = [], typed: string[] = [];
-      for (const kp of kj.pages) {
-        if (kp.form) this.refilling.add(kp.id);
-        try {
-          const r = await this.driver.open(j.id, kp.url, { id: kp.id });
-          const p = this.driver.page(r.page), where = placeName(p?.title || kp.title, r.url);
-          said.push(`page ${r.page} ${where}`); back++;
-          if (kp.form) {
-            const f = await this.refill(r.page, kp.form);
-            this.forms.set(r.page, kp.form);
-            typed.push(f.missing ? `Page ${r.page} (${where}) had typing: Samara put ${f.put} answers back, and ${f.missing} could not be found. Fill those again.`
-              : `Page ${r.page} (${where}) had typing, and Samara put it back.`);
-          }
-        } catch (e) { said.push(`page ${kp.id} did not come back (${(e as Error).message})`); }
-        finally { this.refilling.delete(kp.id); }
-      }
-      this.tell(j.id, [`Samara restarted at ${when}${updated ? ` (update ${ver})` : ''}. Your ${said.length} tab${said.length === 1 ? ' is' : 's are'} back, with the same page numbers: ${said.join(', ')}.`,
-        ...typed, typed.length ? 'Check it with browser_check_form, and attach any files again.' : '', j.stopped ? 'This job was stopped (STOP ALL) before the restart: send a new plan to start again.' : ''].filter(Boolean).join(' '));
-    }
-    this.saveClaude();
-    this.sendTabs();
-    if (back) this.note('', { title: "Claude's tabs are back", kick: updated ? `Restarted for ${ver}` : 'Samara restarted', from: 'rune', claude: true, small: true,
-      rows: [{ g: '', v: this.forms.size ? 'Your typing is back in place. Claude checks it before anything is sent.' : 'Claude carries on where it was.' }] });
-  }
-
-  /**
-   * His pick (sheet 115, "It just takes them"): a new chat that carries on an old chat's job takes its group, with no
-   * ask, but only when that chat is gone (not heard from in three minutes). A chat that is still going keeps its own.
-   */
-  carryOn(token: string, name: string): { job: number; name: string; pages: { id: number; title: string }[] } | { live: string } | null {
-    const now = Date.now();
-    const same = this.driver.jobs.filter((j) => j.kind === 'claude' && !j.stopped && sameName(j.name, name) && this.driver.pagesOf(j).length && (!token || this.keepTokens.get(j.id) !== token));
-    const gone = same.filter((j) => now - (this.keepSeen.get(j.id) ?? 0) > GONE_MS).sort((a, b) => (this.keepSeen.get(b.id) ?? 0) - (this.keepSeen.get(a.id) ?? 0));
-    const j = gone[0];
-    if (!j) return same.length ? { live: same[0]!.name } : null;
-    if (token) this.keepTokens.set(j.id, token); else this.keepTokens.delete(j.id);
-    this.keepSeen.set(j.id, now); this.keptJobs.add(j.id); j.working = true;
-    this.saveClaudeSoon(); this.sendTabs();
-    return { job: j.id, name: j.name, pages: this.driver.pagesOf(j).map((p) => ({ id: p.id, title: p.title })) };
-  }
-  /** Groups left by chats that are gone, for a new chat's plan to know it can carry one on. */
-  earlierGroups(token: string): string[] {
-    const now = Date.now();
-    return this.driver.jobs.filter((j) => j.kind === 'claude' && !j.stopped && this.driver.pagesOf(j).length && now - (this.keepSeen.get(j.id) ?? 0) > GONE_MS && (!token || this.keepTokens.get(j.id) !== token))
-      .map((j) => `"${j.name}" (${this.driver.pagesOf(j).length} tab${this.driver.pagesOf(j).length === 1 ? '' : 's'})`);
-  }
-
-  /** What Claude is doing, for the update to wait on (sheet 115): filling a form beats working; null when neither. */
-  claudeWork(): { doing: 'filling an application' | 'working'; where: string; tabs: number } | null {
-    let work: { doing: 'filling an application' | 'working'; where: string; tabs: number } | null = null;
-    for (const j of this.driver.jobs) {
-      if (j.kind !== 'claude') continue;
-      const pages = this.driver.pagesOf(j);
-      const typed = pages.find((p) => hasTyping(this.forms.get(p.id)));
-      if (typed) return { doing: 'filling an application', where: placeName(typed.title, typed.url), tabs: pages.length };
-      if (j.working && !j.stopped && pages.length && !work) work = { doing: 'working', where: placeName(pages[0]!.title, pages[0]!.url), tabs: pages.length };
-    }
-    return work;
-  }
-  private workChanged(): void {
-    const w = this.claudeWork(), k = w ? `${w.doing}|${w.where}` : '';
-    if (k !== this.lastWork) { this.lastWork = k; this.onClaudeWork?.(); }
-  }
-  /** A hand on a page ends without a report (the page left the job). */
-  private handOff(page: number): void {
-    if (!this.hands.delete(page)) return;
-    const w = this.handWait.get(page); if (w) { this.handWait.delete(page); w(null); }
-    this.handTold.delete(page);
-  }
-  driverAct(act: string, id: number): void {
-    if (act === 'stop') this.driver.stop(id);   // only after he confirms it in the page (browser.js stopKey)
-    else if (act === 'close') { if (this.watching !== null && this.driver.page(this.watching)?.job === id) this.unwatch(); this.driver.closeJob(id); }
-    else if (act === 'watch') this.watch(id);
-    else if (act === 'unwatch') this.unwatch();
-    else if (act === 'open') { const p = this.driver.page(id); if (p && isWeb(p.url)) { this.unwatch(false); this.newTab(p.url); } }
-    else if (act === 'takeover') this.takeOver(id);
-    // Sheet 111: a row in Claude's group is a real tab: a click goes into it.
-    else if (act === 'show') { const p = this.driver.page(id); if (p?.borrowed) { this.unwatch(false); this.activate(p.borrowed.tab); } }
-    this.sendTabs();
-  }
-  /** A live picture of one of the companion's pages in the page area: his own tab steps aside, nothing is handed over. */
-  private watch(pageId: number): void {
-    const w = this.win;
-    if (!w || w.isDestroyed() || !this.driver.page(pageId)) return;
-    if (this.watching !== null && this.watching !== pageId) this.driver.watched(this.watching, null);
-    this.watching = pageId;
-    const [cw, ch] = w.getContentSize();
-    this.driver.watched(pageId, { width: cw - this.inset.left - this.inset.right, height: ch - this.inset.top - this.inset.bottom });
-    const t = this.cur();
-    if (t?.view && !t.lent) t.view.setVisible(false);
-    this.veilDown(0);
-    const P = this.pane;
-    const tick = async () => {
-      if (P.watching !== pageId) return;
-      const src = await this.driver.glance(pageId);
-      this.pane = P;
-      if (this.watching !== pageId || !this.win || this.win.isDestroyed()) return;
-      this.win.webContents.send('browser:watch', src);
-      this.watchTimer = setTimeout(() => void tick(), 700);
-    };
-    if (this.watchTimer) clearTimeout(this.watchTimer);
-    void tick();
-    this.sendTabs();
-  }
-  private unwatch(show = true): void {
-    if (this.watching === null) return;
-    this.driver.watched(this.watching, null);
-    this.watching = null;
-    if (this.watchTimer) { clearTimeout(this.watchTimer); this.watchTimer = null; }
-    this.win?.webContents.send('browser:watch', null);
-    const t = this.cur();
-    if (show && t?.view && !t.lent && !this.drawerOpen) { this.place(); t.view.setVisible(true); }
-    this.sendTabs();
-  }
+  lastWork = '';
 }
 
 /** The Hyrule map's save, checked: only hy.* keys (short names) with string values, else null. */
@@ -7495,4 +2302,364 @@ export function hyruleSaveClean(o: unknown): Record<string, string> | null {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(o as Record<string, unknown>)) if (/^hy\.[A-Za-z0-9_.-]{1,40}$/.test(k) && typeof v === 'string') out[k] = v;
   return out;
+}
+
+// Phase 4 (2026-11-24): the browser's methods live in parts by what they do (browser-rail.ts, browser-panes.ts, ...).
+// Each part's methods become SamaraBrowser's own, exactly as if written in the class (not enumerable, on the prototype).
+// Their signatures, as they were in the class:
+export interface SamaraBrowser {
+  // rail (browser-rail.ts)
+  trayView(): WebContentsView | null;
+  warmTray(P: Pane, v: WebContentsView, tries?: number): void;
+  tray(open: boolean, at?: { x?: unknown; y?: unknown; }): void;
+  trayFlush(P: Pane): void;
+  cardOf(t: Tab | undefined): Promise<void>;
+  tabPeekView(): WebContentsView | null;
+  tabPeek(a: { id?: unknown; top?: unknown; bottom?: unknown; } | null): Promise<void>;
+  railTab(t: Tab): RailTab;
+  entryOf(t: Tab, at: number, from?: string): EarlierEntry;
+  railMove(dir: string): void;
+  railTidy(now?: number): number;
+  putAway(ids: number[], at: number): EarlierEntry[];
+  earlierBack(keys: string[], show?: boolean): void;
+  earlierAct(a: { act: string; key?: string; }, reply?: (data: unknown) => void): void;
+  tidyTrails(): void;
+  placeTabs(ids: number[], trail: number | null, before: number | null, parent: number | null): boolean;
+  // panes (browser-panes.ts)
+  splitOf(P?: Pane): { L: Tab; R: Tab; ratio: number; } | null;
+  splitShown(P?: Pane): { L: Tab; R: Tab; ratio: number; } | null;
+  partnerOf(id: number, P?: Pane): Tab | null;
+  inFront(t: Tab): boolean;
+  splitBoxes(ratio: number): { left: Electron.Rectangle; right: Electron.Rectangle; } | null;
+  placeSplit(x: { L: Tab; R: Tab; ratio: number; }): void;
+  splitSend(): void;
+  splitOpen(other?: number): void;
+  splitClose(keep?: number): void;
+  splitFromFrame(a: Record<string, unknown>): void;
+  splitFocus(t: Tab): void;
+  adoptSplits(): void;
+  peekLink(sender: Electron.WebContents, href: string): void;
+  linkPeek(href: string, from?: number | null): void;
+  peekBox(): { shade: Electron.Rectangle; box: Electron.Rectangle; } | null;
+  placePeek(): void;
+  linkPeekClose(): void;
+  peekAct(sender: Electron.WebContents, act: unknown): void;
+  floatView(): WebContentsView | null;
+  isFloat(sender: Electron.WebContents): boolean;
+  floatShow(on: boolean): void;
+  floatFromFrame(a: Record<string, unknown>): void;
+  floatFromLayer(a: Record<string, unknown>): void;
+  placeFloat(): void;
+  fillOrShrink(w: BrowserWindow): void;
+  curtainView(): WebContentsView | null;
+  veilUp(t: Tab, from?: Tab): Promise<void>;
+  veilUpInner(t: Tab, from?: Tab): Promise<void>;
+  veilDown(fade: number): void;
+  painted(sender: Electron.WebContents): void;
+  wokeUp(t: Tab, seq?: number | undefined): void;
+  wake(tab: Tab): void;
+  wakeSettings(tab: Tab): void;
+  wakeHyrule(tab: Tab): void;
+  openHyrule(): boolean;
+  hyruleLeave(): void;
+  isSettings(sender: Electron.WebContents): boolean;
+  openSettings(section?: string): void;
+  settingsData(): Promise<Record<string, unknown>>;
+  pushSettings(): void;
+  setSetting(key: string, value: unknown): void;
+  removeEntry(list: string, value: string): void;
+  addressLookup(text: string): Promise<{ line: string; street: string; city: string; region: string; postal: string; country: string; }[]>;
+  settingsAct(act: string): void;
+  sideNav(dir: "back" | "forward"): void;
+  windowMenu(): void;
+  winDrag(sender: Electron.WebContents, phase: string, x: number, y: number): void;
+  backToSetupSpot(): void;
+  screensNow(): string;
+  savedPlace(): { x: number; y: number; width: number; height: number; maximized: boolean; } | null;
+  keepPlace(): void;
+  pageMenu(tab: Tab, p: Electron.ContextMenuParams): void;
+  ensureMenu(): BrowserWindow;
+  hideMenu(): void;
+  isMenu(sender: Electron.WebContents): boolean;
+  menuSize(width: number, height: number, sub?: number): void;
+  menuPick(id: string): void;
+  askClaude(t: Tab, p: Electron.ContextMenuParams, chat: Chat | null, fresh: boolean): Promise<void>;
+  passOk(pass: unknown, tab?: number): boolean;
+  sendToCompanion(t: Tab, p: Electron.ContextMenuParams): Promise<void>;
+  // tv (browser-tv.ts)
+  stremioHashes(): Promise<string[]>;
+  stremioMoved(tab: Tab, url: string): void;
+  tvState(): Record<string, unknown> | null;
+  tvCfg(): { host: string; name: string; linked: boolean; answer: boolean; pause: boolean; };
+  saveTvCfg(c: ReturnType<SamaraBrowser["tvCfg"]>): void;
+  tvTarget(host: string): TvTarget;
+  tvFind(): Promise<{ host: string; name: string; } | null>;
+  tvRemoteRun(steps: Parameters<typeof remote>[1]): Promise<void>;
+  setTvStep(n: number | null): void;
+  tvSend(t: Tab): Promise<void>;
+  tvCode(code: string): Promise<void>;
+  tvOpen(tabId: number, a: TvAppLink): Promise<void>;
+  tvVideo(t: Tab): Promise<void>;
+  tvWindow(t: Tab): Promise<void>;
+  tvAct(act: string): Promise<void>;
+  tvOff(bringBack: boolean): Promise<void>;
+  raiseTray(): void;
+  placeTray(): void;
+  open(url?: string): void;
+  createPane(url?: string, bring?: Tab | Tab[], at?: { x: number; y: number; width: number; height: number; }): void;
+  tearOut(tabId: number): void;
+  newWindowFor(tabId: number): void;
+  moveTo(t: Tab, to: Pane): void;
+  setInsets(left: number, top: number, right?: number, bottom?: number): void;
+  pageArea(): { x: number; y: number; width: number; height: number; };
+  place(): void;
+  // things (browser-things.ts)
+  isThings(sender: Electron.WebContents): boolean;
+  openThings(section?: "history" | "downloads"): void;
+  historyPage(q: string, offset: number): { items: { url: string; title: string; at: number; favicon: string; }[]; more: boolean; };
+  historyAct(act: string, url?: string, at?: number): void;
+  openFromThings(url: string): void;
+  dlView(d: Dl): Record<string, unknown>;
+  dlNotice(d: Dl): void;
+  downloadsPage(): Record<string, unknown>[];
+  pushThings(what: "history" | "downloads"): void;
+  sendDownloads(pop?: boolean | "pop"): void;
+  resendDownloads(): void;
+  dlAct(act: string, id: number): void;
+  dlDrag(sender: Electron.WebContents, id: number): void;
+  freeze(t: Tab, on: boolean): Promise<void>;
+  mayRest(t: Tab): boolean;
+  thaw(t: Tab): void;
+  rest(t: Tab): Promise<void>;
+  sleep(tab: Tab): void;
+  closeView(tab: Tab): void;
+  sleepIdle(): Promise<void>;
+  sleepIdleRound(): Promise<void>;
+  claudeTab(url: string, guest: boolean): { tab: number; wc: Electron.WebContents; } | null;
+  newTab(address: string, opener?: number | null, focus?: boolean): number | null;
+  activate(id: number): void;
+  close(id: number, lastClosesWindow?: boolean): void;
+  tabAct(id: number, act: string): void;
+  reopen(): void;
+  jumpTask(task: "new-tab" | "new-window" | "mockups" | "hyrule" | "settings" | "reopen"): void;
+  popupWindow(pw: BrowserWindow): void;
+  lookForLogin(): Promise<void>;
+  siteKnown(host: string): boolean;
+  learnSites(): Promise<void>;
+  say(kick: string, title: string, kind?: NoticeIn["kind"]): void;
+  note(text: string, o?: Partial<NoticeIn>, on?: (act: string) => void): number;
+  vaultKey(): Promise<void>;
+  vaultUnlock(password: string): Promise<void>;
+  vaultList(): Promise<void>;
+  vaultPick(id: string): Promise<void>;
+  vaultCancel(): void;
+  lightView(): WebContentsView | null;
+  isLight(sender: Electron.WebContents): boolean;
+  // address (browser-address.ts)
+  sugView(): WebContentsView | null;
+  isSuggest(sender: Electron.WebContents): boolean;
+  suggestShow(m: unknown): void;
+  suggestSize(h: number): void;
+  suggestAct(act: "hover" | "pick", i: number): void;
+  suggestForget(kind: string, url: string): void;
+  iconData(url: string): Promise<string | null>;
+  keepIcon(host: string, urls: string[]): Promise<void>;
+  fillMarkIcons(): Promise<void>;
+  saveMarks(): void;
+  importMarks(): Promise<void>;
+  marksNotice(added: number, from: string): Partial<NoticeIn>;
+  importFrom(source: "chrome" | "safari"): Promise<void>;
+  toggleMark(): void;
+  markOp(act: string, url: string, title?: string): void;
+  markAct(act: string, title?: string): void;
+  // notices (browser-notices.ts)
+  noticeView(P?: Pane): WebContentsView | null;
+  isNotice(sender: Electron.WebContents): boolean;
+  noticeShow(s: NoticeShown | null): void;
+  noticePlace(gen: number): Promise<void>;
+  noticeBounds(w: BrowserWindow, a: { left: number; right: number; bottom: number; } | null, small: boolean, h?: number, wid?: number): Electron.Rectangle;
+  noticeAnchor(P: Pane, from: NoticeFrom): Promise<{ left: number; right: number; bottom: number; } | null>;
+  noticeAt(m: unknown): void;
+  noticeFollow(): Promise<void>;
+  noticeSize(wd: number, h: number): void;
+  noticeAct(id: number, act: string, value?: string): void;
+  noticeHover(on: boolean): void;
+  noticeFile(sender: Electron.WebContents, id: number, act: "drag" | "open"): void;
+  tvNoticeSync(): void;
+  lightHide(): void;
+  lightShow(m: { item: "letter" | "card" | "key"; text: string; count: string; }): void;
+  afDecide(): Promise<void>;
+  afLoginLabel(): { item: "key"; text: string; count: string; };
+  afDetailsLabel(): { item: "letter"; text: string; count: string; } | { item: "card"; text: string; count: string; };
+  afField(sender: Electron.WebContents, m: unknown): void;
+  afPick(one?: boolean): Promise<void>;
+  afFlick(d: number): void;
+  afKey(tab: Tab, input: Electron.Input): boolean;
+  afPinDigit(d: string): Promise<void>;
+  afSetPin(value: unknown): Promise<void>;
+  afCred(sender: Electron.WebContents, m: unknown): void;
+  afSaveCheck(s: NonNullable<SamaraBrowser["afSave"]>): Promise<void>;
+  afSaveAsk(): void;
+  afSaveGo(m: unknown): Promise<void>;
+  afBand(beat?: "call" | "open" | "wrong"): void;
+  afSound(name: "call" | "unlock" | "fill" | "wrong"): void;
+  // sync (browser-sync.ts)
+  openForward(url: string): void;
+  watchPlays(tab: Tab, url: string): void;
+  toPaid(url: string): boolean;
+  startSync(send: (m: SyncMsg) => void, log?: (s: string) => void): BrowserSync;
+  takeTabs(snap: TabSnap): void;
+  faviconFor(url: string): string;
+  iconOf(url: string): string;
+  // claude (browser-claude.ts)
+  frontNow(): void;
+  notesNews(notes: unknown, cats: unknown): void;
+  sendNotes(p: Pane): void;
+  noteSave(raw: unknown): void;
+  noteOpen(id: unknown): void;
+  isHyrule(sender: Electron.WebContents): boolean;
+  hyruleNotes(): string | null;
+  hyruleNotePlace(raw: unknown): void;
+  hyruleNewNote(raw: unknown): void;
+  hyruleAsk(raw: unknown): void;
+  hyruleGuide(raw: unknown): void;
+  hyruleRoute(raw: unknown): void;
+  routeDeliver(): void;
+  hyruleRouteTook(raw: unknown): void;
+  hyruleRouteReport(raw: unknown): void;
+  hyruleSaveLoad(): Record<string, string>;
+  hyruleSave(raw: unknown): void;
+  claudeNews(m: { t?: unknown; jobs?: unknown; items?: unknown; } | null): void;
+  claudeHello(sender: Electron.WebContents): void;
+  claudeFold(): void;
+  runeView(): WebContentsView | null;
+  isRune(sender: Electron.WebContents): boolean;
+  runeFromBand(a: Record<string, unknown>): void;
+  runeFromLayer(a: Record<string, unknown>): void;
+  rune(open: boolean, at?: { x: number; y: number; left: number; right: number; }): void;
+  placeRune(): void;
+  claudeAct(raw: unknown): void;
+  claudeOpen(raw: unknown): void;
+  drive(op: string, a: Record<string, unknown>): Promise<Record<string, unknown>>;
+  driveStep(op: string, a: Record<string, unknown>): Promise<Record<string, unknown>>;
+  privateWords(): string[];
+  noteHost(site: string): string;
+  siteNote(url: string): string;
+  setSiteNote(host: string, text: string): void;
+  pageHost(id: number): string;
+  sweepPage(id: number): number | null;
+  pageJob(id: number): number | null;
+  askPlan(card: Omit<PlanCard, "id">): Promise<PlanAnswer | null>;
+  planReply(id: string, a: { go?: unknown; change?: unknown; keep?: unknown; note?: unknown; }): void;
+  planClean(c: PlanCard, a: PlanAnswer): PlanAnswer;
+  planStep(jobId: number, at: number | null): { ok: boolean; step?: string; };
+  planJob(jobId: number, card: string): void;
+  planLogin(task: string, site: string): boolean;
+  planIcon(site: string): string;
+  askForClaude(what: string): Promise<boolean | null>;
+  askUpdate(version: string, text: string): Promise<boolean | null>;
+  takeOver(job: number): void;
+  handStart(page: number, mode: "you" | "turn", why: string): Hand | null;
+  handEnd(page: number, note: string): HandReport | null;
+  handBack(sender: Electron.WebContents, note: unknown): void;
+  handSize(sender: Electron.WebContents, h: number): void;
+  setHandSpot(x: number, y: number): void;
+  handWatching(wc: Electron.WebContents): boolean;
+  handDid(wc: Electron.WebContents, m: unknown): void;
+  handView(P: Pane): WebContentsView | null;
+  handPlace(P: Pane): void;
+  handPaint(): void;
+  stuckAsk(page: number, n: number | undefined): Promise<string>;
+  yourTurn(page: number, why: string, ms?: number): Promise<Record<string, unknown>>;
+  takeFromClaude(ids: number[]): void;
+  tell(job: number, line: string, title?: string): void;
+  claudeBind(job: number, token: string): void;
+  claudeSeen(job: number): void;
+  claudeGone(job: number): void;
+  claudeKept(job: number): boolean;
+  claudeOwner(job: number, token: string): boolean;
+  claudeTokenOf(job: number): string;
+  formSent(page: number): void;
+  keptOf(j: Job): KeptJob;
+  saveClaude(): void;
+  saveClaudeSoon(): void;
+  grabForms(): Promise<void>;
+  grabForm(page: number): Promise<void>;
+  saveClaudeNow(): Promise<void>;
+  refill(page: number, form: KeptForm): Promise<{ put: number; missing: number; }>;
+  restoreClaude(): Promise<void>;
+  carryOn(token: string, name: string): { job: number; name: string; pages: { id: number; title: string; }[]; } | { live: string; } | null;
+  earlierGroups(token: string): string[];
+  claudeWork(): { doing: "filling an application" | "working"; where: string; tabs: number; } | null;
+  workChanged(): void;
+  handOff(page: number): void;
+  driverAct(act: string, id: number): void;
+  watch(pageId: number): void;
+  unwatch(show?: boolean): void;
+  // popout (browser-popout.ts)
+  lend(id: number): { view: WebContentsView; url: string; title: string; } | null;
+  giveBack(id: number, view: WebContentsView): void;
+  isLent(id: number): boolean;
+  guesses(text: string): Promise<string[]>;
+  suggest(text: string): { kind: string; title: string; url: string; id?: number; }[];
+  onePlaying(tab: Tab): void;
+  pauseAll(): void;
+  urlOf(id: number): string | null;
+  mayPlay(sender: Electron.WebContents): { ok: boolean; shown: boolean; hold?: boolean; };
+  seen(t: Tab): boolean;
+  quietHidden(): void;
+  pauseMedia(id: number): void;
+  // mockups (browser-mockups.ts)
+  openMockup(sheet: string, title?: string, branch?: string | null, o?: { project?: string | null; icon?: string | null; }): Promise<MockVersion | null>;
+  openMockupDrop(m: MockupDrop): Promise<MockVersion | null>;
+  openMockupDropWhy(m: MockupDrop): Promise<MockVersion | string>;
+  mockHomeAdopt(): void;
+  mockNo(why: string): null;
+  mockKeep(m: MockupDrop): Promise<MockVersion | null>;
+  mockSaySeen(commit: string): void;
+  mockHomeWake(): Promise<number>;
+  mockArt(commit: string, rel: string): Promise<Buffer | null>;
+  mockWhere(sheet: string): { repo: string; rel: string; } | null;
+  showMockup(ver: MockVersion): void;
+  reopenMockups(): void;
+  mockItem(ver: MockVersion, picture: boolean): Promise<MockSendItem>;
+  mockLogos(): Record<string, string>;
+  mockFindLogo(repo: string, project: string): void;
+  mockShot(ver: MockVersion): Promise<string | null>;
+  mockSend(what: "tab" | "version" | "branch", id: number): Promise<MockSend | null>;
+  mockStages(): unknown[];
+  mockMark(a: { repo: string; sheet: string; v: number | null; stage: string; said: string; note: string; }): string;
+  mockAct(act: string, a?: { id?: number; sheet?: string; to?: string | number | null; name?: string; open?: boolean; }): void;
+  mockTab(t: Tab): Record<string, unknown>;
+  mockTidy(manual: boolean): Promise<string>;
+  mockView(): Record<string, unknown> | null;
+  mockTree(): Record<string, unknown>;
+  isMockLog(sender: Electron.WebContents): boolean;
+  openMockLog(): void;
+  mockLogLeave(): void;
+  mockLogWhere(w: { p: string; s: string | null; v: number | null; n: number | null; }): void;
+  mockLogData(): Record<string, unknown> | null;
+  pushMockLog(): void;
+  mockLogSeen(sheet: string): void;
+  mockLogStage(id: number, to: string | null, note: string): void;
+  mockLogSend(id: number): void;
+  cur(): Tab | undefined;
+  go(address: string): void;
+  act(what: string): void;
+  find(text: string, next: boolean, back: boolean): void;
+  findStop(): void;
+  key(i: Electron.Input): boolean;
+  // session (browser-session.ts)
+  changed(): void;
+  snapshot(all?: boolean): Promise<void>;
+  snapshotNow(all?: boolean): Promise<void>;
+  restore(): boolean;
+  sendTabs(): void;
+  sendPane(): void;
+  hasWindow(): boolean;
+  frontWindow(): BrowserWindow | null;
+  closeAll(): void;
+}
+for (const part of [RailPart, PanesPart, TvPart, ThingsPart, AddressPart, NoticesPart, SyncPart, ClaudePart, PopoutPart, MockupsPart, SessionPart]) {
+  for (const [k, d] of Object.entries(Object.getOwnPropertyDescriptors(part))) Object.defineProperty(SamaraBrowser.prototype, k, { ...d, enumerable: false });
 }
