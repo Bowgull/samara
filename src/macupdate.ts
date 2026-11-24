@@ -56,7 +56,8 @@ retire() {
 }
 clear_old() { [ -d "$OLD" ] || return 0; rm -rf "$OLD" 2>/dev/null || echo "Old copies still wait in $OLD (macOS would not let Samara delete them)."; return 0; }
 [ "$PHASE" = "swap" ] && trap 'launch' EXIT
-sign_app() { codesign --force --deep -s "Samara on this Mac" "$1" >/dev/null 2>&1 || codesign --force --deep -s - "$1" >/dev/null 2>&1 || true; }
+# Phase 1 (2026-11-24): signing fails closed. His own identity, else an ad-hoc signature; neither, and the update stops.
+sign_app() { codesign --force --deep -s "Samara on this Mac" "$1" >/dev/null 2>&1 || codesign --force --deep -s - "$1" >/dev/null 2>&1; }
 npm_bin() { if [ -x "$NODE_DIR/bin/npm" ]; then echo "$NODE_DIR/bin/npm"; else command -v npm; fi; }
 
 if [ "$PHASE" = "prepare" ]; then
@@ -103,8 +104,9 @@ if [ "$PHASE" = "prepare" ]; then
     iconutil -c icns "$IS" -o "$RES/electron.icns" >/dev/null 2>&1 || true
   fi
   # castLabs' video signature first, then the Mac's own (castLabs' order): the video one is already in the engine.
-  sign_app "$NEWAPP"
-  codesign --verify --deep "$NEWAPP" >/dev/null 2>&1 || true
+  # A copy that cannot be signed, or whose signature does not check out, is never swapped in: the old Samara stays.
+  sign_app "$NEWAPP" || { echo "The new Samara could not be signed; this Samara stays as it is."; exit 1; }
+  codesign --verify --deep "$NEWAPP" >/dev/null 2>&1 || { echo "The new Samara's signature did not check out; this Samara stays as it is."; exit 1; }
   # A new engine: castLabs' own check on the finished Samara, which must be a real video signature, not the development
   # one every castLabs engine arrives with (2026-10-31: 44.9.3 went in with only that, so Netflix and Prime refuse it).
   if [ -n "$ENGINE" ]; then

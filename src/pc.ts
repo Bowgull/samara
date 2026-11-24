@@ -16,6 +16,7 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { samaraBase, samaraBrowser, type Platform, type SamaraBooted } from './boot.ts';
+import { secureDns } from './privacy.ts';
 import { bootDeps } from './bootdeps.ts';
 import { CompanionLink } from './companion.ts';
 import { catchStrays, openLog } from './log.ts';
@@ -209,6 +210,7 @@ app.whenReady().then(async () => {
   if (!solo) return;
   Menu.setApplicationMenu(null);
   const log = (s: string) => console.log('samara: ' + s);
+  secureDns(app, log);
   const settings = readSettings(STATE_DIR);
   let skips: SkipSettings = DEFAULT_SKIPS;
   try { const raw = readJson<unknown>(path.join(STATE_DIR, 'skips.json'), null); if (raw !== null) skips = withDefaults(raw); } catch { /* defaults */ }
