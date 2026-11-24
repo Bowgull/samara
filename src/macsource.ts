@@ -449,8 +449,11 @@ export class MacEngine implements Source {
 
   /** Engines that passed the safety check here (this run). */
   private readonly passed = new Set<string>();
-  /** "<version> <day>": failed its safety check today. */
-  private failedOn = '';
+  /** "<version> <day>": failed its safety check today. Kept on disk, so a restart the same day does not run the
+   *  multi-minute check again. */
+  private get failedFile(): string { return path.join(this.engines, 'check-failed-today.txt'); }
+  private get failedOn(): string { try { return readFileSync(this.failedFile, 'utf8').trim(); } catch { return ''; } }
+  private set failedOn(v: string) { try { mkdirSync(this.engines, { recursive: true }); writeFileSync(this.failedFile, v); } catch { /* best effort: checked again */ } }
   private get order(): SwitchOrder { return new SwitchOrder(path.join(this.engines, 'switch-order.json')); }
   /** castLabs signs it, its back doors closed first unless this Mac learned otherwise (switchorder.ts). */
   private signEngine(p: { m: EngineManifest; dir: string }): Promise<{ r: Signed; closed: boolean }> {

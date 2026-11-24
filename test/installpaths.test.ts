@@ -275,6 +275,8 @@ test('Mac engine: an engine that fails its safety check as shipped is not staged
     if (!pass) {
       assert.equal(st.ready(), false, 'not staged'); assert.equal(e.ready(), null); assert.equal(checks, 1, 'no switches to close here, so checked once');
       await e.check('again'); assert.equal(checks, 1, 'not checked again today'); assert.equal(signs, 1, 'nor signed again');
+      const e2 = new MacEngine(p, st, { plat: () => 'darwin-x64', fetch: fetch as never, log: () => {}, changed: () => {}, evs, unzip, have: () => have, chrome: () => '150.0.1.1', pub: PUB, checkEngine: async () => { checks++; return pass; } });
+      await e2.check('after a restart'); assert.equal(checks, 1, 'nor after a restart the same day');
     } else {
       const o = e.ready()!;
       assert.equal(o.security, true); assert.equal(o.tonight, undefined, 'a new major waits for his click');
