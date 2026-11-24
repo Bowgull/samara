@@ -77,5 +77,5 @@ jobs:
         if: success() || failure()
         run: |
           echo speed-check.ts > "$RUNNER_TEMP/speed.txt"
-          if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a node tools/run-electron-checks.mjs "$RUNNER_TEMP/speed.txt" --jobs 1
-          else node tools/run-electron-checks.mjs "$RUNNER_TEMP/speed.txt" --jobs 1; fi
+          if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a node tools/run-electron-checks.mjs "$RUNNER_TEMP/speed.txt" --jobs 1 --no-retry
+          else node tools/run-electron-checks.mjs "$RUNNER_TEMP/speed.txt" --jobs 1 --no-retry; fi
