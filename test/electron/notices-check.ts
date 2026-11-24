@@ -185,13 +185,14 @@ app.whenReady().then(async () => {
   const n6 = await lj(`(() => { const n = document.querySelector('.nt:not(.rise)'); return { kick: n.querySelector('.uphd small').textContent, title: n.querySelector('.uphd b').textContent, rows: [...n.querySelectorAll('.files .drow .dt b')].map((x) => x.textContent), all: document.querySelectorAll('.nt').length }; })()`);
   check('several downloads: one notice, a row for each file', n6.rows.length === 3 && n6.kick === '3 DOWNLOADS' && n6.title === 'All ready' && b.notices.all.length === 1, JSON.stringify(n6));
     // his mouse on the second row: it shows the hand, as in the tray
-  const r1 = await lj(`(() => { const r = document.querySelectorAll('.files .drow')[1].getBoundingClientRect(); return { x: r.left + 60, y: r.top + r.height / 2 }; })()`);
+  const r1 = await lj(`(() => { const r = [...document.querySelectorAll('.files .drow')].find((x) => /report\\.docx/.test(x.querySelector('.dt b')?.textContent ?? '')).getBoundingClientRect(); return { x: r.left + 60, y: r.top + r.height / 2 }; })()`);
   layer().webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(r1.x), y: Math.round(r1.y) });
   await wait(300);
   await shot('6b-several-downloads');
   dragged = '';
   (layer().webContents as any).startDrag = (o: { file: string }) => { dragged = o.file; };
-  await lj(`document.querySelectorAll('.files .drow')[1].dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true }))`);
+  // By its title, not its place: the rows come in the order the downloads finish, which Windows does not keep (2026-11-24).
+  await lj(`[...document.querySelectorAll('.files .drow')].find((r) => /report\\.docx/.test(r.querySelector('.dt b')?.textContent ?? '')).dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true }))`);
   await until(() => Boolean(dragged), 2000);
   (layer().webContents as any).startDrag = sd;
   check('...exactly the one he grabs: report.docx, by its row', /report\.docx$/.test(dragged), dragged);
