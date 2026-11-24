@@ -3,7 +3,7 @@
 // is capped only far past anything a person keeps (the oldest go past MAX), so the file stays small.
 import { existsSync } from 'node:fs';
 import { writeFileAtomic } from './atomic.ts';
-import { readText } from './store.ts';
+import { osKeeper, readSealed, sealText, Unreadable, type Keeper } from './sealedfile.ts';
 import { joinEarlier, type EarlierEntry } from './rail.ts';
 
 /** Far past what a person keeps; only the very oldest go past it. */
@@ -24,11 +24,15 @@ export class EarlierStore {
   private d: EarlierFile = { v: 1, entries: [], gone: {}, lastTidy: 0 };
   readonly file: string;
   private readonly onChange: () => void;
-  constructor(file: string, onChange: () => void = () => {}) {
-    this.file = file; this.onChange = onChange;
+  private readonly keeper: Keeper;
+  /** Phase 1: sealed, and this computer's key would not open it: nothing is written over it this run. */
+  locked = false;
+  constructor(file: string, onChange: () => void = () => {}, keeper: Keeper = osKeeper) {
+    this.file = file; this.onChange = onChange; this.keeper = keeper;
     try {
       if (!existsSync(file)) return;
-      const s = JSON.parse(readText(file) ?? 'null') as Partial<EarlierFile> | null;
+      let s: Partial<EarlierFile> | null;
+      try { s = readSealed<Partial<EarlierFile>>(file, keeper); } catch (e) { if (e instanceof Unreadable) { this.locked = true; this.d.migrated = true; console.error('shell: Earlier is ' + e.message + '; it is left as it is'); return; } throw e; }
       if (!s || typeof s !== 'object') return;
       this.d.entries = (Array.isArray(s.entries) ? s.entries : []).map(clean).filter((x): x is EarlierEntry => x !== null);
       this.d.gone = s.gone && typeof s.gone === 'object' ? Object.fromEntries(Object.entries(s.gone).filter(([, v]) => Number.isFinite(v))) : {};
@@ -74,7 +78,8 @@ export class EarlierStore {
     // Tombstones older than 60 days have reached every machine by now.
     const old = Date.now() - 60 * 86_400_000;
     for (const [k, v] of Object.entries(this.d.gone)) if (v < old) delete this.d.gone[k];
-    try { writeFileAtomic(this.file, JSON.stringify(this.d)); } catch { /* best effort; kept in memory */ }
+    if (this.locked) { if (tell) this.onChange(); return; }
+    try { writeFileAtomic(this.file, sealText(JSON.stringify(this.d), this.keeper)); } catch { /* best effort; kept in memory */ }
     if (tell) this.onChange();
   }
 }
