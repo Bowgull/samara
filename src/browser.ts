@@ -6871,7 +6871,9 @@ export class SamaraBrowser {
             if (w === 'lever' && a?.allowed !== true) return { ok: false, needs: 'lever', what: `press ${key === 'enter' ? 'Enter' : 'Space'} on ${where} (it could send the form)` };
             if (w === 'pick') { key = 'space'; swapped = true; }
           }
-          const r = await d.key(page, key);
+          // Phase 1: a key that looks free is pressed with the effect guard, unless he already allowed it.
+          const r = await d.key(page, key, a?.allowed !== true);
+          if ('needs' in r) return { ok: false, needs: r.needs, what: r.what };
           return { ok: true, ...(swapped ? { ...r, changed: ['Enter there would have sent the form, so Space was pressed instead: it only picks', ...r.changed] } : r) };
         }
         case 'click': case 'type': {

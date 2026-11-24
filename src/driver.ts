@@ -77,6 +77,8 @@ const ASK_MS = 12_000;
 const ask = (wc: WebContents, code: string, ms = ASK_MS): Promise<any> => run(wc, code, { world: WORLD, ms });
 
 const isWeb = (u: string) => /^https?:\/\//i.test(u);
+/** " (to example.com)" when what was held would go to another site than the page's. */
+const heldTo = (to: string, host: string) => { try { const h = new URL(to).hostname.replace(/^www\./, ''); return h && h !== host ? ` (to ${h})` : ''; } catch { return ''; } };
 /** Why a driving session may never open this address, or '' (AI lockdown G7 and G13). */
 function refused(u: string, testLocal = false): string {
   let host = '';
@@ -341,6 +343,47 @@ const QUIET_JS = `new Promise((done) => {
   setTimeout(tick, 75);
 })`;
 
+/**
+ * Phase 1 (2026-11-24): levers judged by what they DO, not by their words. Before a click or key that looks free, this
+ * guard goes into the page's own world for that one action: a form being sent (its submit event, form.submit(),
+ * requestSubmit) or a request that sends something to the site itself (a POST, PUT, PATCH or DELETE by fetch or XHR,
+ * not its analytics) is held back and noted. Then the driver asks him, as for a Send button, and nothing was sent. A
+ * search form goes through. It is a second net under the words, not the only one: a page that kept its own copy of
+ * fetch from before can slip past it, so the words still decide first.
+ */
+const GUARD_JS = `(() => {
+  const g = window.__samaraGuard || (window.__samaraGuard = { armed: false, hit: null });
+  g.armed = true; g.hit = null;
+  if (g.on) return true;
+  g.on = true;
+  const searchForm = (f) => Boolean(f && (f.getAttribute('role') === 'search' || f.querySelector('input[type=search], [role=searchbox], input[name=q], input[name=query], input[name=search]')) && !f.querySelector('input[type=password]'));
+  const hold = (what, to) => { g.hit = g.hit || { what, to: String(to || location.href).slice(0, 300) }; };
+  const telemetry = /(track|analytic|telemetry|beacon|metric|collect|log(ging)?|event|pixel|ping|stats|rum)/i;
+  const sends = (method, url) => {
+    if (!g.armed || /^(GET|HEAD|OPTIONS)$/i.test(method || 'GET')) return false;
+    let u; try { u = new URL(url, location.href); } catch { return false; }
+    const site = (h) => h.split('.').slice(-2).join('.');
+    if (site(u.hostname) !== site(location.hostname) || telemetry.test(u.pathname)) return false;
+    hold('post to the site', u.href); return true;
+  };
+  document.addEventListener('submit', (e) => { if (g.armed && !searchForm(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); hold('send the form', e.target.action); } }, true);
+  const P = HTMLFormElement.prototype, sub = P.submit, rsub = P.requestSubmit;
+  P.submit = function () { if (g.armed && !searchForm(this)) { hold('send the form', this.action); return; } return sub.call(this); };
+  if (rsub) P.requestSubmit = function (b) { if (g.armed && !searchForm(this)) { hold('send the form', this.action); return; } return b === undefined ? rsub.call(this) : rsub.call(this, b); };
+  const f = window.fetch;
+  if (f) window.fetch = function (input, init) {
+    const url = typeof input === 'string' ? input : input && input.url; const method = (init && init.method) || (input && input.method) || 'GET';
+    if (sends(method, url)) return Promise.reject(new TypeError('held by Samara until the user allows it'));
+    return f.apply(this, arguments);
+  };
+  const X = XMLHttpRequest.prototype, open = X.open, send = X.send;
+  X.open = function (m, u) { this.__s = [m, u]; return open.apply(this, arguments); };
+  X.send = function () { if (this.__s && sends(this.__s[0], this.__s[1])) { try { this.abort(); } catch {} return; } return send.apply(this, arguments); };
+  return true;
+})()`;
+/** What the guard held back during the action (and it is let go). */
+const GUARD_READ = `(() => { const g = window.__samaraGuard; if (!g) return null; g.armed = false; const h = g.hit; g.hit = null; return h; })()`;
+
 /** What Space or Enter would land on: the control with the cursor, as driverrules keyWeigh judges it. Null: nothing. */
 const KEY_JS = `(() => {
   ${DEEP}
@@ -602,6 +645,17 @@ export class Driver {
     if (r) return r;
     return this.d.rules && !this.d.rules.ai(u) ? 'The user turned AI off for this site in Samara (the shield next to the address). It is never opened or read for a session.' : '';
   }
+  /**
+   * Phase 1 (2026-11-24): the plan he allowed is the session's fence. A site that is not in it (allowed, or allowed with
+   * his login) is never opened: not by browser_open, a link, a redirect or a pop-up, and never quietly logged out
+   * either. To use another site, Claude sends an updated plan, which he is asked about in Samara. Sessions without a
+   * plan listing its sites keep the older rule (signed in on the job's sites, logged out elsewhere).
+   */
+  offPlan(j: Job, url: string): boolean {
+    if (!j.planned || !j.allowed?.size) return false;
+    let site = ''; try { site = siteOf(new URL(url).hostname); } catch { return true; }
+    return !site || !(j.allowed.has(site) || !!j.sites?.has(site));
+  }
   /** His login on this site: always (true), never (false), or as the job's own sites say (undefined). */
   private loginRule(u: string): boolean | undefined { return this.d.rules?.login(u); }
   offFence(pageId: number): boolean { const p = this.page(pageId), j = p ? this.job(p.job) : undefined; if (!p || !j?.sites) return false; try { return p.guest === true || !j.sites.has(siteOf(new URL(p.url).hostname)); } catch { return true; } }
@@ -722,6 +776,7 @@ export class Driver {
     if (l.length) throw new Error(`that site is on a list of fake or harmful sites (${l.join(', ')}), so it was not opened`);
     let site = ''; try { site = siteOf(new URL(url).hostname); } catch { /* checked above */ }
     if (j.denied?.has(site)) throw new Error('The user unticked that site in your plan, so it is never opened for this session');
+    if (this.offPlan(j, url)) throw new Error(`${site || 'That site'} is not in the plan the user allowed, so it was not opened. To use it, send an updated plan with browser_plan that lists it; the user is asked in Samara.`);
     const rest = this.resting(site);
     if (rest) throw new Error(rest);
     if (j.sites && j.sites.size === 0 && site && !j.planned) j.sites.add(site);             // another task: its own first site
@@ -755,7 +810,8 @@ export class Driver {
     // Every page it reaches, not just the first (AI lockdown G7, 2026-10-14): links, new windows and redirects all meet
     // the same refusals as browser_open (banks, this machine and home network, the fake-site lists).
     const deniedSite = (u: string) => { try { const s = siteOf(new URL(u).hostname); return !!j.denied?.has(s) || !!this.resting(s); } catch { return false; } };
-    const stop = (u: string) => !isWeb(u) || !!this.why(u) || this.d.listed(u).length > 0 || deniedSite(u);
+    // Phase 1: and a page outside the plan he allowed is refused the same way (never opened logged out instead).
+    const stop = (u: string) => !isWeb(u) || !!this.why(u) || this.d.listed(u).length > 0 || deniedSite(u) || this.offPlan(j, u);
     // (A real tab's own window handler asks openHere: the tab is his, and stays his after a drag out.)
     if (win) wc.setWindowOpenHandler(({ url: u }) => { if (!stop(u)) setTimeout(() => { if (!wc.isDestroyed()) void wc.loadURL(u).catch(() => {}); }, 0); else p.blocked = u; return { action: 'deny' }; });
     this.opens.set(p.id, (u) => { if (stop(u)) { p.blocked = u; return false; } setTimeout(() => { if (!wc.isDestroyed()) void wc.loadURL(u).catch(() => {}); }, 0); return true; });
@@ -1291,10 +1347,13 @@ export class Driver {
     let to = ''; try { to = now.sendsTo ? new URL(now.sendsTo).hostname.replace(/^www\./, '') : ''; } catch { /* none */ }
     if (w === 'never') throw new Error(`that is "${now.item?.label}" on ${host}, and buying, passwords and card details are never done for him. He has to do it himself`);
     if (w === 'lever' && !allowed) return { needs: 'lever', what: `press "${String(now.item?.label ?? '').slice(0, 60)}" on ${host}${to && to !== host ? ` (it sends to ${to})` : ''}` };
+    const guarded = !allowed && await this.arm(wc);
     wc.sendInputEvent({ type: 'mouseMove', x: at.x, y: at.y });
     wc.sendInputEvent({ type: 'mouseDown', x: at.x, y: at.y, button: 'left', clickCount: 1 });
     wc.sendInputEvent({ type: 'mouseUp', x: at.x, y: at.y, button: 'left', clickCount: 1 });
     await this.settle(wc);
+    const held = guarded ? await this.disarm(wc) : null;
+    if (held) return { needs: 'lever', what: `press "${String(now.item?.label ?? '').slice(0, 60)}" on ${host}: it would ${held.what}${heldTo(held.to, host)}. Nothing was sent` };
     const after = await this.state(wc, n);
     this.checkChallenge(p, after);
     const changed = this.told(before, after, { n, field: ['text', 'search', 'select'].includes(it?.kind ?? '') });
@@ -1312,7 +1371,7 @@ export class Driver {
   }
 
   /** A key on whatever has the cursor: Escape, Tab, Shift+Tab, arrows, Enter, Page Up/Down, Home, End, Space. */
-  async key(pageId: number, key: string): Promise<{ title: string; url: string; changed: string[] }> {
+  async key(pageId: number, key: string, guard = false): Promise<{ title: string; url: string; changed: string[] } | { needs: 'lever'; what: string }> {
     const KEYS: Record<string, { code: string; shift?: boolean }> = { escape: { code: 'Escape' }, tab: { code: 'Tab' }, 'shift+tab': { code: 'Tab', shift: true }, enter: { code: 'Enter' },
       up: { code: 'Up' }, down: { code: 'Down' }, left: { code: 'Left' }, right: { code: 'Right' }, pageup: { code: 'PageUp' }, pagedown: { code: 'PageDown' }, home: { code: 'Home' }, end: { code: 'End' }, space: { code: 'Space' } };
     const k = KEYS[String(key ?? '').toLowerCase().replace(/^arrow/, '').replace(/\s+/g, '')];
@@ -1320,14 +1379,22 @@ export class Driver {
     const { p, wc } = this.wcOf(pageId);
     const before = await this.state(wc, null);
     const mods = k.shift ? ['shift' as const] : [];
+    const guarded = guard && (k.code === 'Enter' || k.code === 'Space') && await this.arm(wc);
     wc.sendInputEvent({ type: 'keyDown', keyCode: k.code, modifiers: mods });
     if (k.code === 'Enter') wc.sendInputEvent({ type: 'char', keyCode: '\r' });
     if (k.code === 'Space') wc.sendInputEvent({ type: 'char', keyCode: ' ' });
     wc.sendInputEvent({ type: 'keyUp', keyCode: k.code, modifiers: mods });
     await this.settle(wc);
+    const held = guarded ? await this.disarm(wc) : null;
+    if (held) { let host = ''; try { host = new URL(p.url).hostname.replace(/^www\./, ''); } catch { /* none */ } return { needs: 'lever', what: `press ${k.code} on ${host}: it would ${held.what}${heldTo(held.to, host)}. Nothing was sent` }; }
     const after = await this.state(wc, null);
     this.checkChallenge(p, after);
     return { title: p.title, url: p.url, changed: this.told(before, after) };
+  }
+  /** The effect guard for one action (GUARD_JS); false when the page would not take it (then the words alone decide). */
+  private async arm(wc: WebContents): Promise<boolean> { try { return await run(wc, GUARD_JS, { ms: 2000 }) === true; } catch { return false; } }
+  private async disarm(wc: WebContents): Promise<{ what: string; to: string } | null> {
+    try { const h = await run<{ what?: unknown; to?: unknown } | null>(wc, GUARD_READ, { ms: 2000 }); return h && typeof h.what === 'string' ? { what: h.what.slice(0, 60), to: String(h.to ?? '').slice(0, 300) } : null; } catch { return null; }
   }
   /** What Space or Enter would land on now (driverrules keyWeigh), and its number when it has one. */
   async keyTarget(pageId: number): Promise<KeyTarget | null> { const { wc } = this.wcOf(pageId); return await ask(wc, KEY_JS) as KeyTarget | null; }

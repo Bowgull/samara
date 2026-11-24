@@ -42,3 +42,6 @@ update-check-check.ts
 wake-check.ts
 rail-start-check.ts
 rail-earlier-check.ts
+fence-check.ts
+lockdown-check.ts
+effect-check.ts

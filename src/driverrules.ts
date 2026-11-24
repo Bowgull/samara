@@ -47,6 +47,9 @@ export function keyWeigh(key: 'enter' | 'space', t: KeyTarget | null): Weight | 
   if (kind === 'select') return 'free';
   if (kind === 'text') return 'lever';                                            // sends its form, or a chat box's message
   if (t.editable) return 'lever';
+  // Phase 1 (2026-11-24): a spot that is not a real control (a plain box the page made focusable) can do anything on
+  // Enter; it asks, as it did before 2026-10-31. Real buttons and links are judged as a click.
+  if (kind === 'button' && t.tag !== 'button' && t.tag !== 'input' && !/^(button|link|menuitem|tab)$/.test(role)) return 'lever';
   return asClick;                                                                 // links, buttons, submit: as a click
 }
 

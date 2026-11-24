@@ -37,3 +37,13 @@ test('buying and passwords never', () => {
   assert.equal(keyWeigh('enter', el({ kind: 'password' })), 'never');
   assert.equal(keyWeigh('space', el({ tag: 'button', kind: 'button', label: 'Buy now' })), 'never');
 });
+
+// Phase 1 (2026-11-24): Enter on a spot that is not a real control (a plain box the page made focusable) asks him.
+test('Enter on a plain focusable box asks; real buttons and links are judged as a click', () => {
+  const box: KeyTarget = { tag: 'div', type: '', role: '', kind: 'button', label: 'plain', formSearch: false, inForm: false, editable: false };
+  assert.equal(keyWeigh('enter', box), 'lever');
+  assert.equal(keyWeigh('enter', { ...box, role: 'button' }), 'free');
+  assert.equal(keyWeigh('enter', { ...box, tag: 'button' }), 'free');
+  assert.equal(keyWeigh('enter', { ...box, tag: 'button', label: 'Send' }), 'lever');
+  assert.equal(keyWeigh('space', box), 'free', 'Space on it is judged as a click of a harmless button');
+});
