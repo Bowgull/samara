@@ -242,8 +242,8 @@ export class BrowserSync {
 
   /** Phase 4 (canary.ts): this machine's verdict on a new version, for the other machine (which waits on it). Sent when
    *  the link is up; told again when it comes back up (sendFull). */
-  private told: { version: string; verdict: 'good' | 'bad' } | null = null;
-  canary(version: string, verdict: 'good' | 'bad'): void { this.told = { version, verdict }; this.send({ t: 'bsync.canary', version, verdict }); }
+  private told = new Map<string, 'good' | 'bad'>();
+  canary(version: string, verdict: 'good' | 'bad'): void { if (this.told.get(version) === 'bad') return; this.told.set(version, verdict); this.send({ t: 'bsync.canary', version, verdict }); }
   /** The other machine's verdict on a version it ran first. */
   onCanary: ((version: string, verdict: 'good' | 'bad') => void) | null = null;
   /** Something started playing on this machine: the other one stops (one video at a time). */
@@ -278,7 +278,7 @@ export class BrowserSync {
     // Sheet 79: and the mockup marks, after time apart (each side keeps the newer of each).
     const ms = t.mockStages?.();
     if (ms?.length) this.send({ t: 'bsync.mstages', list: ms });
-    if (this.told) this.send({ t: 'bsync.canary', ...this.told });
+    for (const [version, verdict] of this.told) this.send({ t: 'bsync.canary', version, verdict });
   }
 
   /** Something arrived from the other machine. */

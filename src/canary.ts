@@ -57,6 +57,19 @@ export class Canary {
   /** The verdict already reached on this version (from an earlier run), to tell the other machine again. */
   given(): 'good' | 'bad' | null { return this.w?.verdict ?? null; }
   private save(): void { if (this.w) saveJson(this.file, this.w); }
+  /** Every verdict this machine reached, kept apart from the watch (which a turned-back version's predecessor replaces
+   *  at the next start), so the other machine can always be told again, the bad ones above all. */
+  private get historyFile(): string { return this.file.replace(/\.json$/, '') + '-verdicts.json'; }
+  history(): Record<string, 'good' | 'bad'> {
+    const h = readJson<Record<string, string>>(this.historyFile, {}) ?? {};
+    return Object.fromEntries(Object.entries(h).filter((e): e is [string, 'good' | 'bad'] => e[1] === 'good' || e[1] === 'bad'));
+  }
+  private remember(v: string, verdict: 'good' | 'bad'): void {
+    const h = this.history();
+    if (h[v] === 'bad') return;
+    h[v] = verdict;
+    saveJson(this.historyFile, Object.fromEntries(Object.entries(h).slice(-50)));
+  }
   /** Something went wrong; counted only while the version is still being watched. */
   record(kind: 'own' | 'helper'): void {
     if (!this.w || this.w.verdict || this.now() - this.w.since >= WATCH_MS) return;
@@ -70,6 +83,7 @@ export class Canary {
     if (r.v === 'watching') return null;
     this.w.verdict = r.v; if (r.why) this.w.why = r.why;
     this.save();
+    this.remember(this.w.version, r.v);
     return { v: r.v, version: this.w.version, ...(r.why ? { why: r.why } : {}) };
   }
 }

@@ -329,8 +329,8 @@ export function samaraBrowser(base: SamaraBase, p: Platform, bp: BrowserPlatform
       p.log(`update: Samara ${r.version} is turned back: ${r.why}`);
       if (cv.rollback(r.why ?? '')) browser.say('Samara', `Samara ${r.version} is being turned back (${r.why}). The version before comes back the next time Samara starts.`);
     };
-    const had = canary.given();
-    if (had) browser.sync?.canary(cv.version, had);
+    // Every verdict reached here is told again at each start (a turned-back version is no longer the one running).
+    for (const [v, verdict] of Object.entries(canary.history())) browser.sync?.canary(v, verdict);
     settle();
     sched.every('canary.settle', 10 * 60_000, settle, { first: 60_000 });
   }

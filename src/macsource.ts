@@ -245,7 +245,7 @@ export class MacSamara implements Source {
       // Phase 4 (canary.ts): the PC takes a new Samara first. The Mac waits a day for it, or less when the PC says it ran
       // a quiet day; never one the PC turned back. His own check skips the wait, never the turned back.
       const peer = this.o.peer?.(m.version) ?? null;
-      if (peer === 'bad') { this.lists.skip(m.version); this.o.log(`update: Samara ${m.version} was turned back on the PC; not offered here`); return 'none'; }
+      if (peer === 'bad') { this.lists.skip(m.version); this.drop(m.version); this.o.log(`update: Samara ${m.version} was turned back on the PC; not offered here`); return 'none'; }
       if (!macMayTake(peer, Date.parse(m.at), Date.now(), this.report !== null)) {
         if (this.waitSaid !== m.version) { this.waitSaid = m.version; this.o.log(`update: Samara ${m.version} is on GitHub; the Mac takes it after the PC's quiet day`); }
         return 'none';

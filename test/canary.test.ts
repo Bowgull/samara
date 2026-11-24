@@ -63,3 +63,13 @@ test('the Mac: waits its day, takes it at once on the PC\'s good, never on its b
   assert.equal(p.get('1.32.0'), 'good');
   assert.equal(p.get('1.33.0'), null);
 });
+
+test('a bad verdict outlives the turn-back: the version before starts a new watch, the bad one is still there to tell', () => {
+  const d = dir(), file = path.join(d, 'canary.json');
+  const bad = new Canary({ file, version: '1.31.0', unclean: false });
+  bad.record('own'); bad.record('own');
+  assert.equal(bad.settle()?.v, 'bad');
+  const back = new Canary({ file, version: '1.30.0', unclean: false });
+  assert.equal(back.given(), null, 'the version before is watched afresh');
+  assert.deepEqual(back.history(), { '1.31.0': 'bad' }, 'and the bad verdict is kept to tell the Mac');
+});

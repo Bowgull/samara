@@ -166,7 +166,7 @@ app.whenReady().then(async () => {
   browser.onPaidFallback = (url) => paidWindow(drm, url);
   const sync = browser.sync!;
   // Phase 4: what the PC said about a version it ran first (good: the Mac may take it now; bad: never).
-  sync.onCanary = (v, verdict) => { peer.set(v, verdict); if (verdict === 'good') void samara?.check('the PC ran it a quiet day'); };
+  sync.onCanary = (v, verdict) => { peer.set(v, verdict); void samara?.check(verdict === 'good' ? 'the PC ran it a quiet day' : 'the PC turned it back'); };
 
   // The pop-out's keys: Ctrl+Shift+V hides and shows it; Ctrl+Alt+P pins it while it is up.
   const hk = holdHotkey(stateDir, () => popout.toggleHidden());
