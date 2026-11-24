@@ -28,16 +28,18 @@ app.whenReady().then(async () => {
   const pc = make() as any, mac = make() as any;
   pc.popupOk.add('twitch.tv'); pc.trusted.add('github.com'); pc.httpOk.add('192.168.1.10'); pc.paused.add('youtube.com');
   pc.prefs.dark = false; pc.prefs.darkOff = ['reddit.com'];
-  pc.stash = [{ id: 7, name: 'Raid prep', at: 1, tabs: [{ url: 'https://wowhead.com/x', title: 'Wowhead' }, { url: 'https://www.rbcroyalbank.com/accounts', title: 'Bank' }] }];
+  // Phase R: Earlier replaced the Stash, and travels the same way (money sites never).
+  pc.earlier.add([{ key: 'k1', url: 'https://wowhead.com/x', title: 'Wowhead', at: 1 }, { key: 'k2', url: 'https://www.rbcroyalbank.com/accounts', title: 'Bank', at: 1 }]);
   const sent = JSON.parse(JSON.stringify(pc.syncTarget.prefs()));
   check('the bank tab never leaves the PC', !JSON.stringify(sent).includes('rbcroyalbank'));
   mac.syncTarget.setPrefs(sent);
   check('popups allowed on the same sites', mac.popupOk.has('twitch.tv'));
-  check('downloads trusted from the same sites', mac.trusted.has('github.com'));
-  check('the same plain-http exceptions', mac.httpOk.has('192.168.1.10'));
+  // A site the other machine trusts waits for his yes here (peer lists), it is never trusted silently.
+  check('downloads trusted on the other machine wait for his yes here', mac.peerTrusted.has('github.com') && !mac.trusted.has('github.com'));
+  check('plain-http exceptions from the other machine wait for his yes here', mac.peerHttp.has('192.168.1.10') && !mac.httpOk.has('192.168.1.10'));
   check('ads paused on the same sites', mac.paused.has('youtube.com'));
   check('dark mode setting and its exceptions', mac.prefs.dark === false && mac.prefs.darkOff.includes('reddit.com'));
-  check('the stashed trail, without the bank tab', mac.stash.length === 1 && mac.stash[0].tabs.length === 1 && mac.stash[0].name === 'Raid prep', JSON.stringify(mac.stash));
+  check('Earlier, without the bank tab', mac.earlier.entries.length === 1 && mac.earlier.entries[0].url === 'https://wowhead.com/x', JSON.stringify(mac.earlier.entries));
   mac.syncTarget.setPrefs({ ...sent, lists: { ...sent.lists, popupOk: ['ok.example', 'not a host!', 42] } });
   check('a bad entry from the other side is dropped', [...mac.popupOk].join() === 'ok.example', [...mac.popupOk].join());
   pages.close();
