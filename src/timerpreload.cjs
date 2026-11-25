@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('samara', {
   /** A key on the hourglass: pause, add, again, stop, rename (its own timer only). */
   timerAct: (a) => ipcRenderer.send('timer:act', a),
   timerClickable: (on) => ipcRenderer.send('timer:clickable', on === true),
+  /** Where the plate and keys are (the Mac follows the pointer with these). */
+  timerAreas: (a) => ipcRenderer.send('timer:areas', a),
   timerDrag: (a) => ipcRenderer.send('timer:drag', a),
   timerMenu: () => ipcRenderer.send('timer:menu'),
   /** Rename is over: the keyboard goes back. */

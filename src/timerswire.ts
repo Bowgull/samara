@@ -121,6 +121,7 @@ export function startTimers(o: TimersOpts): TimersHub {
     const v = a as Record<string, unknown>;
     if (v.phase === 'start' || v.phase === 'move' || v.phase === 'end') wins.drag(e.sender, v.phase, Number(v.dx) || 0, Number(v.dy) || 0);
   });
+  ipcMain.on('timer:areas', (e, a) => { if (fromTimer(e)) wins.areas(e.sender, a); });
   ipcMain.on('timer:menu', (e) => { if (fromTimer(e)) wins.openMenu(e.sender); });
   ipcMain.on('timer:typing', (e, on) => { if (fromTimer(e) && on !== true) wins.typingDone(e.sender); });
   ipcMain.on('timer:start', (e, a) => {

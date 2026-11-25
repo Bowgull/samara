@@ -126,7 +126,9 @@ export class Timers {
   /** The ones that have just run out: marked done (kept on the list), returned once. */
   due(now = Date.now()): Timer[] {
     const out = this.all.filter((t) => !t.done && !t.paused && t.end <= now);
-    if (out.length) { for (const t of out) t.done = t.end; this.save(); }
+    // One that ran out long ago (Samara was closed) counts as done now, so it rings and can still be answered (Again,
+    // 5 more) for DONE_KEEP_MS, instead of being expired the moment it rings.
+    if (out.length) { for (const t of out) t.done = now - t.end >= DONE_KEEP_MS ? now : t.end; this.save(); }
     return out.map((t) => ({ ...t }));
   }
   /** Finished timers nobody answered within DONE_KEEP_MS go. Returns the ids that went. */
@@ -145,4 +147,20 @@ export class Timers {
     return n;
   }
   private save(): void { try { writeFileAtomic(this.file, JSON.stringify(this.all)); } catch { /* kept in memory; the next change tries again */ } }
+}
+
+/** A part of the window that takes the mouse (the plate, the keys), in the window's own CSS pixels. */
+export interface Area { x: number; y: number; w: number; h: number }
+
+/** The parts the page says take the mouse, checked: at most 4, numbers, inside the window. Null when none make sense. */
+export function cleanAreas(a: unknown, width: number, height: number): Area[] | null {
+  if (!Array.isArray(a)) return null;
+  const out: Area[] = [];
+  for (const r of a.slice(0, 4)) {
+    const o = (r && typeof r === 'object' ? r : {}) as Record<string, unknown>;
+    const [x, y, w, h] = [o.x, o.y, o.w, o.h].map(Number) as [number, number, number, number];
+    if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0 || x < -1 || y < -1 || x + w > width + 1 || y + h > height + 1) continue;
+    out.push({ x, y, w, h });
+  }
+  return out.length ? out : null;
 }

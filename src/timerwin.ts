@@ -13,7 +13,7 @@ import { BrowserWindow, Menu, screen } from 'electron';
 import { SAFE_WEB_PREFERENCES, denyPermissions, lockDown } from './safety.ts';
 import { writeFileAtomic } from './atomic.ts';
 import { readJson } from './store.ts';
-import { COLOURS, type Colour, type Timer } from './timers.ts';
+import { COLOURS, cleanAreas, type Area, type Colour, type Timer } from './timers.ts';
 
 interface Spot { x: number; y: number }
 export interface TimerWinHooks {
@@ -36,7 +36,8 @@ export interface TimerWinHooks {
 export const TIMER_W = 300, TIMER_H = 170;
 const NAMES: Record<Colour, string> = { blue: 'Blue', gold: 'Gold', rose: 'Rose', jade: 'Jade', violet: 'Violet' };
 
-type Entry = { w: BrowserWindow; t: Timer; hot: boolean };
+type Entry = { w: BrowserWindow; t: Timer; hot: boolean; areas?: Area[] };
+
 
 export class TimerWindows {
   private readonly wins = new Map<string, Entry>();
@@ -113,6 +114,11 @@ export class TimerWindows {
   windowOf(id: string): BrowserWindow | null { const v = this.wins.get(id); return v && !v.w.isDestroyed() ? v.w : null; }
   get count(): number { return this.wins.size; }
 
+  /** The page says where its plate and keys are (the Mac's pointer check uses them). */
+  areas(sender: Electron.WebContents, a: unknown): void {
+    const id = this.idOf(sender); const v = id ? this.wins.get(id) : null;
+    if (v) v.areas = cleanAreas(a, TIMER_W, TIMER_H) ?? undefined;
+  }
   /** The page says the mouse is (or is not) over its plate: only then does the window take clicks. */
   clickable(sender: Electron.WebContents, on: boolean): void {
     const id = this.idOf(sender); const v = id ? this.wins.get(id) : null;
@@ -136,7 +142,9 @@ export class TimerWindows {
     for (const v of this.wins.values()) {
       if (v.w.isDestroyed()) continue;
       const b = v.w.getBounds();
-      const on = p.x >= b.x && p.x < b.x + b.width && p.y >= b.y && p.y < b.y + b.height;
+      // only over the plate and its keys (the page says where they are); the empty room round them lets clicks through
+      const inside = (a: Area) => p.x >= b.x + a.x && p.x < b.x + a.x + a.w && p.y >= b.y + a.y && p.y < b.y + a.y + a.h;
+      const on = v.areas ? v.areas.some(inside) : p.x >= b.x && p.x < b.x + b.width && p.y >= b.y && p.y < b.y + b.height;
       if (on !== v.hot) { v.hot = on; v.w.setIgnoreMouseEvents(!on, { forward: true }); }
     }
   }

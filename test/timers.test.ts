@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Timers, MAX_TIMERS, DONE_KEEP_MS, MIN_LEFT_MS, MAX_MS, COLOURS, parseCustom, sayDuration, tidyLabel, isTimerAction } from '../src/timers.ts';
+import { Timers, MAX_TIMERS, DONE_KEEP_MS, MIN_LEFT_MS, MAX_MS, COLOURS, parseCustom, sayDuration, tidyLabel, isTimerAction, cleanAreas } from '../src/timers.ts';
 
 const file = () => path.join(mkdtempSync(path.join(os.tmpdir(), 'timers-')), 'timers.json');
 const T0 = 1_800_000_000_000;
@@ -132,4 +132,29 @@ test('said back in plain words; names are one short line; only the known keys', 
   assert.equal(sayDuration(90_000), '1 minute 30 seconds');
   assert.equal(tidyLabel('a\tb\u0007c ' + 'x'.repeat(80)).length, 40);
   assert.ok(isTimerAction('pause') && !isTimerAction('delete') && !isTimerAction(undefined));
+});
+
+test('a timer that ran out while Samara was closed rings and can still be answered', () => {
+  const s = new Timers(file());
+  const t = s.start(60_000, 'Tea', T0)!;
+  const later = T0 + 60_000 + 3 * 3_600_000;   // three hours after it ran out
+  const due = s.due(later);
+  assert.equal(due.length, 1);
+  assert.deepEqual(s.expire(later), [], 'not gone the moment it rings');
+  assert.ok(s.get(t.id)?.done);
+  assert.ok(s.act(t.id, 'again', later), 'Again still finds it');
+  s.act(t.id, 'stop', later);
+  // one that ran out a minute ago keeps its real end
+  const u = s.start(60_000, '', later)!;
+  s.due(later + 120_000);
+  assert.equal(s.get(u.id)?.done, later + 60_000);
+  assert.deepEqual(s.expire(later + 60_000 + DONE_KEEP_MS), [u.id]);
+});
+
+test('the parts of a timer window that take the mouse are checked', () => {
+  assert.deepEqual(cleanAreas([{ x: 10, y: 16, w: 200, h: 60 }, { x: 10, y: 90, w: 120, h: 28 }], 300, 170), [{ x: 10, y: 16, w: 200, h: 60 }, { x: 10, y: 90, w: 120, h: 28 }]);
+  assert.equal(cleanAreas('x', 300, 170), null);
+  assert.equal(cleanAreas([], 300, 170), null);
+  assert.deepEqual(cleanAreas([{ x: 0, y: 0, w: 900, h: 10 }, { x: 'a', y: 0, w: 1, h: 1 }, { x: 5, y: 5, w: 5, h: 5 }], 300, 170), [{ x: 5, y: 5, w: 5, h: 5 }], 'outside the window or not numbers: left out');
+  assert.equal(cleanAreas(Array(10).fill({ x: 1, y: 1, w: 1, h: 1 }), 300, 170)!.length, 4);
 });
