@@ -117,7 +117,7 @@ const waitingUrls: string[] = [];
 const urlsIn = (argv: string[]) => argv.filter((a) => /^https?:\/\//i.test(a)).slice(0, 5);
 waitingUrls.push(...urlsIn(process.argv));
 
-/** A taskbar task: the browser's own here, and New note, Timer and the Music player (Samara's own since 2026-11-25). */
+/** A taskbar task: the browser's own here, and New note, Timer, the Music player and Snip (Samara's own since 2026-11-25). */
 function runTask(t: SamaraTask): void {
   // Phase 5: Quit Samara (taskbar list or its ... menu). A real quit: it leaves its mark, so the companion shows no crash card.
   if (t === 'quit') { console.log('samara: quit, on his ask'); app.quit(); return; }
@@ -127,6 +127,8 @@ function runTask(t: SamaraTask): void {
   if (t === 'timer') { if (boot?.timers) boot.timers.setup(); else pending = t; return; }
   // M1 (2026-11-25): and the Music player.
   if (t === 'player') { if (boot?.music) boot.music.open(); else pending = t; return; }
+  // S1 (2026-11-25): and Snip.
+  if (t === 'snip') { if (boot?.snips) void boot.snips.start(); else pending = t; return; }
   // the companion's own tools never wait for Samara's window (they are not Samara's): straight to him.
   if (isPopoutTask(t) && NEEDS_COMPANION.has(t)) {
     if (link.connected) link.send({ t: 'relay', m: { t: 'samara.task', task: t } } as never); else wakeCompanion(t);
@@ -351,7 +353,7 @@ app.whenReady().then(async () => {
   direct.listen();
   // Started by a link, a task or his click: the window comes up. Started quietly (--quiet, a Claude session): only the doors.
   // New note, Timer or Music player from the taskbar list with Samara closed: only that comes up, not a browser window.
-  if ((!process.argv.includes('--quiet') && startTask !== 'new-note' && startTask !== 'timer' && startTask !== 'player') || waitingUrls.length) {
+  if ((!process.argv.includes('--quiet') && startTask !== 'new-note' && startTask !== 'timer' && startTask !== 'player' && startTask !== 'snip') || waitingUrls.length) {
     b.open(waitingUrls.shift());
     for (const u of waitingUrls.splice(0)) b.open(u);
   }

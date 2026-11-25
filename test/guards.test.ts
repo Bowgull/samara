@@ -82,7 +82,10 @@ test('links leave Samara for the system only from the reviewed places', () => {
     'src/noteswire.ts': 1,
     // M1: Sign in to Spotify: only ever Spotify's own authorize page or Samara's own 127.0.0.1:47835 sign-in page, both
     // built in spotify.ts signIn (nothing a page chose).
-    'src/musicwire.ts': 1 };
+    'src/musicwire.ts': 1,
+    // S1: Ask Claude about a snip (claude://code/new built by newChatLink: the snip's name and its file, nothing a page
+    // chose) and the Mac's Screen Recording page of System Settings (a fixed address).
+    'src/snipwire.ts': 1 };
   const seen: Record<string, number> = {};
   for (const f of mainCode()) {
     const n = [...readFileSync(f, 'utf8').matchAll(/shell\.openExternal\(/g)].length;

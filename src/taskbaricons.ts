@@ -1,5 +1,5 @@
 // The little pictures for Samara's taskbar (sheet 66 A): the thumbnail buttons (previous, play, pause, next, open, +1,
-// stop, pin) and the right-click list's Pop-outs items (show all, hide all, note, hourglass, music). Pixel art:
+// stop, pin) and the right-click list's Pop-outs items (show all, hide all, note, hourglass, music, snip). Pixel art:
 // every pixel placed by hand on a 16 x 16 grid, a parchment glyph with a dark-wood rim so it reads on Windows' dark and
 // light menus alike; the 32 px one is the same pixels doubled (whole-number scaling only, never smoothed).
 // No Electron here: plain BGRA buffers (straight alpha), so the unit test can look at them. taskbar.ts makes the images.
@@ -50,6 +50,10 @@ export const GLYPHS: Record<string, string[]> = {
   music: G([
     '................', '.......#######..', '.......#######..', '.......#.....#..', '.......#.....#..', '.......#.....#..', '.......#.....#..', '.......#.....#..',
     '.......#.....#..', '....####..####..', '...#####.#####..', '...#####.#####..', '....###...###...', '................', '................', '................']),
+  // S1 (2026-11-25): Snip, a pair of scissors.
+  snip: G([
+    '................', '..##.......##...', '.#..#.....#..#..', '.#..#.....#..#..', '..##.#...#.##...', '......#.#.......', '.......#........', '......#.#.......',
+    '.....#...#......', '....#.....#.....', '...#.......#....', '..#.........#...', '................', '................', '................', '................']),
 };
 
 /** The 16 x 16 picture of a glyph (BGRA, straight alpha): parchment where it is drawn, dark wood all round it. */
@@ -83,7 +87,7 @@ export function icoFromPngs(pngs: { size: number; png: Buffer }[]): Buffer {
 
 /** Which glyph each right-click item wears (Gather wears the companion's own face, from its .ico). */
 export const TASK_GLYPH: Record<string, string> = {
-  'popouts-show': 'showall', 'popouts-hide': 'hideall', 'new-note': 'note', 'timer': 'hourglass', 'player': 'music',
+  'popouts-show': 'showall', 'popouts-hide': 'hideall', 'new-note': 'note', 'timer': 'hourglass', 'player': 'music', 'snip': 'snip',
 };
 /** The helper's icon slots, one per button glyph (askProxy K). */
 export const BUTTON_GLYPHS = ['prev', 'play', 'pause', 'next', 'open', 'plus', 'stop', 'pin'] as const;
