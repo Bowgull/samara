@@ -20,8 +20,12 @@
 }
 
 /* ---- one focus ring: gold, outside the edge, never on the drawer -------------------------------------------- */
+/* 2026-11-25 (his ask: "it still highlights yellow"): never on the address box or the find box either. A text box
+   always counts as keyboard focus, so a click in the bar drew the gold ring round the words. The bar itself shows it is
+   open: it slides out wider. */
 html:not(.solo) body :not(.hnd, .hnd *, .drawer, .drawer *):focus-visible{outline:3px solid var(--ring);outline-offset:2px}
 html:not(.solo) body :not(.hnd, .hnd *, .drawer, .drawer *):focus:not(:focus-visible){outline:none}
+html:not(.solo) body .slot .edit:focus-visible{outline:none}
 
 /* ---- the switch: on and off, the same everywhere ------------------------------------------------------------
    <button class="sw" role="switch" aria-checked aria-label="Block ads"><i class="bed"><i class="nub"></i></i></button>
@@ -141,7 +145,7 @@ html.solo .band .lantern{display:none}
 #menukey[aria-expanded="true"] svg path,#menukey[aria-expanded="true"] svg rect{fill:var(--gold-lit)}
 #back.dim,#fwd.dim{opacity:1;background:linear-gradient(180deg,#2c1d3e,#1e1430)}
 #back.dim svg path,#fwd.dim svg path{fill:#7d6a8e}
-.band .slot{border:0;border-radius:11px;min-height:38px;box-sizing:border-box;padding:0 12px;margin:0 4px;
+.band .slot{border:0;border-radius:11px;min-height:38px;box-sizing:border-box;padding:0 12px;margin:0 auto 0 var(--slot-ml,4px);
   box-shadow:0 0 0 2px var(--outline),inset 0 3px 0 rgba(0,0,0,.6),0 2px 0 rgba(255,224,150,.12)}
 .band .slot .url{color:#A69DC2}
 

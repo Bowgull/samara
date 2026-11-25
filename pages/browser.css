@@ -1166,8 +1166,12 @@ html.windrag,html.windrag *{cursor:grabbing !important}
 /* ---- Sheet 88 (2026-10-25). B: the bar sits calm in the middle at 760 wide, showing just the site's
    name; clicked (or ⌘L) it slides out to the full width for the whole address and the suggestions. C: a slimmer band,
    so the page starts 12 px higher (the lip stays). ---- */
-.band .slot{max-width:1000px;box-sizing:border-box;margin:0 auto;transition:max-width .24s cubic-bezier(.2,.8,.2,1)}
-.band .slot.editing{max-width:1280px}
+/* 2026-11-25 (his ask: "its off center"): centred on the window, not in the gap between the keys (four on the left,
+   one on the right). browser.js centreSlot sets --slot-ml; --slotmax is the width it is headed for, so it can be read
+   mid-slide. */
+.band .slot{--slotmax:1000px;max-width:min(var(--slotmax),var(--slot-fit,100%));box-sizing:border-box;margin:0 auto 0 var(--slot-ml,4px);
+  transition:max-width .24s cubic-bezier(.2,.8,.2,1),margin-left .24s cubic-bezier(.2,.8,.2,1)}
+.band .slot.editing{--slotmax:1280px}
 .slot .url{text-align:center}
 @media (prefers-reduced-motion:reduce){.band .slot{transition:none}}
 .band{height:60px}
