@@ -11,7 +11,8 @@ import { fileURLToPath } from 'node:url';
 import { servePages } from '../../src/pageserver.ts';
 import { SamaraBrowser } from '../../src/browser.ts';
 import { wireBrowser } from '../../src/browseripc.ts';
-import { startTools } from '../../src/toolswire.ts';
+import { startTools, toolsKeyFor } from '../../src/toolswire.ts';
+import { sayKey } from '../../src/notes.ts';
 
 process.on('uncaughtException', (e) => { console.log('HARNESS NOTE ' + String((e as Error).message).split('\n')[0]); });
 process.on('unhandledRejection', (e) => { console.log('HARNESS REJECTION ' + String((e as Error)?.stack ?? e)); app.exit(2); });
@@ -33,7 +34,8 @@ app.whenReady().then(async () => {
   const did: string[] = [];
   const tools = startTools({ hubs: { timer: () => did.push('timer'), music: () => did.push('music'), snip: () => did.push('snip'), note: () => did.push('note') },
     noteKey: 'Control+nummult', log: (s) => console.log('LOG ' + s) });
-  check('the tools key is held (the PC\'s: Ctrl + Num /)', globalShortcut.isRegistered('Control+numdiv') && tools.key === 'Ctrl + Num /', String(tools.key));
+  const tk = toolsKeyFor(process.platform);
+  check('this machine\'s tools key is held (the Mac\'s Control + Option + T, the PC\'s Ctrl + Num /)', globalShortcut.isRegistered(tk) && tools.key === sayKey(tk, process.platform === 'darwin'), String(tools.key));
 
   tools.open();
   check('its menu comes up', !!shown);
@@ -63,7 +65,7 @@ app.whenReady().then(async () => {
   check('☰ › Tools › New note is the quick note', did.includes('quick'));
 
   tools.close();
-  check('closing lets the key go', !globalShortcut.isRegistered('Control+numdiv'));
+  check('closing lets the key go', !globalShortcut.isRegistered(tk));
   pages.close();
   console.log(bad ? `${bad} FAILED` : 'ALL PASS');
   app.exit(bad ? 1 : 0);
