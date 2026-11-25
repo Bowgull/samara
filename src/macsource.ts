@@ -24,6 +24,7 @@ import { macMayTake } from './canary.ts';
 import { fileURLToPath } from 'node:url';
 import { engineGroups } from './pcsource.ts';
 import { macUpdateScript } from './macupdate.ts';
+import { macAppName, macBundleId, macHome } from './dirs.ts';
 import { readJson, saveJson } from './store.ts';
 import { VersionLists, isVersion, newer, plain, type CardGroup, type CheckOutcome, type CheckProgress, type Offer, type Source } from './updateengine.ts';
 import { swallowed } from './swallow.ts';
@@ -126,7 +127,7 @@ export class MacStage {
   private script(stage: 'staged' | 'staged-next'): string {
     const i = readInstalled(this.p.installed);
     const version = this.samara?.m.version ?? i.version, commit = this.samara?.m.commit ?? i.commit;
-    return macUpdateScript({ bundle: this.samara?.bundle ?? '', version, commit, ...(this.engine ? { engine: this.engine } : {}), stage });
+    return macUpdateScript({ where: { dir: this.p.listener, name: macAppName(), id: macBundleId() }, bundle: this.samara?.bundle ?? '', version, commit, ...(this.engine ? { engine: this.engine } : {}), stage });
   }
 
   /** Build what is wanted, in the background. A change while building builds again once it ends. */
@@ -166,7 +167,7 @@ export class MacStage {
     this.built = null;
     if (existsSync(staged)) { const w = retireCopy(staged, path.join(this.p.br, 'old'), 'staged'); if (w) this.o.log('update: ' + w); }
     renameSync(next, staged);
-    const script = macUpdateScript({ bundle: want.samara?.bundle ?? '', version: want.samara?.m.version ?? readInstalled(this.p.installed).version, commit: want.samara?.m.commit ?? readInstalled(this.p.installed).commit, ...(want.engine ? { engine: want.engine } : {}), stage: 'staged' });
+    const script = macUpdateScript({ where: { dir: this.p.listener, name: macAppName(), id: macBundleId() }, bundle: want.samara?.bundle ?? '', version: want.samara?.m.version ?? readInstalled(this.p.installed).version, commit: want.samara?.m.commit ?? readInstalled(this.p.installed).commit, ...(want.engine ? { engine: want.engine } : {}), stage: 'staged' });
     writeFileSync(this.p.script, script); chmodSync(this.p.script, 0o700);
     this.built = { key: k, sha: createHash('sha256').update(script).digest('hex'), ...want };
     this.o.log(`update: ${k} is ready, in place of the one before`);
@@ -292,7 +293,7 @@ export class MacSamara implements Source {
   back(): boolean {
     if (!this.canBack()) return false;
     const i = this.installed(); if (i.version) this.lists.file(i.version);
-    try { const out = openSync(this.p.updateLog, 'w'); spawn('/bin/bash', ['-c', BACK_SCRIPT], { detached: true, stdio: ['ignore', out, out] }).unref(); this.o.log('update: going back to the last version (his click)'); return true; }
+    try { const out = openSync(this.p.updateLog, 'w'); spawn('/bin/bash', ['-c', backScript(this.p.listener)], { detached: true, stdio: ['ignore', out, out] }).unref(); this.o.log('update: going back to the last version (his click)'); return true; }
     catch (e) { this.o.log('update: could not go back: ' + (e as Error).message); return false; }
   }
   checkNow(): void { this.lists.unfile(); this.tried.clear(); void this.look('his check', true); }
@@ -300,9 +301,10 @@ export class MacSamara implements Source {
 
 /** Going back on the Mac: only the app's insides change places, never the Samara.app folder itself (his pet peeve,
  *  2026-10-20: the Dock pin follows the folder), and the copy in rollback/ comes off macOS's list of apps. */
-export const BACK_SCRIPT = [
-  'APP="$HOME/Applications/Samara.app"; BR="$HOME/Library/Application Support/Samara/browser"',
-  "osascript -e 'quit app id \"com.bowgull.samara\"' >/dev/null 2>&1 || true",
+const shq = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
+export const backScript = (dir = macHome(), id = macBundleId()): string => [
+  `APP="$HOME/Applications/Samara.app"; BR=${shq(path.posix.join(dir, 'browser'))}`,
+  `osascript -e 'quit app id "${id}"' >/dev/null 2>&1 || true`,
   'for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do pgrep -f "Samara.app/Contents/MacOS/" >/dev/null 2>&1 || break; sleep 0.5; done',
   'rm -rf "$BR/rollback/next"; mkdir -p "$BR/rollback/next" && mv "$APP/Contents" "$BR/rollback/next/Contents" && mv "$BR/rollback/Samara.app/Contents" "$APP/Contents" && mv "$BR/rollback/next/Contents" "$BR/rollback/Samara.app/Contents"; rmdir "$BR/rollback/next" 2>/dev/null',
   'LSR=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister; $LSR -u "$BR/rollback/Samara.app" >/dev/null 2>&1; $LSR -f "$APP" >/dev/null 2>&1; touch "$APP"',

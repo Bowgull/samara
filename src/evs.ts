@@ -12,6 +12,7 @@ import { spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { macHome, pcLocal } from './dirs.ts';
 
 /** What came of a signing: signed, castLabs wants him to sign in, refused (switches flipped), or another failure. */
 export type Signed = 'ok' | 'signin' | 'denied' | 'failed';
@@ -20,8 +21,8 @@ export type Run = (cmd: string, args: string[], o?: { cwd?: string; timeoutMs?: 
 /** Where castLabs' tool lives: its own Python, in Samara's folder on each machine. */
 export function evsHome(platform = process.platform, env: NodeJS.ProcessEnv = process.env, home = os.homedir()): string {
   return platform === 'win32'
-    ? path.join(env.LOCALAPPDATA ?? path.join(home, 'AppData', 'Local'), 'Samara', 'evs')
-    : path.join(home, 'Library', 'Application Support', 'Samara', 'evs');
+    ? path.join(pcLocal(env, home), 'evs')
+    : path.join(macHome(home), 'evs');
 }
 export const evsPython = (dir: string, platform = process.platform): string => (platform === 'win32' ? path.join(dir, 'Scripts', 'python.exe') : path.join(dir, 'bin', 'python3'));
 /** castLabs' own sign-in file (its tool keeps the login here; Samara only looks at when it changed, never inside). */
