@@ -10,6 +10,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { macHome } from './dirs.ts';
 
 export interface DrmDeps {
   /** The Shell's own folder, which holds node_modules (castLabs' engine). */
@@ -25,7 +26,7 @@ export interface DrmDeps {
 export const drmElectron = (shellDir: string) =>
   process.platform === 'darwin'
     // M6: on the Mac, the castLabs app the Mac setup put beside Samara, VMP-signed for streaming.
-    ? path.join(os.homedir(), 'Library', 'Application Support', 'Samara', 'browser', 'drm-44.9.3', 'Electron.app', 'Contents', 'MacOS', 'Electron')
+    ? path.join(macHome(), 'browser', 'drm-44.9.3', 'Electron.app', 'Contents', 'MacOS', 'Electron')
     : path.join(shellDir, 'node_modules', 'electron-drm', 'dist', 'electron.exe');
 
 export class DrmRuntime {

@@ -13,7 +13,8 @@ import { execFileSync, spawn } from 'node:child_process';
 
 const doorFile = process.env.SAMARA_DOOR_FILE || (process.platform === 'win32'
   ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'the companion', 'claude-door.json')
-  : path.join(os.homedir(), 'Library', 'Application Support', 'Samara', 'claude-door.json'));
+  // His existing folder on a Mac that had the old Samara (src/dirs.ts, macAppName).
+  : path.join(os.homedir(), 'Library', 'Application Support', existsSync(path.join(os.homedir(), 'Library', 'Application Support', ['A', 'ang'].join(''))) ? ['A', 'ang'].join('') : 'Samara', 'claude-door.json'));
 
 // 2026-10-22 (the Waymark session's "The door refused this connector"): a process started by the Claude desktop app
 // sees a private copy of %APPDATA%, and a stale claude-door.json written there (by a test run) shadowed the real one, so

@@ -38,17 +38,22 @@ import { NEEDS_COMPANION, isPopoutTask, type PopoutTask } from './jumplist.ts';
 import { launcherEnv, samaraLauncher, writeExitMark } from './samaraexit.ts';
 import { Answers, mockRelay, pictureName, sendRelay } from './sendrelay.ts';
 import { DirectHost } from './directsync.ts';
+import { OLD, pcDocs, pcState, pcUserData } from './dirs.ts';
+const OLD_ENV = OLD.toUpperCase() + '_';
 
 const PORT = Number(process.env.SAMARA_PORT ?? 47831);
-const STATE_DIR = process.env.SAMARA_STATE_DIR ?? path.join(process.env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming'), 'Samara');
-const DATA_DIR = process.env.SAMARA_DATA_DIR ?? path.join(os.homedir(), 'Documents', 'Samara');
+// His existing folders on a PC that had the old Samara (dirs.ts); the launcher still passes the old names' variables.
+const STATE_DIR = process.env.SAMARA_STATE_DIR ?? process.env[OLD_ENV + 'STATE_DIR'] ?? pcState();
+const DATA_DIR = process.env.SAMARA_DATA_DIR ?? process.env[OLD_ENV + 'DATA_DIR'] ?? pcDocs();
 const HERE = import.meta.dirname;
-const SHELL_HOME = process.env.SAMARA_SHELL_HOME && existsSync(process.env.SAMARA_SHELL_HOME) ? process.env.SAMARA_SHELL_HOME : path.join(HERE, '..');
+const SHELL_HOME_ENV = process.env.SAMARA_SHELL_HOME ?? process.env[OLD_ENV + 'SHELL_HOME'];
+const SHELL_HOME = SHELL_HOME_ENV && existsSync(SHELL_HOME_ENV) ? SHELL_HOME_ENV : path.join(HERE, '..');
 const SAMARA_ICON = path.join(HERE, '..', 'pages', 'art', 'samara', 'samara.ico');
 /** The exit code for a planned restart (an update), the same as main.ts's and the pet's (CoreSupervisor.cs). */
 const UPDATE_RESTART = 75;
 // Tests run a copy of their own: its own profile, never his (his cookies and logins live in the default one).
-if (process.env.SAMARA_USER_DATA) app.setPath('userData', process.env.SAMARA_USER_DATA);
+// Electron's own folder (cookies, logins): the old Samara's when it is there (dirs.ts).
+app.setPath('userData', process.env.SAMARA_USER_DATA ?? process.env[OLD_ENV + 'USER_DATA'] ?? pcUserData());
 
 // The same engine switches as main.ts (one engine, paid video in the tabs; see main.ts for the measurements).
 if (onCastlabs()) {
