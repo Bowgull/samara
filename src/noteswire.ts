@@ -16,7 +16,11 @@ import { lockNotes, unlockNotes, MIN_PASS } from './notelock.ts';
 import { writeFileAtomic } from './atomic.ts';
 import { PIN_CSS, deepOf, pageKey, paintCode, quoteAround, type PagePin } from './anchorpaint.ts';
 import { run } from './page.ts';
-import { remindAt, type RemindPick } from './notes.ts';
+import { remindAt, askNotes, askClaudeText, htmlFromText, type AskHit, type RemindPick } from './notes.ts';
+import { newChatLink } from './claudehand.ts';
+import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import os from 'node:os';
 import { Notification } from 'electron';
 import { writeHyruleNotes, type NotePlaceMsg } from './hyrulenotes.ts';
 import { sched } from './sched.ts';
@@ -38,6 +42,12 @@ export interface NotesLink {
   /** A copy locked with his passphrase (Documents › Samara notes), or one brought back. A sentence for him either way. */
   lockedExport(pass: string, win: BrowserWindow | null): string;
   lockedImport(pass: string, win: BrowserWindow | null): Promise<string>;
+  /** N4: his question answered from his notes, each answer with the note it came from. */
+  ask(q: string): AskHit[];
+  /** N4: the same question in a new Claude chat, the notes it found handed over to cite (he presses send). */
+  askClaude(q: string): string;
+  /** N4: the samara connector's notes tools (claudedoor.ts), after his OK for that chat. */
+  forClaude(op: string, a: Record<string, unknown>): Record<string, unknown>;
 }
 
 /** Cards drawn at a time on the board; "Show more" asks for the next lot (every note is reachable, none hidden). */
@@ -151,6 +161,41 @@ export function startNotes(o: NotesOpts): NotesHub {
         catch (e) { b.say('Notes', 'Not exported: ' + (e as Error).message); }
       }
       b.pushSettings();
+    },
+    ask: (q) => askNotes(store.list(), q, 8),
+    askClaude: (q) => {
+      const hits = askNotes(store.list(), q, 8);
+      if (!hits.length) return 'None of your notes has those words, so there is nothing to hand Claude.';
+      const home = path.join(os.homedir(), 'Handoff', 'samara');
+      void shell.openExternal(newChatLink(askClaudeText(q, hits, 'his_notes_' + randomBytes(4).toString('hex')), existsSync(home) ? home : null));
+      return '';
+    },
+    forClaude: (op, a) => {
+      if (op === 'search') {
+        const q = String(a.q ?? '').slice(0, 400);
+        const hits = q.trim() ? askNotes(store.list(), q, 12)
+          : store.list().slice().sort((x, y) => y.updated - x.updated).slice(0, 12).map((n) => ({ id: n.id, title: n.title, ...(n.cat ? { cat: n.cat } : {}), ...(n.src ? { site: n.src.site, url: n.src.url } : {}), updated: n.updated, lines: plainOf(n.html).slice(0, 2), score: 0 }));
+        return { ok: true, total: store.list().length, hits };
+      }
+      if (op === 'read') {
+        const id = String(a.id ?? '');
+        const n = /^n[a-z0-9]{1,24}$/.test(id) ? store.get(id) : null;
+        if (!n || n.deleted) return { ok: false, error: 'no note with that id (notes_search gives ids)' };
+        return { ok: true, id: n.id, markdown: toMarkdown(n).slice(0, 40_000) };
+      }
+      if (op === 'add') {
+        const text = String(a.text ?? '').trim();
+        if (!text) return { ok: false, error: 'give the text of the note' };
+        const known = new Set([...store.cats().builtin, ...store.cats().own]);
+        const cat = typeof a.cat === 'string' && known.has(a.cat) ? a.cat : undefined;
+        const html = htmlFromText(text);
+        const title = String(a.title ?? '').replace(/\s+/g, ' ').trim().slice(0, 120) || titleFrom(html, 5);
+        const n = store.save({ title, html, ...(cat ? { cat } : {}) });
+        if (!n) return { ok: false, error: 'the note was not kept' };
+        b.say('Notes', `Claude added a note: ${title.slice(0, 50)}`, 'done');
+        return { ok: true, id: n.id, title };
+      }
+      return { ok: false, error: 'not a notes step' };
     },
   };
 

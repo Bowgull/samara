@@ -116,3 +116,15 @@ h2 .ncount{font:700 14px var(--body);color:var(--wood-dim);margin-left:8px;verti
 .ncard .nc-q{font:italic 500 13.5px/1.4 'Figtree',sans-serif;margin:0 0 6px;padding-left:9px;border-left:3px solid var(--deep);color:color-mix(in srgb,var(--ink) 80%,var(--paper));
   display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .nrem{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+
+/* N4: Ask your notes: the notes that answer, numbered, each with the lines that do */
+.nans{margin:10px 0 14px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--ink) 18%,transparent);border-radius:10px;background:color-mix(in srgb,var(--ink) 4%,transparent)}
+.nans .na-h{font:700 11px/1 'Figtree',sans-serif;letter-spacing:.08em;opacity:.65;margin-bottom:8px}
+.nans .na-r{display:block;width:100%;text-align:left;border:0;border-left:4px solid var(--deep,#c9a227);border-radius:6px;background:var(--paper,transparent);color:var(--ink);padding:8px 10px;margin:0 0 8px;cursor:pointer;font:inherit}
+.nans .na-r:hover,.nans .na-r:focus-visible{outline:2px solid var(--deep,#c9a227);outline-offset:1px}
+.nans .na-t{display:flex;gap:8px;align-items:baseline;font:600 14px/1.3 'Figtree',sans-serif}
+.nans .na-n{display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:50%;background:var(--deep,#c9a227);color:#fff;font-size:11px}
+.nans .na-m{margin-left:auto;font-size:11px;opacity:.6;letter-spacing:.05em}
+.nans .na-l{font:400 13.5px/1.45 'Figtree',sans-serif;margin:4px 0 0 28px;opacity:.9}
+.nans .na-f{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.nans .na-s{font-size:12px;opacity:.6}

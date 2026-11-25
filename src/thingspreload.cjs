@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('things', {
   notes: (q, cat, view, limit) => ipcRenderer.invoke('things:notes', { q, cat, view, limit }),
   note: (act, id, extra) => ipcRenderer.invoke('things:note', { act, id, extra }),
   notesLock: (act, pass) => ipcRenderer.invoke('things:noteslock', { act, pass }),
+  // N4: his question answered from his notes, or handed to a new Claude chat with the notes it found.
+  notesAsk: (q, claude) => ipcRenderer.invoke('things:notesask', { q, claude: claude === true }),
   onChanged(fn) { const h = (_e, w) => fn(w); ipcRenderer.on('things:changed', h); return () => ipcRenderer.removeListener('things:changed', h); },
   onSection(fn) { const h = (_e, s) => fn(s); ipcRenderer.on('things:section', h); return () => ipcRenderer.removeListener('things:section', h); },
 });

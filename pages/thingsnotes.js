@@ -22,6 +22,42 @@ async function load(how) {
   board = b;
   setOwnCats(b.cats.own);
   paint();
+  answer();
+}
+
+// ---- N4: Ask your notes. A question (it ends in ?, or the search finds nothing for several words) is answered from his
+// notes, here and at once: the notes that hold its words, each with those lines and a number. "Ask Claude about these"
+// opens a new Claude chat with the question and those notes typed in, for him to send.
+const ASKING = /\?\s*$/;
+async function answer() {
+  const box = $('#nans');
+  const q = $('#nq').value.trim();
+  const ask = view === 'notes' && q && (ASKING.test(q) || (board && !board.total && q.split(/\s+/).length > 1));
+  if (!ask || !T.notesAsk) { box.hidden = true; box.replaceChildren(); return; }
+  const hits = await T.notesAsk(q);
+  if (q !== $('#nq').value.trim()) return; // he typed on; the newer answer comes
+  box.replaceChildren();
+  box.hidden = false;
+  if (hits && hits.length) $('#nempty').hidden = true;
+  box.append(mk('div', 'na-h', hits && hits.length ? 'FROM YOUR NOTES' : 'NOTHING IN YOUR NOTES ON THAT'));
+  (hits || []).forEach((h, i) => {
+    const r = mk('button', 'na-r'); r.type = 'button'; r.title = 'Put this note on your screen';
+    const top = mk('div', 'na-t');
+    top.append(mk('b', 'na-n', String(i + 1)), mk('span', '', h.title && h.title !== 'Note' ? h.title : '(untitled)'), mk('span', 'na-m', [day(h.updated), h.site ? h.site.toUpperCase() : ''].filter(Boolean).join(' · ')));
+    r.append(top);
+    for (const l of h.lines) r.append(mk('div', 'na-l', l));
+    paintCat(r, h.cat);
+    r.addEventListener('click', () => T.note('open', h.id));
+    box.append(r);
+  });
+  if (hits && hits.length) {
+    const f = mk('div', 'na-f');
+    const go = mk('button', 'pick', 'Ask Claude about these'); go.type = 'button';
+    go.title = 'A new Claude chat opens with your question and these notes typed in. Nothing is sent until you press send.';
+    go.addEventListener('click', async () => { const why = await T.notesAsk(q, true); if (why) f.append(mk('span', 'nmsg', why)); });
+    f.append(go, mk('span', 'na-s', 'Found on this computer. Nothing leaves it unless you send that chat.'));
+    box.append(f);
+  }
 }
 window.addEventListener('notes:show', () => { on = true; load(); $('#nq').focus(); });
 window.addEventListener('notes:changed', () => { if (on) load('keep'); });

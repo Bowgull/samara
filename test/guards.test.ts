@@ -77,7 +77,9 @@ test('links leave Samara for the system only from the reviewed places', () => {
   // A new shell.openExternal can hand a page's address to another program (a custom scheme opens an app). Each new
   // call site is looked at, then added here.
   // Phase 4: the browser's four (unchanged) now sit in the parts that hold their methods.
-  const reviewed: Record<string, number> = { 'src/browser.ts': 1, 'src/browser-address.ts': 1, 'src/browser-panes.ts': 1, 'src/browser-tv.ts': 1, 'src/pc.ts': 1, 'src/safety.ts': 2 };
+  const reviewed: Record<string, number> = { 'src/browser.ts': 1, 'src/browser-address.ts': 1, 'src/browser-panes.ts': 1, 'src/browser-tv.ts': 1, 'src/pc.ts': 1, 'src/safety.ts': 2,
+    // N4: Ask Claude about these: always claude://code/new built by newChatLink (his question and his notes, nothing a page chose).
+    'src/noteswire.ts': 1 };
   const seen: Record<string, number> = {};
   for (const f of mainCode()) {
     const n = [...readFileSync(f, 'utf8').matchAll(/shell\.openExternal\(/g)].length;
