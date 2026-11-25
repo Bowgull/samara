@@ -26,13 +26,16 @@ export interface Board { view: 'notes' | 'trash'; cards: BoardCard[]; cats: { bu
 export interface NotesLink {
   forSync(): unknown[]; own(): string[]; take(list: unknown[], own: string[]): number;
   status(): Record<string, unknown>; act(a: string): void;
-  board(q: string, cat: string, view: string): Board;
+  board(q: string, cat: string, view: string, limit?: number): Board;
   /** A board action on one note; versions answer with the list. */
   boardAct(act: string, id: string, extra?: string): unknown;
   /** A copy locked with his passphrase (Documents › Samara notes), or one brought back. A sentence for him either way. */
   lockedExport(pass: string, win: BrowserWindow | null): string;
   lockedImport(pass: string, win: BrowserWindow | null): Promise<string>;
 }
+
+/** Cards drawn at a time on the board; "Show more" asks for the next lot (every note is reachable, none hidden). */
+export const BOARD_PAGE = 300;
 
 /** The quick-note key the companion used (Ctrl + number pad *), kept so his hands need not learn a new one. */
 export const QUICK_KEY = 'Control+nummult';
@@ -77,7 +80,7 @@ export function startNotes(o: NotesOpts): NotesHub {
     updated: n.updated, created: n.created, out: !!n.out, ...(n.conflictOf ? { copyOf: n.conflictOf } : {}), ...(n.deleted ? { deleted: n.deleted } : {}), versions: store.history(n.id).length });
   b.notesHub = {
     forSync: () => store.forSync(), own: () => store.cats().own, take: (list, own) => store.take(list, own),
-    board: (q, cat, view) => {
+    board: (q, cat, view, limit = BOARD_PAGE) => {
       const all = store.list(), trash = store.trash();
       const counts = { all: all.length, trash: trash.length, cats: {} as Record<string, number> };
       for (const n of all) counts.cats[n.cat ?? ''] = (counts.cats[n.cat ?? ''] ?? 0) + 1;
@@ -85,7 +88,7 @@ export function startNotes(o: NotesOpts): NotesHub {
       let list: (Note & { out?: unknown })[] = v === 'trash' ? trash : all;
       if (v === 'notes' && cat !== '*') list = list.filter((n) => (n.cat ?? '') === cat);
       const found = searchNotes(list, q);
-      return { view: v, cards: found.slice(0, 600).map(card), cats: store.cats(), counts, total: found.length };
+      return { view: v, cards: found.slice(0, Math.max(BOARD_PAGE, Math.min(100_000, Math.floor(limit) || BOARD_PAGE))).map(card), cats: store.cats(), counts, total: found.length };
     },
     boardAct: (act, id, extra) => {
       if (act === 'new') { const n = store.save({ title: '', html: '', ...(extra ? { cat: extra } : {}) }); if (n) open(n.id); return n?.id ?? null; }

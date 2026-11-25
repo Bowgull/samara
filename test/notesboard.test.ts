@@ -34,5 +34,7 @@ test('a locked copy opens with its passphrase only, and a changed file does not 
   assert.throws(() => unlockNotes(JSON.stringify(j), 'correct horse battery'), /wrong/);
   assert.throws(() => unlockNotes('{"hello":1}', 'x'), /notours/);
   assert.throws(() => unlockNotes(JSON.stringify({ ...JSON.parse(text), kdf: { ...JSON.parse(text).kdf, n: 1 << 30 } }), 'x'), /notours/, 'a file asking for absurd work is refused');
+  const big = (kdf: Partial<Record<string, number>>) => JSON.stringify({ ...JSON.parse(text), kdf: { ...JSON.parse(text).kdf, ...kdf } });
+  for (const kdf of [{ n: 1 << 20, r: 32, p: 4 }, { n: 1 << 17 }, { r: 16 }, { p: 2 }, { n: 3000 }]) assert.throws(() => unlockNotes(big(kdf), 'x'), /notours/, JSON.stringify(kdf));
   assert.throws(() => lockNotes(payload, 'short'), new RegExp(String(MIN_PASS)));
 });
