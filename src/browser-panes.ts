@@ -679,8 +679,13 @@ export const PanesPart = {
       try { if (WATCH_HOSTS.test(new URL(wc.getURL()).hostname)) void wc.insertCSS(WATCH_CSS).catch(() => {}); } catch { /* not a page */ }
       if (tab.phase !== 'idle') { tab.prog = Math.max(tab.prog ?? 0, 0.55); this.sendTabs(); }
     });
-    // N3: his notes pinned to words on this page, marked once it has loaded (noteswire.ts).
-    on('did-stop-loading', () => { if (isWeb(wc.getURL())) this.onTabLoaded?.(tab); });
+    // N3: his notes pinned to words on this page, marked once it has loaded (noteswire.ts); again when the page is ready
+    // but still loading (a page that never stops), and after a route change inside the page (a single-page app's
+    // pushState), when its new words have had a moment to draw.
+    const pinsNow = () => { if (!wc.isDestroyed() && isWeb(wc.getURL())) this.onTabLoaded?.(tab); };
+    on('did-stop-loading', pinsNow);
+    on('dom-ready', pinsNow);
+    on('did-navigate-in-page', (_e, _u, main) => { if (main) { setTimeout(pinsNow, 500); setTimeout(pinsNow, 2000); } });
     on('did-navigate', (_e, u, status) => {
       if (/^https:\/\/(www\.)?netflix\.com(:\d+)?\/watch\//i.test(u)) this.watchPlays(tab, u);
       if (STREMIO_WEB.test(u)) { void startStremio(); this.stremioMoved(tab, u); }

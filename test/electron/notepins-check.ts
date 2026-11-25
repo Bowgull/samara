@@ -33,10 +33,14 @@ const PAGE = `<!doctype html><title>Raid guide</title><body style="margin:40px 1
 <p>Flasks are cheap. Buy flasks before raid.</p><p style="margin-top:900px">The boss hits hard, so <span>buy flasks</span> before raid night and bring food.</p>
 <script>window.forge = () => { const h = document.querySelector('samara-pins'); h && h.dispatchEvent(new MouseEvent('click', { bubbles: true })); return !!h; };</script></body>`;
 
+// A single-page app: its routes change by pushState, never a new load (review of N3).
+const SPA = `<!doctype html><title>Map</title><body style="margin:40px 120px;font:18px sans-serif;background:#fff"><p id="v">Home</p>
+<script>window.go = (to) => { history.pushState({}, '', to); setTimeout(() => { document.getElementById('v').textContent = to.endsWith('/b') ? 'At the bridge, turn left at the old mill.' : 'Home'; }, 100); return 1; };</script></body>`;
+
 app.whenReady().then(async () => {
   (screen as any).getCursorScreenPoint = () => ({ x: 400, y: 300 });
   const tmp = mkdtempSync(path.join(os.tmpdir(), 'npins-'));
-  const site = http.createServer((_q, r) => { r.writeHead(200, { 'Content-Type': 'text/html' }).end(PAGE); });
+  const site = http.createServer((q, r) => { r.writeHead(200, { 'Content-Type': 'text/html' }).end(String(q.url).startsWith('/spa') ? SPA : PAGE); });
   await new Promise<void>((r) => site.listen(0, '127.0.0.1', () => r()));
   const url = `http://127.0.0.1:${(site.address() as any).port}/guide`;
   const pages = await servePages(path.join(HERE, '..', '..', 'pages'));
@@ -90,6 +94,18 @@ app.whenReady().then(async () => {
   const jt = b.tabs.filter((x: any) => !x.internal && x.url.startsWith(url)).pop();
   const seen = jt ? await run<any>(jt.view.webContents, `(() => { const r = [...CSS.highlights.get('samara-note')][0].getBoundingClientRect(); return { top: r.top, h: innerHeight, sy: scrollY, jump: CSS.highlights.has('samara-note-jump') }; })()`, { fallback: null }) : null;
   check('...scrolled so the words are in view', !!seen && seen.sy > 0 && seen.top > 0 && seen.top < seen.h, `${JSON.stringify(seen)} (tabs before ${tabs})`);
+  // A route change inside a page (pushState): the new route's words are marked, and unmarked on leaving it.
+  const spa = url.replace('/guide', '/spa');
+  const sn = s.save({ title: 'Mill', html: '<div>here</div>', src: { url: spa + '/b', site: '127.0.0.1' }, anchor: { url: spa + '/b', exact: 'turn left at the old mill', prefix: 'bridge, ', suffix: '.' } }, { trusted: true })!;
+  b.open(spa);
+  await wait(3000);
+  const st = b.tabs.filter((x: any) => !x.internal && x.url.startsWith(spa)).pop();
+  await run(st.view.webContents, "window.go('" + new URL(spa).pathname + "/b')", { fallback: 0 });
+  await wait(1500);
+  check('a route change inside the page marks its pinned words', b.pinIds.get(st.id)?.has(sn.id) === true, JSON.stringify([...(b.pinIds.get(st.id) ?? [])]));
+  await run(st.view.webContents, "window.go('" + new URL(spa).pathname + "')", { fallback: 0 });
+  await wait(1500);
+  check('...and leaving that route takes the marks off', !b.pinIds.get(st.id)?.size);
   // A reminder: rings once, here.
   s.save({ id: n!.id, remind: { at: Date.now() - 1000, dev: 'pc' } });
   s.save({ title: 'Mac one', remind: { at: Date.now() - 1000, dev: 'mac' } });

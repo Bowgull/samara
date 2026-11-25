@@ -55,10 +55,23 @@ export const SELECTION_CODE = `(() => {
   if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
   const r = sel.getRangeAt(0), exact = sel.toString();
   if (!exact.trim()) return null;
+  // What comes before and after, from the same text the marks are found in (no script or style text).
   const root = document.body || document.documentElement;
-  const b = document.createRange(); b.setStart(root, 0); b.setEnd(r.startContainer, r.startOffset);
-  const a = document.createRange(); a.setStart(r.endContainer, r.endOffset); a.setEnd(root, root.childNodes.length);
-  return { before: b.toString().slice(-200), exact: exact.slice(0, 4000), after: a.toString().slice(0, 200), title: document.title.slice(0, 200) };
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: (n) => {
+    const p = n.parentElement, t = p && p.tagName;
+    return !p || t === 'SCRIPT' || t === 'STYLE' || t === 'NOSCRIPT' || t === 'TEXTAREA' ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT; } });
+  let before = '', after = '';
+  for (let n = w.nextNode(); n; n = w.nextNode()) {
+    const s = n.data;
+    const startCmp = r.comparePoint(n, 0), endCmp = r.comparePoint(n, s.length);
+    if (n === r.startContainer) before += s.slice(0, r.startOffset);
+    else if (endCmp < 0 || (startCmp < 0 && endCmp === 0 && n !== r.endContainer)) before += s;
+    if (n === r.endContainer) after += s.slice(r.endOffset);
+    else if (startCmp > 0) after += s;
+    if (before.length > 4000) before = before.slice(-400);
+    if (after.length > 200) break;
+  }
+  return { before: before.slice(-200), exact: exact.slice(0, 4000), after: after.slice(0, 200), title: document.title.slice(0, 200) };
 })()`;
 
 /**

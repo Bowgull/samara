@@ -259,20 +259,28 @@ export function startNotes(o: NotesOpts): NotesHub {
       .map((n) => ({ id: n.id, title: n.title === 'Note' ? '' : n.title, exact: n.anchor!.exact, prefix: n.anchor!.prefix, suffix: n.anchor!.suffix, deep: deepOf(n.cat) }));
   };
   const cssDone = new WeakSet<Electron.WebContents>();
-  async function paintPins(tab: { id: number; url: string; view: { webContents: Electron.WebContents } | null }, jumpTo: string | null = null): Promise<void> {
+  async function paintPins(tab: { id: number; url: string; view: { webContents: Electron.WebContents } | null }, jumpTo: string | null = null): Promise<Set<string>> {
     const wc = tab.view?.webContents;
-    if (!wc || wc.isDestroyed()) return;
+    if (!wc || wc.isDestroyed()) return new Set();
     const pins = pinsFor(wc.getURL());
     const had = b.pinIds.get(tab.id);
-    if (!pins.length && !had?.size) return;
+    if (!pins.length && !had?.size) return new Set();
     if (pins.length && !cssDone.has(wc)) { cssDone.add(wc); wc.once('did-navigate', () => cssDone.delete(wc)); await wc.insertCSS(PIN_CSS).catch(() => {}); }
     const found = await run<string[]>(wc, paintCode(pins, jumpTo), { world: 999, ms: 4000, fallback: [] });
-    b.pinIds.set(tab.id, new Set(Array.isArray(found) ? found : []));
+    const ids = new Set(Array.isArray(found) ? found : []);
+    b.pinIds.set(tab.id, ids);
+    return ids;
   }
-  b.onTabLoaded = (tab) => { const j = jumps.get(tab.id) ?? null; jumps.delete(tab.id); void paintPins(tab as never, j); };
+  // A pending Jump to it waits until its words are found (the page may be ready before they are drawn).
+  b.onTabLoaded = (tab) => {
+    const p = jumps.get(tab.id);
+    if (p && p.until < Date.now()) jumps.delete(tab.id);
+    const j = p && p.until >= Date.now() ? p.id : null;
+    void paintPins(tab as never, j).then((ids) => { if (j && ids.has(j)) jumps.delete(tab.id); });
+  };
   function repaintPins(): void { for (const t of b.tabs) if (!t.internal && t.view && (b.pinIds.get(t.id)?.size || pinsFor(t.url).length)) void paintPins(t as never); }
   /** "Jump to it": the page the words are on, in front, scrolled to them (opened if it is not). */
-  const jumps = new Map<number, string>();
+  const jumps = new Map<number, { id: string; until: number }>();
   function jump(id: string): boolean {
     const n = store.get(id);
     const url = n?.anchor?.url ?? n?.src?.url;
@@ -281,7 +289,7 @@ export function startNotes(o: NotesOpts): NotesHub {
     const there = b.tabs.find((t) => !t.internal && t.view && pageKey(t.url) === k);
     if (there) { b.activate(there.id); void paintPins(there as never, n.anchor ? id : null); return true; }
     const tid = b.newTab(url, null, true);
-    if (tid != null && n.anchor) jumps.set(tid, id);
+    if (tid != null && n.anchor) jumps.set(tid, { id, until: Date.now() + 30_000 });
     return tid != null;
   }
 
