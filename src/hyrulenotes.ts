@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { writeFileAtomic } from './atomic.ts';
 import os from 'node:os';
 import path from 'node:path';
+import { pcLocal } from './dirs.ts';
 
 export type NotePlaceMsg = { t: 'notes.place'; id?: string; title?: string; text?: string; x?: number; z?: number; off?: boolean; open?: boolean };
 const ID = /^n[a-z0-9]{1,20}$/;
@@ -29,7 +30,7 @@ export function askText(raw: unknown): string {
 
 /** The BotW folder the companion reads (SAMARA_BOTW_DIR in tests). */
 export function botwFolder(env: NodeJS.ProcessEnv = process.env): string {
-  return env.SAMARA_BOTW_DIR || path.join(env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'Samara', 'botw');
+  return env.SAMARA_BOTW_DIR || path.join(pcLocal(env), 'botw');
 }
 
 /**

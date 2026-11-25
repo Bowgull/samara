@@ -5,6 +5,7 @@
 // going back. Before today the overnight rule was written three times (main.ts twice, mac.ts once).
 // Its own file, with no Electron, so the rules are tested on their own (test/updateengine.test.ts).
 import { readFileSync } from 'node:fs';
+import type { SigninKind } from './evs.ts';
 import { saveText } from './store.ts';
 import { openLog } from './log.ts';
 import { sched } from './sched.ts';
@@ -88,7 +89,7 @@ export interface Offer {
   version: string; since: number; title?: string; groups: CardGroup[]; canBack?: boolean; lines?: string[];
   /** Sheet 108: castLabs wants him to sign in before the engine can be signed for video ('ask': the one key;
    *  'waiting': Terminal is open). While set, the key shows "Sign in to castLabs" instead of Restart now. */
-  signin?: 'ask' | 'waiting';
+  signin?: 'ask' | 'waiting' | 'signing';
   /** Sheet 108: the one line under the lines ("Your engine today is 6 weeks behind Chrome's security fixes..."). */
   behind?: string;
   /** Sheet 114: a newer one is getting ready behind this one (next), while Restart now still puts this one in (now). */
@@ -119,7 +120,7 @@ export interface Source {
   /** "Check for updates": what was put away comes back, and a look right now. */
   checkNow(): void;
   /** Sheet 108, the engine only: his click on "Sign in to castLabs". */
-  signin?(): Promise<boolean>;
+  signin?(kind?: SigninKind): Promise<boolean>;
   /** Sheet 122, Samara only: "Check for updates" with each step said as it happens; how it ended. */
   watch?(report: (p: Omit<CheckProgress, 'at'>) => void): Promise<CheckOutcome>;
   /** Sheet 122: the version running now ("1.62.1"). */
@@ -201,6 +202,7 @@ export class UpdateEngine {
     if (why) return { ok: false, why };
     if (this.going) return { ok: false, why: 'Already updating.' };
     const card = this.card();
+    if (card?.signin === 'signing') return { ok: false, why: 'castLabs is still signing the new engine. Restart now shows here when it is ready.' };
     if (card?.signin) return { ok: false, why: 'Sign in to castLabs first, so the new engine plays video.' };
     const ready = this.keyed.filter((s) => { const r = s.ready(); return r && (!securityOnly || (r.security && r.tonight)); });
     if (!card || !ready.length) return { ok: false, why: 'The update is not ready yet. It will show up again when it is.' };
@@ -257,10 +259,11 @@ export class UpdateEngine {
     return true;
   }
 
-  /** Sheet 108: his click on "Sign in to castLabs" (Terminal opens with castLabs' sign-in typed). */
-  async signin(): Promise<boolean> {
-    const s = this.o.sources.find((x) => x.signin && x.ready()?.signin === 'ask');
-    const ok = s ? await s.signin!() : false;
+  /** Sheet 108: his click on "Sign in to castLabs" (Terminal opens with castLabs' sign-in typed). Also while it waits
+   *  (2026-11-25): Terminal again, or castLabs' password reset. */
+  async signin(kind: SigninKind = 'signin'): Promise<boolean> {
+    const s = this.o.sources.find((x) => x.signin && (x.ready()?.signin === 'ask' || x.ready()?.signin === 'waiting'));
+    const ok = s ? await s.signin!(kind) : false;
     this.show();
     return ok;
   }

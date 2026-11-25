@@ -4,6 +4,7 @@
 import { titleOf } from './ghrelease.ts';
 import { catchUp } from './catchup.ts';
 import type { EngineUpdates } from './engineupdate.ts';
+import type { SigninKind } from './evs.ts';
 import type { SamaraUpdates } from './pcupdate.ts';
 import type { CardGroup, Offer, Source } from './updateengine.ts';
 
@@ -59,7 +60,7 @@ export function pcEngine(eu: EngineUpdates, o: { browserOpen: () => boolean }): 
     file: () => eu.file(), skip: () => eu.skip(),
     canBack: () => eu.canBack(), back: () => eu.goBack(),
     checkNow: () => { void eu.checkNow(); },
-    signin: () => eu.openSignin(),
+    signin: (kind?: SigninKind) => eu.openSignin(kind),
   };
   return src;
 }
