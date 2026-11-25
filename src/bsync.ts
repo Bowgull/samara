@@ -38,6 +38,8 @@ export interface SyncTarget {
   pauseAll?(): void;
   /** Sheet 79: the Mockups trail's marks (approved, built, fix, parked), by each version's picture. */
   mockStages?(): unknown[]; takeMockStages?(list: unknown[]): void;
+  /** N0 (2026-11-25): his notes, every one with its stamp (Trash marks too), and his own categories. */
+  notes?(): { list: unknown[]; own: string[] } | undefined; takeNotes?(list: unknown[], own: string[]): void;
 }
 
 export type SyncMsg =
@@ -49,9 +51,12 @@ export type SyncMsg =
   | { t: 'bsync.visit'; op: 'add'; list: Visit[] } | { t: 'bsync.visit'; op: 'forget'; url: string; at: number } | { t: 'bsync.visit'; op: 'clear'; from: number }
   | { t: 'bsync.cookies'; list: { key: string; at: number; c: SyncCookie | null }[] }
   | { t: 'bsync.mstages'; list: unknown[] }
+  | { t: 'bsync.notes'; list: unknown[]; own: string[] }
   | { t: 'bsync.canary'; version: string; verdict: 'good' | 'bad' };
 
 const DAY = 86_400_000;
+/** Notes per bsync.notes message. */
+export const NOTES_BATCH = 200;
 
 /** Never synced: money sites, the companion's own pages, anything not a real web address. */
 export function hostKept(host: string): boolean {
@@ -246,6 +251,16 @@ export class BrowserSync {
   canary(version: string, verdict: 'good' | 'bad'): void { if (this.told.get(version) === 'bad') return; this.told.set(version, verdict); this.send({ t: 'bsync.canary', version, verdict }); }
   /** The other machine's verdict on a version it ran first. */
   onCanary: ((version: string, verdict: 'good' | 'bad') => void) | null = null;
+  /**
+   * N0: notes changed here. Each note carries its own stamp and the stamps it grew from (notestore.ts), so the other
+   * side can tell an edit on top from one made apart; nothing here needs a time of its own. Sent in batches of
+   * NOTES_BATCH so one message never carries a whole board of long notes.
+   */
+  notesOut(list: unknown[], own: string[]): void { if (!this.applying) this.sendNotes(list, own); }
+  private sendNotes(list: unknown[], own: string[]): void {
+    let i = 0;
+    do { this.send({ t: 'bsync.notes', list: list.slice(i, i + NOTES_BATCH), own }); i += NOTES_BATCH; } while (i < list.length);
+  }
   /** Something started playing on this machine: the other one stops (one video at a time). */
   mediaStarted(): void { this.send({ t: 'bsync.media' }); }
 
@@ -278,6 +293,9 @@ export class BrowserSync {
     // Sheet 79: and the mockup marks, after time apart (each side keeps the newer of each).
     const ms = t.mockStages?.();
     if (ms?.length) this.send({ t: 'bsync.mstages', list: ms });
+    // N0: every note (the other side keeps what is new to it, and makes the same copy of an edit made apart).
+    const notes = t.notes?.();
+    if (notes) this.sendNotes(notes.list, notes.own);
     for (const [version, verdict] of this.told) this.send({ t: 'bsync.canary', version, verdict });
   }
 
@@ -306,6 +324,7 @@ export class BrowserSync {
           break;
         case 'bsync.cookies': for (const r of Array.isArray(m.list) ? m.list : []) await this.takeCookie(r.key, r.at, r.c); this.save(); break;
         case 'bsync.mstages': if (Array.isArray(m.list)) t.takeMockStages?.(m.list); break;
+        case 'bsync.notes': if (Array.isArray(m.list)) t.takeNotes?.(m.list, Array.isArray(m.own) ? m.own.map(String) : []); break;
         case 'bsync.canary': if ((m.verdict === 'good' || m.verdict === 'bad') && typeof m.version === 'string') this.onCanary?.(m.version, m.verdict); break;
         case 'bsync.full': {
           // Bookmarks after time apart are joined, never replaced (found 2026-10-13: on the first sync neither side had

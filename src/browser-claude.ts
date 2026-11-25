@@ -33,10 +33,10 @@ export const ClaudePart = {
     try { this.onFront?.(on); } catch { /* the key is the companion's business */ }
   },
 
-  /** The companion's notes changed: the ones that came from a page (src) go to every window with its rail open. */
+  /** His notes changed (Samara's own store since N0): the ones that came from a page (src) go to every window with its rail open. */
   notesNews(this: SamaraBrowser, notes: unknown, cats: unknown): void {
     this.railNotes = (Array.isArray(notes) ? notes : []).filter((n): n is RailNote => !!n && typeof n === 'object' && typeof (n as RailNote).id === 'string' && !!(n as RailNote).src)
-      .slice(0, 60).map((n) => ({ id: n.id, title: String(n.title ?? ''), html: String(n.html ?? ''), cat: typeof n.cat === 'string' ? n.cat : undefined, src: n.src, updated: Number(n.updated) || 0 }));
+      .slice(0, 500).map((n) => ({ id: n.id, title: String(n.title ?? ''), html: String(n.html ?? ''), cat: typeof n.cat === 'string' ? n.cat : undefined, src: n.src, updated: Number(n.updated) || 0 }));
     this.railCats = Array.isArray(cats) ? cats.map(String).slice(0, 12) : [];
     for (const p of this.panes) if (p.railOpen) this.sendNotes(p);
   },

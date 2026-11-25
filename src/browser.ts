@@ -2085,6 +2085,9 @@ export class SamaraBrowser {
     // SY (2026-10-14): the lists he made travel with the settings. Money sites never do.
     // Sheet 79: the Mockups trail's marks travel too, by each version's picture.
     mockStages: () => [...(this.mockStore?.stageLog.values() ?? [])],
+    // N0 (2026-11-25): his notes are Samara's (noteswire.ts sets notesHub); none until the notes have started.
+    notes: () => (this.notesHub ? { list: this.notesHub.forSync(), own: this.notesHub.own() } : undefined),
+    takeNotes: (list: unknown[], own: string[]) => { this.notesHub?.take(list, own); },
     takeMockStages: (list: unknown[]) => { if (this.mockStore?.takeStages(list)) this.sendTabs(); },
     // His details travel to his other machine only (2026-10-23), with the rest of his settings.
     prefs: () => ({ sounds: this.sounds, ...this.prefs, ...(this.details.empty() ? {} : { autofill: this.details.get() }), lists: {
@@ -2147,6 +2150,8 @@ export class SamaraBrowser {
   /** The companion's news (null: the companion went away, so the rune goes too). Sent to every Samara window's band. */
   // ------------------------------------------------------------------ sheet 60: the notes rail ("Notes for this site")
   railNotes: RailNote[] = [];
+  /** N0: Samara's own notes store, for the sync (noteswire.ts). */
+  notesHub: { forSync(): unknown[]; own(): string[]; take(list: unknown[], own: string[]): number; status(): Record<string, unknown>; act(a: string): void } | null = null;
   railCats: string[] = [];
   /** A new note for this site, from the rail (main.ts sends it to the companion). */
   onNoteSave: ((n: RailNote) => void) | null = null;

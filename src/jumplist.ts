@@ -15,8 +15,11 @@ import path from 'node:path';
 // The Pop-outs section's names (moved here from taskbarplan.ts on 2026-11-20, phase 1 of Samara's own repo).
 export const POPOUT_TASKS = ['popouts-show', 'popouts-hide', 'popouts-gather', 'new-note', 'timer', 'player'] as const;
 export type PopoutTask = typeof POPOUT_TASKS[number];
-/** New note, Timer and Music player need the companion (notes and timers belong to it): listed only while it runs. */
-export const NEEDS_COMPANION: ReadonlySet<PopoutTask> = new Set(['new-note', 'timer', 'player']);
+/**
+ * Timer and Music player need the companion (timers belong to it). New note is Samara's own since N0 (2026-11-25): notes
+ * moved into Samara, so it never waits on the companion.
+ */
+export const NEEDS_COMPANION: ReadonlySet<PopoutTask> = new Set(['timer', 'player']);
 export const isPopoutTask = (t: unknown): t is PopoutTask => typeof t === 'string' && (POPOUT_TASKS as readonly string[]).includes(t);
 
 // Sheet 66 A (2026-10-22): a "Pop-outs" section above the Tasks (Show all, Hide all, Gather them by the companion, New note,
