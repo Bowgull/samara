@@ -18,7 +18,7 @@ body.menu .grip{display:none}
 .pintag{position:absolute;right:26px;top:22px;font:700 11px 'Figtree',sans-serif;letter-spacing:.6px;color:#6b5236;display:none;z-index:3}
 body.pinned .pintag{display:block}
 body.pinned .grab,body.pinned .grip{display:none}
-/* the quick note (Ctrl + *): the same note, small, empty, ready. Enter keeps it, Esc closes. */
+/* the quick note (its key, or New note): the same note, small, empty, ready. Enter keeps it, Esc closes. */
 body.quick .grip{display:none}
 body.quick .grab{cursor:default}
 body.quick .sticky .nbody{font-size:16px}

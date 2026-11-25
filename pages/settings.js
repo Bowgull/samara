@@ -364,9 +364,12 @@ function paint(d) {
   $('#notessealv').classList.toggle('off', !!ns && (ns.locked || !ns.sealed));
   $('#notessealed').dataset.help = !ns ? '' : ns.locked ? "This computer's key won't open the notes kept here. They are left exactly as they are; new notes are still kept."
     : ns.sealed ? "Locked with this computer's own key. Copied anywhere else, the files can't be read." : 'This computer has no key to seal with, so notes are kept as plain files.';
-  $('#noteskeyv').textContent = ns?.quickKey ? (d.mac ? 'Control + Num *' : 'Ctrl + Num *') : 'Taken by another program';
-  $('#noteskeyv').classList.toggle('dim', !ns?.quickKey);
-  $('#noteskey').dataset.help = ns?.quickKey ? 'A small note, ready to type. Enter keeps it; Esc closes it (what you typed is kept).' : 'Another program holds Ctrl + Num *. New note in the taskbar list still works.';
+  // Q1 (2026-11-25): the keys Samara holds on this machine (Control + Option + N on the Mac; Ctrl + Num * on the PC)
+  const qk = Array.isArray(ns?.quickKeys) ? ns.quickKeys.map(String) : [];
+  $('#noteskeyv').textContent = qk.length ? qk.join(' or ') : 'Taken by another program';
+  $('#noteskeyv').classList.toggle('dim', !qk.length);
+  $('#noteskey').dataset.help = qk.length ? 'A small note, ready to type. Enter keeps it; Esc closes it (what you typed is kept).'
+    : `Another program holds ${d.mac ? 'Control + Option + N' : 'Ctrl + Num *'}. New note in ${d.mac ? 'the Dock menu' : 'the taskbar list'} still works.`;
   $('#notesbackupv').textContent = ns?.lastBackup ? `Last ${new Date(ns.lastBackup).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : 'None yet';
   $('#notesbackupv').classList.toggle('dim', !ns?.lastBackup);
   const imp = ns?.companion;
