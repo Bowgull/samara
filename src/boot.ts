@@ -314,7 +314,8 @@ export function samaraBrowser(base: SamaraBase, p: Platform, bp: BrowserPlatform
     if (act === 'changelog') { sender.send('browser:changelog', d.readText(u.changelog)); return; }
     if (act === 'overnight') { try { d.writeAtomic(u.prefsFile, JSON.stringify({ overnight: a?.on === true })); } catch { /* best effort */ } ue.show(); return; }
     if (act === 'seen') { browser.setUpdated(null); u.seen?.(); return; }
-    if (act === 'castlabs') { void ue.signin().then((ok) => { if (!ok) sender.send('browser:updatewhy', 'Terminal could not be opened. Try again in a moment.'); }); return; }
+    // castlabsreset (2026-11-25): castLabs' own password reset in Terminal, for a forgotten castLabs password.
+    if (act === 'castlabs' || act === 'castlabsreset') { void ue.signin(act === 'castlabsreset' ? 'reset' : 'signin').then((ok) => { if (!ok) sender.send('browser:updatewhy', 'Terminal could not be opened. Try again in a moment.'); }); return; }
     // Sheet 122 (his pick, 2026-11-22): his check is shown step by step under the ... key; 'checkdone' is him closing it.
     if (act === 'check') { void ue.checkNow((c) => browser.setChecking(c)); return; }
     if (act === 'checkdone') { browser.setChecking(null); return; }

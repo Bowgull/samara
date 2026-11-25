@@ -17,7 +17,7 @@ import path from 'node:path';
 import { catchUp } from './catchup.ts';
 import { download as ghDownload, latest as ghLatest, titleOf, withSection, type Manifest } from './ghrelease.ts';
 import { behindMs, behindWords, chromeStable, closesGap, downloadEngine, enginePlatform, latestEngine, type EngineManifest, type EnginePlatform } from './enginerelease.ts';
-import { Evs, type Signed } from './evs.ts';
+import { Evs, type Signed, type SigninKind } from './evs.ts';
 import { SwitchOrder, signWithSwitches } from './switchorder.ts';
 import { readRun } from './engineupdate.ts';
 import { macMayTake } from './canary.ts';
@@ -362,6 +362,10 @@ export class MacEngine implements Source {
   readonly onKey = true;
   private busy = false;
   private signinState: 'ask' | 'waiting' | null = null;
+  /** 2026-11-25 (his "I signed in but nothing happens"): from his castLabs sign-in until the engine is signed, checked
+   *  and in the ready Samara (a few minutes), the card says so instead of going blank. At most 30 minutes. */
+  private signingSince = 0;
+  private signedIn(): void { this.signinState = null; this.signingSince = Date.now(); this.o.changed(); void this.sign(); }
   private pending: { m: EngineManifest; dir: string } | null = null;
   private behindLine = '';
   /** Chrome's stable releases as last read, for the security tier. */
@@ -383,6 +387,7 @@ export class MacEngine implements Source {
   ready(): Offer | null {
     const p = this.pending?.m;
     if (p && this.signinState) return { ...this.words(p), signin: this.signinState };
+    if (p && this.signingSince && Date.now() - this.signingSince < 30 * 60_000 && this.stage.readyEngine?.version !== p.version) return { ...this.words(p), signin: 'signing' };
     // The engine in the ready Samara (sheet 114: it stays on the key while a newer engine is made behind it).
     const m = this.seen.get(this.stage.readyEngine?.version ?? '');
     if (!m) return null;
@@ -445,11 +450,12 @@ export class MacEngine implements Source {
     if (!(await this.o.evs.verify(p.dir))) ({ r, closed } = await this.signEngine(p));
     if (r === 'signin') {
       // Told once (Phase 2): the card asks; a sign-in he does any way at all is noticed, and the engine is signed then.
+      this.signingSince = 0;
       if (this.signinState !== 'ask') { this.signinState = 'ask'; this.o.changed(); this.watchQuietly(); }
       return;
     }
-    this.stopQuiet?.(); this.stopQuiet = null;
-    if (r !== 'ok') { this.o.log(`update: engine ${p.m.version} could not be signed for video (${r}); tried again later`); return; }
+    this.stopQuiet?.(); this.stopQuiet = null; this.stopWait?.(); this.stopWait = null;
+    if (r !== 'ok') { this.o.log(`update: engine ${p.m.version} could not be signed for video (${r}); tried again later`); this.notSigning(); return; }
     this.signinState = null;
     // Phase 2: the safety check on the signed engine. Back doors closed that then fail it: learned for the major here,
     // signed again as castLabs shipped it, checked again. An engine that fails as shipped is not staged today.
@@ -458,16 +464,17 @@ export class MacEngine implements Source {
     if (!ok && closed) {
       this.order.learn(v, 'the engine failed its safety check with its back doors closed');
       const again = await this.signEngine(p);
-      if (again.r !== 'ok') { this.o.log(`update: engine ${v} could not be signed again as castLabs shipped it (${again.r})`); return; }
+      if (again.r !== 'ok') { this.o.log(`update: engine ${v} could not be signed again as castLabs shipped it (${again.r})`); this.notSigning(); return; }
       ok = await this.o.checkEngine(app, v);
     }
-    if (!ok) { this.failedOn = `${v} ${new Date().toDateString()}`; this.o.log(`update: engine ${v} did not pass its safety check; not offered, tried again tomorrow`); return; }
+    if (!ok) { this.failedOn = `${v} ${new Date().toDateString()}`; this.o.log(`update: engine ${v} did not pass its safety check; not offered, tried again tomorrow`); this.notSigning(); return; }
     this.passed.add(v);
     this.stage.engine = { version: p.m.version, app: path.join(p.dir, 'Electron.app') };
     this.o.changed();
     void this.stage.build();
   }
 
+  private notSigning(): void { if (this.signingSince) { this.signingSince = 0; this.o.changed(); } }
   /** Engines that passed the safety check here (this run). */
   private readonly passed = new Set<string>();
   /** "<version> <day>": failed its safety check today. Kept on disk, so a restart the same day does not run the
@@ -486,19 +493,23 @@ export class MacEngine implements Source {
     this.stopQuiet?.();
     this.stopQuiet = this.o.evs.watchSignin(this.o.evs.loginStamp(), (inNow) => {
       this.stopQuiet = null;
-      if (inNow && this.signinState === 'ask') { this.signinState = null; void this.sign(); }
+      if (inNow && this.signinState === 'ask') this.signedIn();
     }, 7 * 24 * 60 * 60_000, 30_000);
   }
 
-  /** Sheet 108: Terminal opens with castLabs' sign-in typed; once castLabs has him, the engine is signed. */
-  async signin(): Promise<boolean> {
-    if (this.signinState !== 'ask') return false;
+  /** Sheet 108: Terminal opens with castLabs' sign-in typed; once castLabs has him, the engine is signed.
+   *  2026-11-25 (his "it's bugged": stuck on "Signing in..." after he closed Terminal, password forgotten): while it
+   *  waits he can open Terminal again, or open castLabs' password reset instead; each starts a fresh wait. */
+  private stopWait: (() => void) | null = null;
+  async signin(kind: SigninKind = 'signin'): Promise<boolean> {
+    if (this.signinState !== 'ask' && this.signinState !== 'waiting') return false;
     const since = this.o.evs.loginStamp();
-    if (!(await this.o.evs.openSignin())) return false;
+    if (!(await this.o.evs.openSignin(kind))) return false;
     this.signinState = 'waiting'; this.o.changed();
-    this.o.evs.watchSignin(since, (inNow) => {
-      this.signinState = inNow ? null : 'ask';
-      if (inNow) void this.sign(); else this.o.changed();
+    this.stopWait?.();
+    this.stopWait = this.o.evs.watchSignin(since, (inNow) => {
+      this.stopWait = null;
+      if (inNow) this.signedIn(); else { this.signinState = 'ask'; this.o.changed(); }
     });
     return true;
   }
@@ -518,7 +529,7 @@ export class MacEngine implements Source {
   }
 
   go(): Promise<{ ok: boolean; why?: string }> { return this.stage.swap(); }
-  private drop(): void { this.pending = null; this.signinState = null; this.stopQuiet?.(); this.stopQuiet = null; this.stage.engine = null; this.stage.forget(); void this.stage.build(); this.o.changed(); }
+  private drop(): void { this.pending = null; this.signinState = null; this.signingSince = 0; this.stopQuiet?.(); this.stopQuiet = null; this.stopWait?.(); this.stopWait = null; this.stage.engine = null; this.stage.forget(); void this.stage.build(); this.o.changed(); }
   file(): void { const v = this.stage.readyEngine?.version ?? this.pending?.m.version; if (v) { this.lists.file(v); this.drop(); } }
   skip(): void { const v = this.stage.readyEngine?.version ?? this.pending?.m.version; if (v) { this.lists.skip(v); this.drop(); } }
   // Going back is Samara's (one rollback copy holds the whole app, engine and all).
