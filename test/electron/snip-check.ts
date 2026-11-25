@@ -33,14 +33,14 @@ const shot = async (w: BrowserWindow, name: string) => { try { writeFileSync(pat
 (shell as any).openExternal = async () => {};
 (shell as any).showItemInFolder = () => {};
 
-/** A made-up screen: dark blue, with a red box at (100, 100) to (300, 200) in the screen's own points. */
+/** A made-up screen: dark blue, with a red box at (80, 80) to (320, 220) in the screen's own points (he snips inside it). */
 function fakeScreen(d: Electron.Display): Electron.NativeImage {
   const sf = d.scaleFactor || 1;
   const W = Math.round(d.bounds.width * sf), H = Math.round(d.bounds.height * sf);
   const buf = Buffer.alloc(W * H * 4);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = (y * W + x) * 4;
-    const red = x >= 100 * sf && x < 300 * sf && y >= 100 * sf && y < 200 * sf;
+    const red = x >= 80 * sf && x < 320 * sf && y >= 80 * sf && y < 220 * sf;
     buf[i] = red ? 0 : 80; buf[i + 1] = red ? 0 : 30; buf[i + 2] = red ? 255 : 20; buf[i + 3] = 255;   // BGRA
   }
   return nativeImage.createFromBitmap(buf, { width: W, height: H, scaleFactor: 1 });
@@ -85,17 +85,22 @@ app.whenReady().then(async () => {
   await until(() => !ov2.webContents.isLoading());
   await until(async () => (await ov2.webContents.executeJavaScript("document.getElementById('shot').naturalWidth")) > 0);
   // the box, drawn with the mouse like he would
+  // The overlay may not be quite the screen's size (a window manager keeps a bar), and the frozen screen is stretched to
+  // fill it: he drags round what he sees, so the box is drawn where (100, 100) to (300, 200) of the screen shows.
+  const d0 = screen.getDisplayNearestPoint({ x: 400, y: 300 });
+  const view = await ov2.webContents.executeJavaScript('({ w: innerWidth, h: innerHeight })') as { w: number; h: number };
+  const kx = view.w / d0.bounds.width, ky = view.h / d0.bounds.height;
   await ov2.webContents.executeJavaScript(`(() => {
     const ev = (t, x, y) => window.dispatchEvent(new PointerEvent(t, { clientX: x, clientY: y, button: 0, bubbles: true }));
-    ev('pointerdown', 100, 100); ev('pointermove', 200, 150); ev('pointerup', 300, 200); return true; })()`);
+    ev('pointerdown', ${100 * kx}, ${100 * ky}); ev('pointermove', ${200 * kx}, ${150 * ky}); ev('pointerup', ${300 * kx}, ${200 * ky}); return true; })()`);
   check('the box he drew is saved as a PNG in his snips folder', await until(() => files().length === 1), JSON.stringify(files()));
   const file = path.join(dir, files()[0] ?? 'none');
   check('...named by the time', /^Snip \d{4}-\d\d-\d\d \d\d\.\d\d\.\d\d\.png$/.test(path.basename(file)), path.basename(file));
   const img = nativeImage.createFromPath(file);
   const sf = screen.getDisplayNearestPoint({ x: 400, y: 300 }).scaleFactor || 1;
-  check('...the size of the box', img.getSize().width === Math.round(200 * sf) && img.getSize().height === Math.round(100 * sf), JSON.stringify(img.getSize()));
+  check('...the size of the box', Math.abs(img.getSize().width - 200 * sf) <= 2 * sf && Math.abs(img.getSize().height - 100 * sf) <= 2 * sf, JSON.stringify(img.getSize()));
   const px = img.toBitmap();
-  check('...and it is the red box, nothing round it', px[2] === 255 && px[1] === 0 && px[px.length - 2] === 255, `${px[0]},${px[1]},${px[2]}`);
+  check('...and it is inside the red box, from corner to corner', px[2] === 255 && px[1] === 0 && px[px.length - 2] === 255 && px[px.length - 3] === 0, `${px[0]},${px[1]},${px[2]}`);
   check('the overlay goes', await until(() => byPage('snip.html').length === 0));
 
   // The notice.

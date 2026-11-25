@@ -18,7 +18,7 @@ import { readJson, saveText } from './store.ts';
 import { FUSE, readFuses } from './fusewire.ts';
 import { SwitchOrder, signWithSwitches } from './switchorder.ts';
 import { behindMs, behindWords, chromeStable, closesGap, downloadEngine, latestEngine } from './enginerelease.ts';
-import { Evs, type Signed } from './evs.ts';
+import { Evs, type Signed, type SigninKind } from './evs.ts';
 import { stampEngine } from './brand.ts';
 
 /** The user's tick boxes on an engine update (2026-10-14): the login lock, and closing the back doors. On by default. */
@@ -342,12 +342,16 @@ export class EngineUpdates {
   behind = '';
   private pendingMajor = false;
   /** The user's click on "Sign in to castLabs": Terminal opens with the sign-in typed; once castLabs has the user, it signs. */
-  async openSignin(): Promise<boolean> {
-    if (this.signin !== 'ask') return false;
+  /** 2026-11-25: also while it waits (Terminal closed, or he wants castLabs' password reset): each opens a fresh wait. */
+  private stopWait: (() => void) | null = null;
+  async openSignin(kind: SigninKind = 'signin'): Promise<boolean> {
+    if (this.signin !== 'ask' && this.signin !== 'waiting') return false;
     const since = this.evs.loginStamp();
-    if (!(await this.evs.openSignin())) return false;
+    if (!(await this.evs.openSignin(kind))) return false;
     this.signin = 'waiting'; this.o.changed(this.ready);
-    this.evs.watchSignin(since, (inNow) => {
+    this.stopWait?.();
+    this.stopWait = this.evs.watchSignin(since, (inNow) => {
+      this.stopWait = null;
       this.signin = inNow ? null : 'ask';
       this.o.changed(this.ready);
       if (inNow) void this.check();
@@ -366,7 +370,7 @@ export class EngineUpdates {
       // Told once (Phase 2): the card and one note, not one on every check. A sign-in he does on his own, outside
       // Samara's key, is noticed too, and the engine is signed then.
       if (first) { this.o.signinNeeded?.(true); this.watchQuietly(); }
-    } else if (r === 'ok') { this.signin = null; this.stopQuiet?.(); this.stopQuiet = null; }
+    } else if (r === 'ok') { this.signin = null; this.stopQuiet?.(); this.stopQuiet = null; this.stopWait?.(); this.stopWait = null; }
     return r;
   }
   /** What this machine learned about closing the switches before signing. */

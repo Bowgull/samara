@@ -30,14 +30,16 @@ import { homeGate, myTailnetAddr } from './homeroute.ts';
 import http from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { DirectClient, DIRECT_PORT } from './directsync.ts';
+import { macAppName, macHome } from './dirs.ts';
 
 const HERE = import.meta.dirname;
-const LISTENER = path.join(os.homedir(), 'Library', 'Application Support', 'Samara');
+// His existing folders and the app's old name on a Mac that had the old Samara (dirs.ts: his Keychain item).
+const LISTENER = macHome();
 const SYNC_PORT = 47832;   // the brain's hook port on the PC
 /** Sheet 21: the front desk on this Mac asks here for a drawn card (frontdesk.ts MAC_CARD_PORT). */
 const CARD_PORT = 47843;
 
-app.setName('Samara');
+app.setName(macAppName());
 // Started from the Dock there is no terminal: what it says goes to a log beside its settings (samara.log, kept small:
 // emptied past 2 MB).
 {
