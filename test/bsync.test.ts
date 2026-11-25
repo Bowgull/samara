@@ -219,3 +219,77 @@ test('tabs fix: a tab that loads what the other machine sent is not sent straigh
   await wait(20);
   assert.equal(sent().toA, before, 'nothing echoed back to the Mac');
 });
+
+// ---------------------------------------------------------------- Phase 3: item by item
+const mk = (url: string, title = url): Mark => ({ title, url, folder: '' });
+const sorted = (l: Mark[]) => l.map((x) => `${x.url} ${x.title}`).sort();
+
+test('Phase 3: both machines edit bookmarks and settings while apart; after they meet, nothing is lost and removals stay removed', async () => {
+  const { a, b, sa, sb, up, down } = pairApart();
+  await up();
+  a.m = [mk('https://w.com/', 'W'), mk('https://z.com/', 'Z')]; sa.changed('marks');
+  a.p = { search: 'brave', sounds: false, lists: { popupOk: [], trusted: ['t1.com', 't2.com'], httpOk: [], adsPaused: [], siteRules: {} } }; sa.changed('prefs');
+  await wait(20);
+  assert.deepEqual(sorted(b.m), sorted(a.m), 'in step before going apart');
+  assert.deepEqual(b.p, a.p);
+  await down();
+  // The Mac: a new bookmark, a renamed one, the search changed, a site allowed pop-ups.
+  a.m = [mk('https://w.com/', 'W renamed'), mk('https://z.com/', 'Z'), mk('https://x.com/', 'X')]; sa.changed('marks');
+  a.p = { ...a.p, search: 'ddg', lists: { ...(a.p.lists as object), popupOk: ['pop.com'] } }; sa.changed('prefs');
+  // The PC, later: another bookmark, one removed, sounds on, a trusted site taken off.
+  b.m = [mk('https://w.com/', 'W'), mk('https://y.com/', 'Y')]; sb.changed('marks');
+  b.p = { ...b.p, sounds: true, lists: { ...(b.p.lists as object), trusted: ['t1.com'] } }; sb.changed('prefs');
+  await up();
+  await wait(50);
+  const want = ['https://w.com/ W renamed', 'https://x.com/ X', 'https://y.com/ Y'];
+  assert.deepEqual(sorted(a.m), want, 'every add and the rename kept, the removal stays');
+  assert.deepEqual(sorted(b.m), want);
+  for (const p of [a.p, b.p]) {
+    assert.equal(p.search, 'ddg', 'the Mac\'s change survives the PC\'s later one');
+    assert.equal(p.sounds, true);
+    const L = p.lists as Record<string, string[]>;
+    assert.deepEqual(L.popupOk, ['pop.com']);
+    assert.deepEqual(L.trusted, ['t1.com'], 'the site taken off stays off');
+  }
+  // And again: meeting twice changes nothing, the removed bookmark does not come back.
+  await down(); await up(); await wait(30);
+  assert.deepEqual(sorted(a.m), want); assert.deepEqual(sorted(b.m), want);
+});
+
+test('Phase 3: a machine still on the old version sends whole lists, and they are taken as before', async () => {
+  const a = new Pretend();
+  const sa = new BrowserSync({ target: a, stateDir: mkdtempSync(path.join(os.tmpdir(), 'bs-')), now: () => 10, send: () => {} });
+  a.m = [mk('https://a.com/')]; a.p = { search: 'brave' };
+  await sa.got({ t: 'bsync.marks', at: 50, list: [mk('https://b.com/')] });
+  await sa.got({ t: 'bsync.prefs', at: 50, data: { search: 'google' } });
+  assert.deepEqual(a.m.map((x) => x.url), ['https://b.com/']);
+  assert.equal(a.p.search, 'google');
+  // Afterwards its own item-by-item records follow what it took, so a later change here travels as newer.
+  const sent: SyncMsg[] = [];
+  const sb = new BrowserSync({ target: a, stateDir: mkdtempSync(path.join(os.tmpdir(), 'bs-')), now: () => 100, send: (m) => sent.push(m) });
+  await sb.link(true);
+  const full = sent.find((m) => m.t === 'bsync.full') as Extract<SyncMsg, { t: 'bsync.full' }>;
+  assert.ok(full.marks.items?.['m.https://b.com/'], 'records carried in the full catch-up');
+});
+
+test('Phase 3: the same change time settles the same way on both machines', async () => {
+  const { joinWire } = await import('../src/syncitems.ts');
+  const one = { k: { at: 5, h: 'x' } }, f1: Record<string, unknown> = { k: 'mac' };
+  const two = { k: { at: 5, h: 'y' } }, f2: Record<string, unknown> = { k: 'pc' };
+  const { createHash } = await import('node:crypto');
+  const h = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('base64').slice(0, 16);
+  one.k.h = h('mac'); two.k.h = h('pc');
+  joinWire(one as never, f1, { k: { at: 5, v: 'pc' } });
+  joinWire(two as never, f2, { k: { at: 5, v: 'mac' } });
+  assert.equal(f1.k, f2.k);
+});
+
+test('Phase 3: a bookmark moved (order only) reaches the other machine', async () => {
+  const { a, b, sa, up } = pairApart();
+  await up();
+  a.m = [mk('https://1.com/'), mk('https://2.com/'), mk('https://3.com/')]; sa.changed('marks');
+  await wait(20);
+  a.m = [mk('https://3.com/'), mk('https://1.com/'), mk('https://2.com/')]; sa.changed('marks');
+  await wait(20);
+  assert.deepEqual(b.m.map((x) => x.url), ['https://3.com/', 'https://1.com/', 'https://2.com/']);
+});

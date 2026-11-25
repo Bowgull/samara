@@ -16,6 +16,7 @@ import { readJson } from './store.ts';
 import { neverKeep, type Visit } from './visits.ts';
 import type { Mark } from './bookmarks.ts';
 import { swallowed } from './swallow.ts';
+import { flatMarks, flatPrefs, joinWire, prune, restamp, toWire, unflatMarks, unflatPrefs, type Items, type Wire } from './syncitems.ts';
 
 /** One tab as it travels: where it is and which trail it belongs to. Scroll, zoom and sound stay per machine. */
 export interface SyncTab { url: string; title: string; trail: number | null; done: boolean }
@@ -41,9 +42,9 @@ export interface SyncTarget {
 
 export type SyncMsg =
   | { t: 'bsync.hello' } | { t: 'bsync.down' } | { t: 'bsync.media' }
-  | { t: 'bsync.full'; marks: { at: number; list: Mark[] }; prefs: { at: number; data: Record<string, unknown> }; tabs: { at: number; snap: TabSnap; base?: string[] }; visits: Visit[]; cookies: Record<string, { at: number; c: SyncCookie | null }> }
-  | { t: 'bsync.marks'; at: number; list: Mark[] }
-  | { t: 'bsync.prefs'; at: number; data: Record<string, unknown> }
+  | { t: 'bsync.full'; marks: { at: number; list: Mark[]; items?: Wire }; prefs: { at: number; data: Record<string, unknown>; items?: Wire }; tabs: { at: number; snap: TabSnap; base?: string[] }; visits: Visit[]; cookies: Record<string, { at: number; c: SyncCookie | null }> }
+  | { t: 'bsync.marks'; at: number; list: Mark[]; items?: Wire }
+  | { t: 'bsync.prefs'; at: number; data: Record<string, unknown>; items?: Wire }
   | { t: 'bsync.tabs'; at: number; snap: TabSnap }
   | { t: 'bsync.visit'; op: 'add'; list: Visit[] } | { t: 'bsync.visit'; op: 'forget'; url: string; at: number } | { t: 'bsync.visit'; op: 'clear'; from: number }
   | { t: 'bsync.cookies'; list: { key: string; at: number; c: SyncCookie | null }[] }
@@ -121,7 +122,9 @@ export function joinVisits(mine: Visit[], theirs: Visit[], now = Date.now()): Vi
   return add;
 }
 
-interface SyncState { marksAt: number; prefsAt: number; tabsAt: number; tabsBase?: string[]; cookies: Record<string, { at: number; c: SyncCookie | null }> }
+interface SyncState { marksAt: number; prefsAt: number; tabsAt: number; tabsBase?: string[]; cookies: Record<string, { at: number; c: SyncCookie | null }>;
+  /** Phase 3: each bookmark's and each setting's last change here, and removal markers (syncitems.ts). Fingerprints only. */
+  markItems?: Items; prefItems?: Items }
 
 /**
  * The sync itself, the same on both machines. `send` reaches the other machine (through the brain); `got` is called
@@ -143,7 +146,7 @@ export class BrowserSync {
   constructor(o: { target: SyncTarget; send: (m: SyncMsg) => void; stateDir: string; log?: (s: string) => void; now?: () => number }) {
     this.o = o;
     this.file = `${o.stateDir}/browser-sync.json`;
-    this.s = readJson<SyncState>(this.file, this.s, (r) => { const s = r as any; return { marksAt: +s.marksAt || 0, prefsAt: +s.prefsAt || 0, tabsAt: +s.tabsAt || 0, ...(Array.isArray(s.tabsBase) ? { tabsBase: s.tabsBase.filter((u: unknown) => typeof u === 'string').slice(0, 80) } : {}), cookies: s.cookies && typeof s.cookies === 'object' ? s.cookies : {} }; });   // none: fresh
+    this.s = readJson<SyncState>(this.file, this.s, (r) => { const s = r as any; return { marksAt: +s.marksAt || 0, prefsAt: +s.prefsAt || 0, tabsAt: +s.tabsAt || 0, ...(Array.isArray(s.tabsBase) ? { tabsBase: s.tabsBase.filter((u: unknown) => typeof u === 'string').slice(0, 80) } : {}), cookies: s.cookies && typeof s.cookies === 'object' ? s.cookies : {}, ...(s.markItems && typeof s.markItems === 'object' ? { markItems: s.markItems } : {}), ...(s.prefItems && typeof s.prefItems === 'object' ? { prefItems: s.prefItems } : {}) }; });   // none: fresh
     this.lastTabSig = tabSig(o.target.tabSnap());
     // A file written before 2026-10-14 still holds login values: rewritten without them, now.
     if (Object.values(this.s.cookies).some((v) => v.c && typeof (v.c as SyncCookie).value === 'string')) this.save(true);
@@ -159,6 +162,8 @@ export class BrowserSync {
     // Old removals are forgotten after 30 days: by then both machines have long agreed.
     const cut = this.now() - 30 * DAY;
     for (const [k, v] of Object.entries(this.s.cookies)) if (!v.c && v.at < cut) delete this.s.cookies[k];
+    if (this.s.markItems) prune(this.s.markItems, this.now());
+    if (this.s.prefItems) prune(this.s.prefItems, this.now());
     // Never a login's value on disk (security audit H2, 2026-10-14: this file was a second, plain copy of every synced
     // login). What the sync needs between runs is only WHEN each cookie last changed and whether it was removed; the
     // live values are always read fresh from the browser's own cookie store when the machines catch up.
@@ -169,14 +174,39 @@ export class BrowserSync {
   }
   private log(s: string) { this.o.log?.(s); }
   private send(m: SyncMsg) { if (this.connected) this.o.send(m); }
+  /** Phase 3: the per-item records, brought up to date with this machine's bookmarks and settings. A machine
+   *  starting from an older version stamps what it has with its old whole-list time, so nothing looks newer than it is. */
+  private markItems(at = this.s.marksAt): Items { const i = (this.s.markItems ??= {}); restamp(i, flatMarks(this.o.target.marks()), at); return i; }
+  private prefItems(at = this.s.prefsAt): Items { const i = (this.s.prefItems ??= {}); restamp(i, flatPrefs(this.o.target.prefs()), at); return i; }
+  /** The other machine's bookmarks joined here item by item; true when anything changed. `theirOrder` wins when newer. */
+  private joinMarks(w: Wire, theirAt: number, theirList: Mark[]): boolean {
+    const items = this.markItems(), mine = this.o.target.marks(), flat = flatMarks(mine);
+    const changed = joinWire(items, flat, w);
+    const order = (theirAt > this.s.marksAt ? theirList : mine).map((m) => m?.url).filter((u): u is string => typeof u === 'string');
+    const next = unflatMarks(flat, order);
+    // A bookmark moved (order only, no item changed) still travels when their list is the newer one.
+    if (!changed && next.map((m) => m.url).join('\n') === mine.map((m) => m.url).join('\n')) return false;
+    this.o.target.setMarks(next);
+    return true;
+  }
+  /** The other machine's settings joined here item by item; Earlier comes along to its own join. */
+  private joinPrefs(w: Wire, theirs: Record<string, unknown>): void {
+    const items = this.prefItems(), mine = this.o.target.prefs(), flat = flatPrefs(mine);
+    const changed = joinWire(items, flat, w);
+    const theirEarlier = (theirs?.lists as { earlier?: unknown } | undefined)?.earlier;
+    const newEarlier = theirEarlier !== undefined && JSON.stringify(theirEarlier) !== JSON.stringify((mine.lists as { earlier?: unknown } | undefined)?.earlier);
+    if (changed || newEarlier) this.o.target.setPrefs(unflatPrefs(flat, { lists: 'lists' in mine || 'lists' in (theirs ?? {}), ...(theirEarlier !== undefined ? { earlier: theirEarlier } : {}) }));
+  }
 
   // ---- this machine changed something
   changed(kind: 'marks' | 'prefs' | 'tabs' | 'mstages'): void {
     if (this.applying) return;
     // Sheet 79: the mockup marks carry their own times, one each; the whole list goes and the other side keeps the newer.
     if (kind === 'mstages') { const list = this.o.target.mockStages?.(); if (list) this.send({ t: 'bsync.mstages', list }); return; }
-    if (kind === 'marks') { const at = this.stamp(this.s.marksAt); this.s.marksAt = at; this.save(); this.send({ t: 'bsync.marks', at, list: this.o.target.marks() }); }
-    else if (kind === 'prefs') { const at = this.stamp(this.s.prefsAt); this.s.prefsAt = at; this.save(); this.send({ t: 'bsync.prefs', at, data: this.o.target.prefs() }); }
+    // Phase 3: the whole list still goes (a machine on an older version takes it whole, as before); `items` lets a
+    // machine on this version join it item by item.
+    if (kind === 'marks') { const at = this.stamp(this.s.marksAt); const items = this.markItems(at); this.s.marksAt = at; this.save(); const list = this.o.target.marks(); this.send({ t: 'bsync.marks', at, list, items: toWire(items, flatMarks(list)) }); }
+    else if (kind === 'prefs') { const at = this.stamp(this.s.prefsAt); const items = this.prefItems(at); this.s.prefsAt = at; this.save(); const data = this.o.target.prefs(); this.send({ t: 'bsync.prefs', at, data, items: toWire(items, flatPrefs(data)) }); }
     else {
       const snap = keptTabs(this.o.target.tabSnap());
       const sig = tabSig(snap);
@@ -232,7 +262,8 @@ export class BrowserSync {
     const now = this.now();
     this.send({
       t: 'bsync.full',
-      marks: { at: this.s.marksAt, list: t.marks() }, prefs: { at: this.s.prefsAt, data: t.prefs() },
+      marks: { at: this.s.marksAt, list: t.marks(), items: toWire(this.markItems(), flatMarks(t.marks())) },
+      prefs: { at: this.s.prefsAt, data: t.prefs(), items: toWire(this.prefItems(), flatPrefs(t.prefs())) },
       tabs: { at: this.s.tabsAt, snap: keptTabs(t.tabSnap()), ...(this.s.tabsBase ? { base: this.s.tabsBase } : {}) },
       visits: t.visits().filter(v => v.at > now - 90 * DAY && urlKept(v.url)),
       cookies,
@@ -251,8 +282,14 @@ export class BrowserSync {
         case 'bsync.hello': this.connected = true; await this.sendFull(); break;
         case 'bsync.down': this.connected = false; break;
         case 'bsync.media': t.pauseAll?.(); break;
-        case 'bsync.marks': if (m.at > this.s.marksAt && Array.isArray(m.list)) { t.setMarks(m.list); this.s.marksAt = m.at; this.save(); } break;
-        case 'bsync.prefs': if (m.at > this.s.prefsAt && m.data && typeof m.data === 'object') { t.setPrefs(m.data); this.s.prefsAt = m.at; this.save(); } break;
+        case 'bsync.marks':
+          if (m.items && typeof m.items === 'object' && Array.isArray(m.list)) { this.joinMarks(m.items, m.at, m.list); this.s.marksAt = Math.max(this.s.marksAt, m.at); this.save(); }
+          else if (m.at > this.s.marksAt && Array.isArray(m.list)) { this.markItems(); t.setMarks(m.list); this.s.marksAt = m.at; this.markItems(m.at); this.save(); }
+          break;
+        case 'bsync.prefs':
+          if (m.items && typeof m.items === 'object' && m.data && typeof m.data === 'object') { this.joinPrefs(m.items, m.data); this.s.prefsAt = Math.max(this.s.prefsAt, m.at); this.save(); }
+          else if (m.at > this.s.prefsAt && m.data && typeof m.data === 'object') { this.prefItems(); t.setPrefs(m.data); this.s.prefsAt = m.at; this.prefItems(m.at); this.save(); }
+          break;
         case 'bsync.tabs': if (m.at > this.s.tabsAt && m.snap) { this.applyTabs(m.snap); this.s.tabsAt = m.at; this.s.tabsBase = keptTabs(m.snap).tabs.map(x => x.url); this.save(); } break;
         case 'bsync.visit':
           if (m.op === 'add' && Array.isArray(m.list)) t.addVisits(joinVisits(t.visits(), m.list, this.now()));
@@ -265,7 +302,11 @@ export class BrowserSync {
           // Bookmarks after time apart are joined, never replaced (found 2026-10-13: on the first sync neither side had
           // a change time, so neither took the other's and the Mac stayed empty). A bookmark removed on one machine
           // while apart can come back; one he made is never lost.
-          if (Array.isArray(m.marks?.list)) {
+          if (m.marks?.items && typeof m.marks.items === 'object' && Array.isArray(m.marks.list)) {
+            this.joinMarks(m.marks.items, m.marks.at, m.marks.list);
+            this.s.marksAt = Math.max(this.s.marksAt, m.marks.at);
+          } else if (Array.isArray(m.marks?.list)) {
+            this.markItems();
             const mine = t.marks();
             const have = new Set(mine.map(x => x.url));
             const add = m.marks.list.filter(x => x && typeof x.url === 'string' && !have.has(x.url));
@@ -273,8 +314,10 @@ export class BrowserSync {
             const extra = m.marks.at > this.s.marksAt ? mine.filter(x => !m.marks.list.some(y => y.url === x.url)) : add;
             if (extra.length || base !== mine) t.setMarks([...base, ...extra]);
             this.s.marksAt = Math.max(this.s.marksAt, m.marks.at);
+            this.markItems(m.marks.at);
           }
-          if (m.prefs?.at > this.s.prefsAt) { t.setPrefs(m.prefs.data); this.s.prefsAt = m.prefs.at; }
+          if (m.prefs?.items && typeof m.prefs.items === 'object' && m.prefs.data && typeof m.prefs.data === 'object') { this.joinPrefs(m.prefs.items, m.prefs.data); this.s.prefsAt = Math.max(this.s.prefsAt, m.prefs.at); }
+          else if (m.prefs?.at > this.s.prefsAt) { this.prefItems(); t.setPrefs(m.prefs.data); this.s.prefsAt = m.prefs.at; this.prefItems(m.prefs.at); }
           if (m.tabs?.snap) {
             const mine = { at: this.s.tabsAt, snap: keptTabs(t.tabSnap()), ...(this.s.tabsBase ? { base: this.s.tabsBase } : {}) };
             const joined = joinTabs(mine, m.tabs);

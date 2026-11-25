@@ -45,3 +45,4 @@ rail-earlier-check.ts
 fence-check.ts
 lockdown-check.ts
 effect-check.ts
+sy-check.ts
