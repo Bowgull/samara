@@ -17,8 +17,8 @@
     "@duckduckgo/autoconsent": "16.53.0",
     "@ghostery/adblocker-electron": "^2.18.2",
     "darkreader": "4.9.133",
-    "electron": "44.7.0",
-    "electron-drm": "github:castlabs/electron-releases#v44.5.1+wvcus",
+    "electron": "45.2.1",
+    "electron-drm": "github:castlabs/electron-releases#v45.2.1+wvcus",
     "rcedit": "4.0.1",
     "tldts-experimental": "^7.4.16",
     "ws": "^8.18.0"
