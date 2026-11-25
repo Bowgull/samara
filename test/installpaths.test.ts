@@ -218,6 +218,8 @@ test('Mac engine: when castLabs wants a sign-in, the key asks; Terminal opens; o
   assert.ok(await ue.signin('reset')); assert.deepEqual(kinds, ['signin', 'signin', 'reset']); assert.equal(stopped, 2);
   assert.equal(e.ready()?.signin, 'waiting');
   answer = 'ok'; watcher!(true);
+  // 2026-11-25 ("I signed in but nothing happens"): the card says castLabs is signing until the engine is ready.
+  assert.equal(e.ready()?.signin, 'signing');
   for (let i = 0; i < 150 && !(e.ready()?.signin === undefined && st.ready()); i++) await new Promise((r) => setTimeout(r, 20));
   assert.equal(e.ready()?.signin, undefined); assert.ok(st.ready(), 'signed and staged');
 });

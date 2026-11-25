@@ -120,6 +120,9 @@ app.whenReady().then(async () => {
   check('...and asks for Terminal again, never the update', acts.at(-1)?.act === 'castlabs' && gone.length === before, JSON.stringify(acts.at(-1)));
   await js(`document.getElementById('upforgot').click()`); await wait(150);
   check('"Forgot your castLabs password?" opens castLabs\' own reset', acts.at(-1)?.act === 'castlabsreset' && gone.length === before, JSON.stringify(acts.at(-1)));
+  b.setUpdate({ ...base, signin: 'signing' } as any); await wait(300);
+  const e4 = await js(`({ kicker: document.getElementById('upkicker').textContent, go: document.getElementById('upgo').textContent, dis: document.getElementById('upgo').disabled, note: document.getElementById('upnote').textContent })`);
+  check('signed in: the card says castLabs is signing, never blank', e4.kicker === 'SIGNING FOR VIDEO' && e4.go === 'Signing...' && e4.dis && /You're signed in\./.test(e4.note) && /Restart now shows here/.test(e4.note), JSON.stringify(e4));
   b.setUpdate({ ...base } as any); await wait(300);
   check('108: signed in, the key is Restart now again', await js(`document.getElementById('upgo').textContent === 'Restart now' && !document.getElementById('upgo').disabled && document.getElementById('upkicker').textContent === 'UPDATE READY'`));
   (b as any).closeAll?.(); pages.close();

@@ -89,7 +89,7 @@ export interface Offer {
   version: string; since: number; title?: string; groups: CardGroup[]; canBack?: boolean; lines?: string[];
   /** Sheet 108: castLabs wants him to sign in before the engine can be signed for video ('ask': the one key;
    *  'waiting': Terminal is open). While set, the key shows "Sign in to castLabs" instead of Restart now. */
-  signin?: 'ask' | 'waiting';
+  signin?: 'ask' | 'waiting' | 'signing';
   /** Sheet 108: the one line under the lines ("Your engine today is 6 weeks behind Chrome's security fixes..."). */
   behind?: string;
   /** Sheet 114: a newer one is getting ready behind this one (next), while Restart now still puts this one in (now). */
@@ -202,6 +202,7 @@ export class UpdateEngine {
     if (why) return { ok: false, why };
     if (this.going) return { ok: false, why: 'Already updating.' };
     const card = this.card();
+    if (card?.signin === 'signing') return { ok: false, why: 'castLabs is still signing the new engine. Restart now shows here when it is ready.' };
     if (card?.signin) return { ok: false, why: 'Sign in to castLabs first, so the new engine plays video.' };
     const ready = this.keyed.filter((s) => { const r = s.ready(); return r && (!securityOnly || (r.security && r.tonight)); });
     if (!card || !ready.length) return { ok: false, why: 'The update is not ready yet. It will show up again when it is.' };
