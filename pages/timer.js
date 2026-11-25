@@ -191,7 +191,7 @@ function rename() {
 }
 
 // ---------------------------------------------------------------- from Samara
-api?.onTimerData?.((d) => { if (d && typeof d === 'object' && typeof d.id === 'string') apply(d); });
+api?.onTimerData?.((d) => { if (d && typeof d === 'object' && typeof d.id === 'string') { apply(d); requestAnimationFrame(() => sayAreas()); } });
 api?.onTimerDo?.((what) => {
   if (what === 'rename') rename();
   else if (what === 'restart') restart(t?.total ?? 0);
@@ -207,6 +207,17 @@ let over = false;
 const hot = () => plate.matches(':hover') || keysRow.matches(':hover');
 document.addEventListener('mousemove', () => { const h = hot(); if (h !== over) { over = h; api?.timerClickable?.(h); } });
 document.addEventListener('mouseleave', () => { over = false; if (!renaming) api?.timerClickable?.(false); });
+// The Mac sends no mouse moves to a window that lets clicks through, so Samara follows the pointer there: it is told
+// where the plate and the keys are, and takes the mouse only over them.
+let areasSent = '';
+const sayAreas = () => {
+  const a = [plate, keysRow].map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0)
+    .map((r) => ({ x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }));
+  const k = JSON.stringify(a);
+  if (k !== areasSent) { areasSent = k; api?.timerAreas?.(a); }
+};
+try { const ro = new ResizeObserver(sayAreas); ro.observe(plate); ro.observe(keysRow); } catch { /* an old engine: the whole window */ }
+window.addEventListener('load', sayAreas);
 
 // Drag the plate anywhere. Samara moves the window; the page only says how far.
 plate.addEventListener('pointerdown', (e) => {
