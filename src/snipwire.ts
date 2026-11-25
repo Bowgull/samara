@@ -128,6 +128,7 @@ export function startSnip(o: SnipOpts): SnipHub {
     const v = a as Record<string, unknown>;
     pins.drag(p, v.phase, Number(v.dx ?? 0), Number(v.dy ?? 0));
   });
+  ipcMain.on('pinsnip:areas', (e, a) => { const p = fromPin(e); if (p) pins.areas(p, a); });
   ipcMain.on('pinsnip:pin', (e) => { const p = fromPin(e); if (p) pins.pin(p); });
   ipcMain.on('pinsnip:opacity', (e, n) => { const p = fromPin(e); if (p) pins.opacity(p, Number(n)); });
   ipcMain.on('pinsnip:ask', (e) => { const p = fromPin(e); if (p) pins.ask(p); });

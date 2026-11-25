@@ -3,7 +3,7 @@
 // sent to Claude or closed.
 import { paintPinKey } from './pinkey.js';
 const s = window.samara;
-const api = s && { onData: s.onPinData, clickable: s.pinClickable, drag: s.pinDrag, pin: s.pinPin, opacity: s.pinOpacity, ask: s.pinAsk, close: s.pinClose };
+const api = s && { onData: s.onPinData, areas: s.pinAreas, clickable: s.pinClickable, drag: s.pinDrag, pin: s.pinPin, opacity: s.pinOpacity, ask: s.pinAsk, close: s.pinClose };
 const MIN_OP = 0.3;
 const frame = document.getElementById('frame'), bar = document.getElementById('bar');
 const vs = document.getElementById('vs'), ro = document.getElementById('ro'), pinB = document.getElementById('pin');
@@ -44,6 +44,17 @@ function setHot(on) {
 }
 const isHot = (x, y) => { const e = document.elementFromPoint(x, y); return !!e && (frame.contains(e) || (vs.classList.contains('on') && vs.contains(e))); };
 document.addEventListener('mousemove', (e) => setHot(isHot(e.clientX, e.clientY)));
+// The Mac sends no mouse moves to a window that lets clicks through, so Samara follows the pointer there: it is told
+// where the frame is (and the slider, while it is out).
+let areasSent = '';
+function sayAreas() {
+  const a = [frame, ...(vs.classList.contains('on') ? [vs] : [])].map((el) => el.getBoundingClientRect())
+    .map((r) => ({ x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }));
+  const k = JSON.stringify(a);
+  if (k !== areasSent) { areasSent = k; api?.areas?.(a); }
+}
+try { new ResizeObserver(sayAreas).observe(frame); } catch { /* an old engine: the whole window */ }
+try { new MutationObserver(sayAreas).observe(vs, { attributes: true, attributeFilter: ['class'] }); } catch { /* as above */ }
 document.addEventListener('mouseleave', () => setHot(false));
 
 // Grab the bar to move it.

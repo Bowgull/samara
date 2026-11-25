@@ -7,6 +7,7 @@
 // own window and never names a file: the picture is read here, from a snip Samara itself saved, and sent as an image.
 // Its bar has Ask Claude too, so a snip pinned with no Samara window open can still go to Claude.
 import { BrowserWindow, nativeImage, screen } from 'electron';
+import { cleanAreas, type Area } from './timers.ts';
 import { SAFE_WEB_PREFERENCES, denyPermissions, lockDown } from './safety.ts';
 
 import { pinSize } from './snipplan.ts';
@@ -23,7 +24,7 @@ export interface PinSnipOptions {
   platform?: NodeJS.Platform;
 }
 
-interface Pin { w: BrowserWindow; file: string; title: string; pic: string; pinned: boolean; opacity: number; drag: { x: number; y: number } | null; hot: boolean }
+interface Pin { w: BrowserWindow; file: string; title: string; pic: string; pinned: boolean; opacity: number; drag: { x: number; y: number } | null; hot: boolean; areas?: Area[] }
 
 export class PinSnips {
   private readonly pins = new Set<Pin>();
@@ -106,13 +107,15 @@ export class PinSnips {
     for (const p of this.pins) {
       if (p.w.isDestroyed() || p.drag) continue;
       const b = p.w.getBounds();
-      // the frame only: the see-through room on the right lets clicks through unless the slider is out (the page says)
-      const on = pt.x >= b.x && pt.x < b.x + b.width && pt.y >= b.y && pt.y < b.y + b.height;
+      // the frame (and the slider while it is out), as the page says; the see-through room round them lets clicks through
+      const inside = (a: Area) => pt.x >= b.x + a.x && pt.x < b.x + a.x + a.w && pt.y >= b.y + a.y && pt.y < b.y + a.y + a.h;
+      const on = p.areas ? p.areas.some(inside) : pt.x >= b.x && pt.x < b.x + b.width && pt.y >= b.y && pt.y < b.y + b.height;
       if (on !== p.hot) { p.hot = on; p.w.setIgnoreMouseEvents(!on, { forward: true }); }
     }
   }
 
   /* ---- what the page may ask, each only for its own window (snipwire.ts finds the window first) */
+  areas(p: Pin, a: unknown): void { if (!p.w.isDestroyed()) { const b = p.w.getBounds(); p.areas = cleanAreas(a, b.width, b.height) ?? undefined; } }
   clickable(p: Pin, on: boolean): void { if (!p.w.isDestroyed()) { p.hot = on; p.w.setIgnoreMouseEvents(!(on || p.drag), { forward: true }); } }
   drag(p: Pin, phase: unknown, dx: number, dy: number): void {
     if (p.w.isDestroyed()) return;

@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('samara', {
   /** A pinned snip: its picture and state, and its keys. */
   onPinData(fn) { const h = (_e, d) => fn(d); ipcRenderer.on('pinsnip:data', h); return () => ipcRenderer.removeListener('pinsnip:data', h); },
   pinClickable: (on) => ipcRenderer.send('pinsnip:clickable', on === true),
+  /** Where the frame (and the slider, while out) are: the Mac follows the pointer with these. */
+  pinAreas: (a) => ipcRenderer.send('pinsnip:areas', a),
   pinDrag: (a) => ipcRenderer.send('pinsnip:drag', a),
   pinPin: () => ipcRenderer.send('pinsnip:pin'),
   pinOpacity: (n) => ipcRenderer.send('pinsnip:opacity', Number(n)),
