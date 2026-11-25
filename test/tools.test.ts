@@ -22,9 +22,9 @@ test('only the tools that started; none at all says so', () => {
   assert.equal(none[0]!.enabled, false);
 });
 
-test('the tools key is Control + Option + T on the Mac and Ctrl + Alt + T on the PC (one accelerator)', () => {
+test('the tools key is Control + Option + T on the Mac and Ctrl + Num / on the PC (never Ctrl + Alt + a letter there: AltGr)', () => {
   assert.equal(toolsKeyFor('darwin'), 'Control+Alt+T');
-  assert.equal(toolsKeyFor('win32'), 'Control+Alt+T');
+  assert.equal(toolsKeyFor('win32'), 'Control+numdiv');
 });
 
 test('the ☰ menu has a TOOLS group with the four tools', () => {

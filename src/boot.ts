@@ -319,7 +319,7 @@ export function samaraBrowser(base: SamaraBase, p: Platform, bp: BrowserPlatform
   try { snips = d.startSnip?.({ browser, here: p.here, stateDir: p.stateDir, origin: pages.origin, log: (s) => p.log(s) }) ?? null; }
   catch (e) { p.log('snip did not start: ' + (e as Error).message); }
   browser.snipHub = snips;
-  // U1 (2026-11-25): one key brings the tools up anywhere (Control + Option + T on the Mac, Ctrl + Alt + T on the PC);
+  // U1 (2026-11-25): one key brings the tools up anywhere (Control + Option + T on the Mac, Ctrl + Num / on the PC);
   // in the ☰ menu they are the TOOLS group. New note there is the quick note.
   const hubs: ToolHubs = {
     timer: timers ? () => timers!.setup() : null, music: music ? () => music!.open() : null,

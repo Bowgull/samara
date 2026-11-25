@@ -9,8 +9,11 @@ export interface ToolHubs {
   note?: (() => void) | null;
 }
 
-/** The key that brings the tools up anywhere. */
-export function toolsKeyFor(_platform: NodeJS.Platform): string { return 'Control+Alt+T'; }
+/**
+ * The key that brings the tools up anywhere: Control + Option + T on the Mac; Ctrl + Num / on the PC, beside the quick
+ * note's Ctrl + Num *. Never Ctrl + Alt + a letter on the PC: that is AltGr on many Windows keyboards and types a character.
+ */
+export function toolsKeyFor(platform: NodeJS.Platform): string { return platform === 'darwin' ? 'Control+Alt+T' : 'Control+numdiv'; }
 
 /** The tools menu, in the ☰ menu's order: each row only when its tool started. The quick-note key is shown beside New note. */
 export function toolsMenu(h: ToolHubs, noteKey: string | null): MenuItemConstructorOptions[] {

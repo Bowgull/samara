@@ -1,6 +1,6 @@
 // Samara's tools in one place (U1, 2026-11-25, his "build it"): Timer, Music player, Snip and New note, the tools that
 // used to be the companion's. In the ☰ menu they are the TOOLS group; anywhere else (a game, another app, no Samara
-// window at all) one key brings them up by the pointer: Control + Option + T on the Mac, Ctrl + Alt + T on the PC.
+// window at all) one key brings them up by the pointer: Control + Option + T on the Mac, Ctrl + Num / on the PC.
 //
 // The key's menu is the system's own (it looks right on both machines). A menu needs a window to hang from, so it hangs
 // from a tiny see-through one at the pointer, made for that moment and gone when the menu closes. On the Mac Samara

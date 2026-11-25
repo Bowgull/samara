@@ -384,7 +384,7 @@ export function quickKeysFor(platform: NodeJS.Platform): string[] {
 /** A key as he reads it on that machine's keyboard: "Control + Option + N" on the Mac, "Ctrl + Num *" on the PC. */
 export function sayKey(key: string, mac: boolean): string {
   const words: Record<string, string> = mac
-    ? { Control: 'Control', Alt: 'Option', Shift: 'Shift', Command: 'Command', nummult: 'Num *' }
-    : { Control: 'Ctrl', Alt: 'Alt', Shift: 'Shift', nummult: 'Num *' };
+    ? { Control: 'Control', Alt: 'Option', Shift: 'Shift', Command: 'Command', nummult: 'Num *', numdiv: 'Num /' }
+    : { Control: 'Ctrl', Alt: 'Alt', Shift: 'Shift', nummult: 'Num *', numdiv: 'Num /' };
   return key.split('+').map((k) => words[k] ?? k).join(' + ');
 }

@@ -32,8 +32,8 @@ app.whenReady().then(async () => {
   (screen as any).getCursorScreenPoint = () => ({ x: 420, y: 310 });
   const did: string[] = [];
   const tools = startTools({ hubs: { timer: () => did.push('timer'), music: () => did.push('music'), snip: () => did.push('snip'), note: () => did.push('note') },
-    noteKey: 'Control+Alt+N', log: (s) => console.log('LOG ' + s) });
-  check('the tools key is held', globalShortcut.isRegistered('Control+Alt+T') && tools.key === 'Ctrl + Alt + T', String(tools.key));
+    noteKey: 'Control+nummult', log: (s) => console.log('LOG ' + s) });
+  check('the tools key is held (the PC\'s: Ctrl + Num /)', globalShortcut.isRegistered('Control+numdiv') && tools.key === 'Ctrl + Num /', String(tools.key));
 
   tools.open();
   check('its menu comes up', !!shown);
@@ -63,7 +63,7 @@ app.whenReady().then(async () => {
   check('☰ › Tools › New note is the quick note', did.includes('quick'));
 
   tools.close();
-  check('closing lets the key go', !globalShortcut.isRegistered('Control+Alt+T'));
+  check('closing lets the key go', !globalShortcut.isRegistered('Control+numdiv'));
   pages.close();
   console.log(bad ? `${bad} FAILED` : 'ALL PASS');
   app.exit(bad ? 1 : 0);
