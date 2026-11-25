@@ -25,6 +25,7 @@ import { startNotes } from './noteswire.ts';
 import { startTimers } from './timerswire.ts';
 import { startMusic } from './musicwire.ts';
 import { startSnip } from './snipwire.ts';
+import { startTools } from './toolswire.ts';
 
 export function bootDeps(log: (s: string) => void): BootDeps {
   return {
@@ -50,6 +51,7 @@ export function bootDeps(log: (s: string) => void): BootDeps {
     startTimers,
     startMusic: (o) => startMusic({ ...o, appData: app.getPath('appData') }),
     startSnip,
+    startTools,
     dockMenu: (rows) => { if (process.platform !== 'darwin') return; try { app.dock?.setMenu(Menu.buildFromTemplate(rows)); } catch { /* no Dock */ } },
     mkdir: (dir) => { try { mkdirSync(dir, { recursive: true, mode: 0o700 }); return true; } catch { return false; } },
     wireBrowser,

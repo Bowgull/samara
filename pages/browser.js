@@ -394,6 +394,9 @@ el('m-timer').addEventListener('click', () => { closeMenu(); window.samara?.brow
 el('m-music').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('music'); });
 // S1 (2026-11-25): Snip is Samara's: drag a box around part of the screen.
 el('m-snip').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('snip'); });
+// U1 (2026-11-25): New note is the quick note; the TOOLS group's keys as this machine's keyboard has them.
+el('m-newnote').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('newnote'); });
+if (window.samara?.platform === 'darwin') { el('m-toolskey').textContent = 'CTRL OPT T'; el('m-notekey').textContent = 'CTRL OPT N'; }
 // The tab count at the foot of the drawer (Phase R: trail clean up is retired; the overnight tidy does it).
 function paintTidy() {
   const live = state.tabs.filter((t) => !String(t.url).startsWith('samara:')).length;

@@ -101,6 +101,8 @@ html.floated:not(.float) #uptray,html.floated:not(.float) #updone,html.floated:n
 #menu .grp+.grp{margin-top:6px;padding-top:6px;border-top:0;box-shadow:none;
   background:linear-gradient(90deg,transparent,rgba(255,196,60,.32),transparent) top/calc(100% - 12px) 2px no-repeat}
 #menu .gh{font:400 11px var(--label);letter-spacing:1.4px;color:var(--wood-label);text-shadow:1px 1px 0 #000;margin:0;padding:8px 10px 4px}
+#menu .gh:has(kbd){display:flex;align-items:center;padding-right:12px}
+#menu .gh kbd.wkbd{margin-left:auto;letter-spacing:.8px}
 #menu .mrow{min-height:34px;padding:0 10px;border-radius:7px;font:600 14.5px var(--body);color:var(--wood-text)}
 #menu button.mrow:hover:not(:disabled),#menu .mrow:focus-visible{background:rgba(255,226,140,.12);box-shadow:inset 3px 0 0 var(--gold);outline:none}
 #menu .mrow i{color:var(--gold);font-size:12px}

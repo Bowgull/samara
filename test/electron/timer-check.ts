@@ -113,9 +113,9 @@ app.whenReady().then(async () => {
   await until(() => !!dialWin() && !dialWin()!.webContents.isLoading());
   await wait(300);
   await dialWin()!.webContents.executeJavaScript("document.getElementById('typed').value = 'soon'; document.getElementById('go').click(); true");
-  await wait(400);
-  const badShown = await dialWin()?.webContents.executeJavaScript("document.getElementById('typed').classList.contains('bad')");
-  check('a time Samara cannot read stays on the dial, marked', badShown === true && hub.list().length === 3);
+  // Samara's answer comes back over IPC: waited for, not timed (a slow runner took longer than 400 ms)
+  const badShown = await until(async () => (await dialWin()?.webContents.executeJavaScript("document.getElementById('typed').classList.contains('bad')")) === true);
+  check('a time Samara cannot read stays on the dial, marked', badShown && hub.list().length === 3);
   await dialWin()!.webContents.executeJavaScript("document.getElementById('typed').value = '1h 30m'; document.getElementById('go').click(); true");
   check('a typed time starts', await until(() => hub.list().some((t) => t.total === 90 * 60_000)));
   // Five at most.
