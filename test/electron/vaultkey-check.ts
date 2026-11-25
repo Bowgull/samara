@@ -27,9 +27,9 @@ app.whenReady().then(async () => {
     tabPreloadPath: path.join(HERE, '..', '..', 'src', 'tabpreload.cjs'), settingsPreloadPath: path.join(HERE, '..', '..', 'src', 'settingspreload.cjs'), thingsPreloadPath: path.join(HERE, '..', '..', 'src', 'thingspreload.cjs') }) as any;
   const b1 = mk();
   const f = JSON.parse(readFileSync(path.join(dir, 'vault-sites.json'), 'utf8'));
-  // QA fix F9 (2026-11-25): a computer with no lock of its own to keep it under (Linux with no keyring: the CI runner)
-  // keeps the old file as it was rather than lose the key; the Mac and Windows always have one.
-  if (!safeStorage.isEncryptionAvailable()) check('no lock on this computer: the old file is kept as it was', f.key === 'a'.repeat(64) && f.sites.join() === 'x1,x2' && b1.siteKey === 'a'.repeat(64), JSON.stringify(Object.keys(f)));
+  // QA fix F9 (2026-11-25): only Windows locks it (its lock never asks him anything); the Mac waits for the login lock
+  // (browser.ts lockKey), and Linux has none. There the old file is kept as it was rather than lose the key.
+  if (process.platform !== 'win32' || !safeStorage.isEncryptionAvailable()) check('not locked here by design: the old file is kept as it was', f.key === 'a'.repeat(64) && f.sites.join() === 'x1,x2' && b1.siteKey === 'a'.repeat(64), JSON.stringify(Object.keys(f)));
   else check('an old plain key is locked at once, the list unchanged', typeof f.keyLocked === 'string' && f.key === undefined && f.sites.join() === 'x1,x2' && b1.siteKey === 'a'.repeat(64), JSON.stringify(Object.keys(f)));
   const b2 = mk();
   check('the next start unlocks it to the same key', b2.siteKey === 'a'.repeat(64) && b2.sites.size === 2);
