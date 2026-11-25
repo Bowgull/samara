@@ -43,7 +43,7 @@ export interface SyncTarget {
 }
 
 export type SyncMsg =
-  | { t: 'bsync.hello' } | { t: 'bsync.down' } | { t: 'bsync.media' }
+  | { t: 'bsync.hello' } | { t: 'bsync.down' } | { t: 'bsync.ping' } | { t: 'bsync.media' }
   | { t: 'bsync.full'; marks: { at: number; list: Mark[]; items?: Wire }; prefs: { at: number; data: Record<string, unknown>; items?: Wire }; tabs: { at: number; snap: TabSnap; base?: string[] }; visits: Visit[]; cookies: Record<string, { at: number; c: SyncCookie | null }> }
   | { t: 'bsync.marks'; at: number; list: Mark[]; items?: Wire }
   | { t: 'bsync.prefs'; at: number; data: Record<string, unknown>; items?: Wire }
@@ -307,6 +307,9 @@ export class BrowserSync {
       switch (m.t) {
         case 'bsync.hello': this.connected = true; await this.sendFull(); break;
         case 'bsync.down': this.connected = false; break;
+        // N2 review (2026-11-25): the PC lost its direct line and asks through the hub whether the other machine is there.
+        // Answered with a hello the way it came (syncSend falls back to the hub), so both send everything again.
+        case 'bsync.ping': this.connected = true; this.send({ t: 'bsync.hello' }); break;
         case 'bsync.media': t.pauseAll?.(); break;
         case 'bsync.marks':
           if (m.items && typeof m.items === 'object' && Array.isArray(m.list)) { this.joinMarks(m.items, m.at, m.list); this.s.marksAt = Math.max(this.s.marksAt, m.at); this.save(); }

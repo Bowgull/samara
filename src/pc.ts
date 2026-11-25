@@ -142,7 +142,14 @@ app.on('second-instance', (_e, argv, _cwd, data) => {
 const direct = new DirectHost({
   stateDir: STATE_DIR, log: (s) => console.log('samara: ' + s),
   onMessage: (m) => { void boot?.browserNow.sync?.got(m as never).catch((e: Error) => console.error('samara: sync: ' + e.message)); },
-  onLink: (up) => { if (up) void boot?.browserNow.sync?.link(true); },
+  // Down (review of N2, 2026-11-25): nothing is sent as if the Mac heard it (a closed tab would move the tabs' base on
+  // and come back later). The PC stops counting the Mac as there, then asks through the hub; a Mac still on the hub
+  // answers hello and both send everything again. A Mac that is asleep answers nothing, and the PC waits.
+  onLink: (up) => {
+    const s = boot?.browserNow.sync;
+    if (up) { void s?.link(true); return; }
+    void s?.link(false).then(() => { if (link.connected) link.send({ t: 'bsync.ping' } as never); });
+  },
 });
 const link = new CompanionLink({
   port: PORT, stateDir: STATE_DIR, role: 'samara',

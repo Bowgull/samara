@@ -315,3 +315,17 @@ test('N0: notes travel with the sync: every note on catch-up (in batches), each 
   await wait(10);
   assert.equal(pcNotes.get('nm1')?.title, 'From the Mac');
 });
+
+test('N2 review: the direct line drops, the PC stops sending; a Mac still on the hub answers a ping and both catch up', async () => {
+  const { a, b, sa, sb, up } = pair(); // sa: the PC, sb: the Mac
+  await up();
+  await sa.link(false);                                 // the PC's direct line closed
+  a.t = { tabs: [tab('https://github.com/')], trails: [] }; sa.changed('tabs');
+  await wait(20);
+  assert.deepEqual(b.t.tabs, [], 'nothing is sent while the PC does not count the Mac as there');
+  assert.equal(sa.connected, false);
+  await sb.got({ t: 'bsync.ping' } as SyncMsg);         // the PC's ping, through the hub
+  await wait(40);
+  assert.equal(sa.connected, true);
+  assert.deepEqual((b.t.tabs as { url: string }[]).map(x => x.url), ['https://github.com/'], 'the tab opened in the gap arrives with the catch-up');
+});
