@@ -3,7 +3,7 @@
 // Run: SAMARA_RELEASE_KEY=<pem> node tools/release/samara-release.mjs <version> <out dir> [notes file]
 import { execFileSync } from 'node:child_process';
 import { createHash, createPrivateKey, sign } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';   // a Windows path, never /D:/...
 import { checkNewest, read } from './version.mjs';
@@ -24,8 +24,8 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const shell = repo;
 mkdirSync(out, { recursive: true });
 
-// Same files and order as macBrowserBundle, plus the Shell's assets (the PC's window icon; 2026-10-29, the PC installs
-// releases too). On GitHub (GNU tar) owner and times are fixed too, so the same code always
+// Same files and order as macBrowserBundle, plus assets/ when there is one (2026-11-25: Samara's own repo has none; its
+// icons live in pages/art/samara). On GitHub (GNU tar) owner and times are fixed too, so the same code always
 // makes the same package; a Mac's own tar (for a trial run here) has no such switches.
 // Phase 1 (2026-11-24): the list of every code file and its fingerprint, sealed with the same key, goes inside the
 // bundle; each Samara checks its own files against it after start (src/integrity.ts).
@@ -37,7 +37,7 @@ writeFileSync(path.join(out, 'integrity.sig'), sign(null, Buffer.from(list), cre
 const bundle = path.join(out, 'samara-bundle.tgz');
 const gnu = /GNU tar/.test(execFileSync('tar', ['--version'], { encoding: 'utf8' }));
 execFileSync('tar', [...(gnu ? ['--sort=name', '--owner=0', '--group=0', '--numeric-owner', '--mtime=@0'] : []), '-czf', bundle,
-  '-C', shell, 'src', 'pages', 'drm', 'assets', 'test/electron/engine-safety-check.ts', 'package.json', 'package-lock.json', '-C', path.resolve(out), 'integrity.json', 'integrity.sig'], { stdio: 'inherit', env: { ...process.env, GZIP: '-n' } });
+  '-C', shell, 'src', 'pages', 'drm', ...(existsSync(path.join(shell, 'assets')) ? ['assets'] : []), 'test/electron/engine-safety-check.ts', 'package.json', 'package-lock.json', '-C', path.resolve(out), 'integrity.json', 'integrity.sig'], { stdio: 'inherit', env: { ...process.env, GZIP: '-n' } });
 const bytes = readFileSync(bundle);
 
 const commit = execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
