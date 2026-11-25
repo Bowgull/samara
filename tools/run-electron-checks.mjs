@@ -37,12 +37,14 @@ function run(name) {
     p.stdout.on('data', (d) => { out += d; });
     p.stderr.on('data', (d) => { out += d; });
     const kill = setTimeout(() => { out += '\nRUNNER: timed out\n'; p.kill('SIGKILL'); }, TIMEOUT_MS);
-    // Done when the check's own process exits. Not 'close' alone: a program a check starts (2026-11-25: xdg-open
-    // opening a real browser on the Linux runner) can keep the output pipes open long after, and the run never ended.
+    // Done when every pipe closes (the check and all it started have ended), or at the latest 15 s after its own
+    // process exits. Not 'close' alone: a program a check starts (2026-11-25: xdg-open opening a real browser on the
+    // Linux runner) can keep the pipes open long after, and the run never ended. Not 2 s after exit either: Electron's
+    // helper processes were then still closing when the speed check began, and it ran slow on Windows.
     let done = false;
     const finish = (code) => { if (done) return; done = true; clearTimeout(kill); resolve({ name, code, secs: Math.round((Date.now() - started) / 1000), out }); };
     p.on('close', (code) => finish(code));
-    p.on('exit', (code, signal) => { setTimeout(() => finish(code ?? (signal ? 1 : 0)), 2000); });
+    p.on('exit', (code, signal) => { setTimeout(() => finish(code ?? (signal ? 1 : 0)), 15_000); });
     p.on('error', (e) => { if (done) return; done = true; clearTimeout(kill); resolve({ name, code: -1, secs: 0, out: String(e) }); });
   });
 }
