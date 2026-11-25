@@ -11,6 +11,10 @@ import { testCert } from './testcert.ts';
 process.on('unhandledRejection', (e) => { console.log('HARNESS REJECTION ' + String((e as Error)?.message ?? e)); app.exit(2); });
 setTimeout(() => { console.log('HARNESS TIMEOUT'); app.exit(3); }, 90_000).unref();
 app.commandLine.appendSwitch('host-resolver-rules', 'MAP shop.example 127.0.0.1');
+// Off screen, Windows counts the window as hidden behind others and stops its pages taking input (CI 2026-11-25: the
+// page saw no clicks at all). As in autofill-check: keep its pages running as if in front.
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 app.setPath('userData', mkdtempSync(path.join(os.tmpdir(), 'lc-ud-')));
 app.on('window-all-closed', () => {});
