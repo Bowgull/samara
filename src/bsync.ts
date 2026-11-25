@@ -48,7 +48,8 @@ export type SyncMsg =
   | { t: 'bsync.tabs'; at: number; snap: TabSnap }
   | { t: 'bsync.visit'; op: 'add'; list: Visit[] } | { t: 'bsync.visit'; op: 'forget'; url: string; at: number } | { t: 'bsync.visit'; op: 'clear'; from: number }
   | { t: 'bsync.cookies'; list: { key: string; at: number; c: SyncCookie | null }[] }
-  | { t: 'bsync.mstages'; list: unknown[] };
+  | { t: 'bsync.mstages'; list: unknown[] }
+  | { t: 'bsync.canary'; version: string; verdict: 'good' | 'bad' };
 
 const DAY = 86_400_000;
 
@@ -239,6 +240,12 @@ export class BrowserSync {
     }, 1500);
   }
 
+  /** Phase 4 (canary.ts): this machine's verdict on a new version, for the other machine (which waits on it). Sent when
+   *  the link is up; told again when it comes back up (sendFull). */
+  private told = new Map<string, 'good' | 'bad'>();
+  canary(version: string, verdict: 'good' | 'bad'): void { if (this.told.get(version) === 'bad') return; this.told.set(version, verdict); this.send({ t: 'bsync.canary', version, verdict }); }
+  /** The other machine's verdict on a version it ran first. */
+  onCanary: ((version: string, verdict: 'good' | 'bad') => void) | null = null;
   /** Something started playing on this machine: the other one stops (one video at a time). */
   mediaStarted(): void { this.send({ t: 'bsync.media' }); }
 
@@ -271,6 +278,7 @@ export class BrowserSync {
     // Sheet 79: and the mockup marks, after time apart (each side keeps the newer of each).
     const ms = t.mockStages?.();
     if (ms?.length) this.send({ t: 'bsync.mstages', list: ms });
+    for (const [version, verdict] of this.told) this.send({ t: 'bsync.canary', version, verdict });
   }
 
   /** Something arrived from the other machine. */
@@ -298,6 +306,7 @@ export class BrowserSync {
           break;
         case 'bsync.cookies': for (const r of Array.isArray(m.list) ? m.list : []) await this.takeCookie(r.key, r.at, r.c); this.save(); break;
         case 'bsync.mstages': if (Array.isArray(m.list)) t.takeMockStages?.(m.list); break;
+        case 'bsync.canary': if ((m.verdict === 'good' || m.verdict === 'bad') && typeof m.version === 'string') this.onCanary?.(m.version, m.verdict); break;
         case 'bsync.full': {
           // Bookmarks after time apart are joined, never replaced (found 2026-10-13: on the first sync neither side had
           // a change time, so neither took the other's and the Mac stayed empty). A bookmark removed on one machine

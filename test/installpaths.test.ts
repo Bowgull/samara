@@ -449,3 +449,28 @@ test('retireCopy deletes the old copy and leaves nothing beside it', () => {
   assert.equal(retireCopy(path.join(d, 'staged'), path.join(d, 'old'), 'staged'), '');
   assert.deepEqual(readdirSync(d), []);
 });
+
+// Phase 4 (canary, Codex review): a release the Mac already staged is taken off the key when the PC turns it back.
+test('Mac: a staged release comes off the key when the PC says it was turned back, and waits its day otherwise', { skip: process.platform === 'win32' && 'Mac paths: the Mac script is built for a Mac' }, async () => {
+  const p = macHome(), calls: string[] = [];
+  const st = new MacStage(p, { run: fakeRun(p, calls), log: () => {}, changed: () => {} });
+  const BUNDLE = Buffer.from('pretend bundle');
+  const man = (at: string) => seal({ v: 1, app: 'samara', version: '1.31.0', commit: 'f'.repeat(40), at, notes: ['x'], bundle: { file: 'samara-bundle.tgz', sha256: createHash('sha256').update(BUNDLE).digest('hex'), bytes: BUNDLE.length } });
+  let m = man(new Date().toISOString());
+  const fetch = async (url: string) => url.includes('api.github.com') ? res(JSON.stringify({ tag_name: 'samara-v1.31.0' })) : url.endsWith('manifest.json') ? res(m.text) : url.endsWith('manifest.sig') ? res(m.sig) : url.endsWith('.tgz') ? res(BUNDLE) : res('', false);
+  let peer: 'good' | 'bad' | null = null;
+  const s = new MacSamara(p, st, { fetch: fetch as never, log: () => {}, changed: () => {}, pub: PUB, peer: () => peer });
+  await s.check('test');
+  assert.equal(st.samara, null, 'released just now: the Mac waits for the PC');
+  m = man(new Date(Date.now() - 25 * 3_600_000).toISOString());
+  await new Promise((r) => setTimeout(r, 1100));
+  (s as unknown as { at: number }).at = 0;
+  await s.check('a day later');
+  for (let i = 0; i < 100 && !st.ready(); i++) await new Promise((r) => setTimeout(r, 10));
+  assert.equal(s.ready()?.version, '1.31.0', 'a day later, staged');
+  peer = 'bad';
+  (s as unknown as { at: number; tried: Set<string> }).at = 0;
+  await s.check('the PC turned it back');
+  assert.equal(s.ready(), null, 'off the key');
+  assert.ok(s.lists.blocked('1.31.0'));
+});

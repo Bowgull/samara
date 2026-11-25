@@ -256,6 +256,8 @@ app.whenReady().then(async () => {
         engineSrc = pcEngine(engineUpdates, { browserOpen: () => boot?.browserNow.showing === true });
         return [...(samaraUpdates ? [pcSamara(samaraUpdates)] : []), engineSrc];
       },
+      // Phase 4: the PC takes a new Samara first and is watched for a day (canary.ts).
+      canary: () => { const su = samaraUpdates as SamaraUpdates | null; return su && su.running() ? { version: su.running(), rollback: () => su.turnBack(), macWaits: false } : null; },
       prefsFile: path.join(STATE_DIR, 'update-prefs.json'), changelog: path.join(DATA_DIR, 'Samara Changelog.md'),
       inGame: () => false,
       beforeGo: (w) => { if (engineSrc) engineSrc.overnight = w.overnight ? { title: w.title, lines: w.lines } : null; },
