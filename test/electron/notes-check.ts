@@ -12,6 +12,7 @@ import { servePages } from '../../src/pageserver.ts';
 import { SamaraBrowser } from '../../src/browser.ts';
 import { wireBrowser } from '../../src/browseripc.ts';
 import { startNotes } from '../../src/noteswire.ts';
+import { quickKeysFor, sayKey } from '../../src/notes.ts';
 
 process.on('uncaughtException', (e) => { console.log('HARNESS NOTE ' + String((e as Error).message).split('\n')[0]); });
 process.on('unhandledRejection', (e) => { console.log('HARNESS REJECTION ' + String((e as Error)?.stack ?? e)); app.exit(2); });
@@ -109,9 +110,10 @@ app.whenReady().then(async () => {
   const again = new NotesStore({ dir: path.join(stateDir, 'notes'), dev: 'pc', log: () => {} });
   check('after a restart every note is there', again.list().length === 3 && again.trash().length === 1, `${again.list().length} + ${again.trash().length}`);
   check('Settings › Notes has its numbers', (b.notesHub.status() as { notes: number }).notes === 3);
-  // Q1: the quick-note key is held (here, the PC's: Ctrl + Num *), and Settings names it.
+  // Q1: this machine's quick-note key is held (the Mac's Control + Option + N, the PC's Ctrl + Num *), and Settings names it.
   const ks = (b.notesHub.status() as { quickKeys?: string[] }).quickKeys ?? [];
-  check('the quick-note key is held, and named for Settings', globalShortcut.isRegistered('Control+nummult') && ks.includes('Ctrl + Num *'), JSON.stringify(ks));
+  const qk = quickKeysFor(process.platform)[0]!;
+  check('the quick-note key is held, and named for Settings', globalShortcut.isRegistered(qk) && ks.includes(sayKey(qk, process.platform === 'darwin')), JSON.stringify(ks));
 
   console.log('pictures: ' + OUT);
   console.log(bad ? `${bad} FAILED` : 'ALL PASS'); app.exit(bad ? 1 : 0);
