@@ -1,18 +1,42 @@
 # Samara's update engine (2026-10-29). Claude ships a version by tagging a commit on main "samara-vX.Y.Z";
 # the tag's message is the "what's new" on his UPDATE key. The tests run on a Mac and on Windows first; then the
 # release is packed, sealed with his release key and published; both Samaras find it on their next daily check or start.
+#
+# 2026-11-25: a release also starts from main itself. ship.mjs records the version in releases.json and pushes main;
+# when the newest version there has no release yet, this makes it (and its tag). Some places Claude works from can push
+# main but not a tag, so a pushed tag is no longer needed. A version that already has a release is never made again.
 name: Samara release
 on:
   push:
     tags: ['samara-v*']
+    branches: [main]
+    paths: ['releases.json', '.github/workflows/samara-release.yml']
 permissions:
   contents: write
 jobs:
+  which:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.which.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: which
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then TAG="$GITHUB_REF_NAME"
+          else TAG="samara-v$(node -e "console.log(require('./releases.json').versions.at(-1).semver)")"; fi
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then echo "::notice::$TAG is already released."; TAG=""; fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
   gate:
+    needs: which
+    if: needs.which.outputs.tag != ''
     uses: ./.github/workflows/samara-tests.yml
   release:
-    needs: gate
+    needs: [which, gate]
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.which.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -30,25 +54,24 @@ jobs:
       - name: Pack and seal
         env:
           SAMARA_RELEASE_KEY: ${{ secrets.SAMARA_RELEASE_KEY }}
-          TAG: ${{ github.ref_name }}
         run: |
+          # what it brings comes from whats-new.json (samara-release.mjs); the tag's words are kept when there is one
           git tag -l --format='%(contents)' "$TAG" > notes.txt
           node tools/release/samara-release.mjs "${TAG#samara-v}" out notes.txt
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
         run: |
           NAME=$(node -e "console.log(require('./out/manifest.json').name)")
           node -e "console.log(require('./out/manifest.json').notes.map((n) => '- ' + n).join('\\n'))" > notes.md
-          gh release create "$TAG" out/manifest.json out/manifest.sig out/samara-bundle.tgz --title "Samara ${TAG#samara-v}: $NAME" --notes-file notes.md --latest
+          # --target: from main, the tag is made here, on the commit that was tested
+          gh release create "$TAG" --target "$GITHUB_SHA" out/manifest.json out/manifest.sig out/samara-bundle.tgz --title "Samara ${TAG#samara-v}: $NAME" --notes-file notes.md --latest
       # Every Samara from 1.28.1 on reads Bowgull/samara-releases (sealed files only), so this repo can go private.
       # The copy above stays until both machines run 1.28.1 or later. RELEASES_TOKEN: his token for that repo only.
       - name: Publish to samara-releases
         id: publish
         env:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
-          TAG: ${{ github.ref_name }}
         run: |
           [ -n "$GH_TOKEN" ] || { echo "::notice::No RELEASES_TOKEN secret: the machine that shipped copies $TAG over (tools/release/ship.mjs)."; echo "copied=no" >> "$GITHUB_OUTPUT"; exit 0; }
           NAME=$(node -e "console.log(require('./out/manifest.json').name)")
