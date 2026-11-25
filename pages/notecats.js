@@ -117,8 +117,8 @@ export function boxArt(done, scale = 2) {
 
 // ---------------------------------------------------------------- the control row (one on every note, sheet 60 section 3)
 /**
- * `# category`, the checklist key, and "Companion can bring this up". The same on a quick note, a note on the screen and a
- * note opened from the board. `act(what, value)`: 'cat' (open the picker; value = the chip), 'check', 'notice' (bool).
+ * `# category` and the checklist key. The same on a quick note, a note on the screen and a note opened from the board.
+ * `act(what, value)`: 'cat' (open the picker; value = the chip), 'check'.
  */
 export function controls(n, act) {
   const f = document.createElement('div'); f.className = 'np-ctl';
@@ -135,13 +135,9 @@ export function controls(n, act) {
   ck.addEventListener('mousedown', (e) => e.preventDefault());
   ck.addEventListener('click', (e) => { e.stopPropagation(); act('check'); });
   r1.append(chip, ck);
-  const r2 = document.createElement('button'); r2.type = 'button'; r2.className = 'np-r2';
-  const on = n.notice !== false;
-  r2.append(switchArt(on), Object.assign(document.createElement('span'), { textContent: on ? 'Companion can bring this up' : 'Companion keeps this one to itself' }));
-  r2.title = on ? 'The companion may bring this note up itself. Click to keep it to yourself.' : 'The companion only reads it when you ask. Click to let it bring it up.';
-  r2.addEventListener('mousedown', (e) => e.preventDefault());
-  r2.addEventListener('click', (e) => { e.stopPropagation(); act('notice', !on); });
-  f.append(r1, r2);
+  // N0 (2026-11-25): "Companion can bring this up" is gone with the companion's sprite (his pick: its nudges are
+  // dropped). A note's `notice` setting is still kept as it was; nothing shows or changes it here.
+  f.append(r1);
   return f;
 }
 

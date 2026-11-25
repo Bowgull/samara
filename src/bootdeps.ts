@@ -21,6 +21,7 @@ import { UpdateEngine } from './updateengine.ts';
 import { writeFileAtomic } from './atomic.ts';
 import { readJson, saveJson } from './store.ts';
 import { onCastlabs } from './engineupdate.ts';
+import { startNotes } from './noteswire.ts';
 
 export function bootDeps(log: (s: string) => void): BootDeps {
   return {
@@ -42,6 +43,7 @@ export function bootDeps(log: (s: string) => void): BootDeps {
     }),
     writeBox: (dir, box) => { if (!saveJson(popoutFile(dir), box)) log('could not remember the pop-out size'); },
     newBrowser: (o) => new SamaraBrowser(o),
+    startNotes,
     mkdir: (dir) => { try { mkdirSync(dir, { recursive: true, mode: 0o700 }); return true; } catch { return false; } },
     wireBrowser,
     wirePopout,

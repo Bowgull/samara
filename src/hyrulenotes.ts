@@ -51,3 +51,24 @@ export function hyruleNotesFile(env: NodeJS.ProcessEnv = process.env): string | 
   const f = path.join(botwFolder(env), 'notes.json');
   try { return existsSync(f) && statSync(f).size < 2_000_000 ? readFileSync(f, 'utf8') : null; } catch { return null; }
 }
+
+/**
+ * N0 (2026-11-25): Samara keeps his notes now, so Samara writes botw/notes.json for the map and the guide tools, in the
+ * companion's own format (Core botwnotes.ts botwNotesFile), so nothing that reads it changes. Only on a machine that has
+ * the BotW folder already; once the file exists it is kept current, so the last pin taken off empties it. True when written.
+ */
+export function writeHyruleNotes(notes: { id: string; title: string; html: string; cat?: string; updated: number; place?: { game: string; x: number; z: number }; deleted?: number }[],
+  own: string[], plain: (html: string) => string[], env: NodeJS.ProcessEnv = process.env, now = Date.now()): boolean {
+  const dir = botwFolder(env), file = path.join(dir, 'notes.json');
+  if (!existsSync(dir)) return false;
+  const pins = notes.filter((n) => !n.deleted && n.place?.game === 'botw');
+  if (!pins.length && !existsSync(file)) return false;
+  const data = {
+    v: 1, writtenAt: new Date(now).toISOString(), own: [...own],
+    notes: pins.map((n) => ({ id: n.id, title: n.title, cat: n.cat ?? '', lines: plain(n.html), html: n.html, x: n.place!.x, z: n.place!.z, updated: new Date(n.updated).toISOString() })),
+  };
+  const text = JSON.stringify(data, null, 1);
+  // The same pins as last time: not written again (writtenAt alone is no change).
+  try { const was = JSON.parse(readFileSync(file, 'utf8')); if (JSON.stringify({ ...was, writtenAt: '' }) === JSON.stringify({ ...data, writtenAt: '' })) return false; } catch { /* none yet */ }
+  try { writeFileAtomic(file, text); return true; } catch { return false; }
+}

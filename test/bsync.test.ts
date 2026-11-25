@@ -293,3 +293,25 @@ test('Phase 3: a bookmark moved (order only) reaches the other machine', async (
   await wait(20);
   assert.deepEqual(b.m.map((x) => x.url), ['https://3.com/', 'https://1.com/', 'https://2.com/']);
 });
+
+test('N0: notes travel with the sync: every note on catch-up (in batches), each change live, and the other side merges them', async () => {
+  const { NotesStore } = await import('../src/notestore.ts');
+  const { NOTES_BATCH } = await import('../src/bsync.ts');
+  const plain = { available: () => true, seal: (s: string) => s, open: (s: string) => s };
+  const mk = (dev: 'pc' | 'mac') => new NotesStore({ dir: mkdtempSync(path.join(os.tmpdir(), 'bsn-')), dev, keeper: plain, log: () => {} });
+  const pcNotes = mk('pc'), macNotes = mk('mac');
+  for (let i = 0; i < NOTES_BATCH + 5; i++) pcNotes.save({ id: `np${i}`, title: `PC ${i}` });
+  const { a, b, sa, sb, up } = pair();
+  const hook = (t: Pretend, s: InstanceType<typeof NotesStore>) => Object.assign(t, { notes: () => ({ list: s.forSync(), own: s.cats().own }), takeNotes: (l: unknown[], o: string[]) => { s.take(l, o); } });
+  hook(a, pcNotes); hook(b, macNotes);
+  const sent: SyncMsg[] = [];
+  const orig = (sa as unknown as { o: { send: (m: SyncMsg) => void } }).o.send;
+  (sa as unknown as { o: { send: (m: SyncMsg) => void } }).o.send = (m) => { sent.push(m); orig(m); };
+  await up();
+  assert.equal(macNotes.list().length, NOTES_BATCH + 5, 'every note across');
+  assert.equal(sent.filter((m) => m.t === 'bsync.notes').length, 2, 'in two batches');
+  const n = macNotes.save({ id: 'nm1', title: 'From the Mac' })!;
+  sb.notesOut([macNotes.forSync().find((x) => x.id === n.id)!], []);
+  await wait(10);
+  assert.equal(pcNotes.get('nm1')?.title, 'From the Mac');
+});

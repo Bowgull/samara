@@ -47,3 +47,4 @@ fence-check.ts
 lockdown-check.ts
 effect-check.ts
 sy-check.ts
+notes-check.ts

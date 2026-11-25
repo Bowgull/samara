@@ -111,10 +111,12 @@ const waitingUrls: string[] = [];
 const urlsIn = (argv: string[]) => argv.filter((a) => /^https?:\/\//i.test(a)).slice(0, 5);
 waitingUrls.push(...urlsIn(process.argv));
 
-/** A taskbar task: the browser's own here; New note, Timer and the Music player are the companion's, handed to him. */
+/** A taskbar task: the browser's own here, and New note (Samara's notes); Timer and the Music player are the companion's, handed to him. */
 function runTask(t: SamaraTask): void {
   // Phase 5: Quit Samara (taskbar list or its ... menu). A real quit: it leaves its mark, so the companion shows no crash card.
   if (t === 'quit') { console.log('samara: quit, on his ask'); app.quit(); return; }
+  // N0 (2026-11-25): New note is Samara's own (the quick note), never the companion's.
+  if (t === 'new-note') { if (boot?.notes) boot.notes.quick(); else pending = t; return; }
   // the companion's own tools never wait for Samara's window (they are not Samara's): straight to him.
   if (isPopoutTask(t) && NEEDS_COMPANION.has(t)) {
     if (link.connected) link.send({ t: 'relay', m: { t: 'samara.task', task: t } } as never); else wakeCompanion(t);
@@ -147,10 +149,8 @@ const link = new CompanionLink({
     if (m.t === 'popout.open' && typeof m.url === 'string') { boot?.openPop(m.url); return; }
     if (m.t === 'popout.close') { boot?.popout.close(); boot?.drm.close(); return; }
     if (m.t === 'hyrule.route') { if (b) b.hyruleRoute(m); else link.send({ t: 'hyrule.route.done', id: String(m.id ?? ''), state: 'off' }); return; }
-    if (m.t === 'notes.state' && Array.isArray(m.notes)) {
-      const own = Array.isArray((m.cats as { own?: unknown } | undefined)?.own) ? ((m.cats as { own: unknown[] }).own).map(String) : [];
-      b?.notesNews(m.notes, own); return;
-    }
+    // N0 (2026-11-25): notes are Samara's own now; the companion's notes.state is not used (the rail reads Samara's store).
+    if (m.t === 'notes.state') return;
     if (m.t === 'drive' && Number.isInteger(m.id) && typeof m.op === 'string') {
       const id = Number(m.id), a = (m.a && typeof m.a === 'object') ? m.a as Record<string, unknown> : {};
       // A card for Discord (9.D D3) is drawn by the companion's own windows (main.ts) since 2026-11-20; never answered here, so
@@ -270,12 +270,9 @@ app.whenReady().then(async () => {
   const b = boot.browserNow;
   // Phase 1 (2026-11-24): a little after start, Samara's code is checked against its release's sealed list.
   setTimeout(() => { const r = checkIntegrity(app.getAppPath()); (log)(sayIntegrity(r)); if (r.state === 'changed' || r.state === 'unsealed') b.say('Samara', sayIntegrity(r)); }, 20_000).unref?.();
-  // The browser's news for the companion, as main.ts wires it.
-  b.onNoteSave = (n) => link.send({ t: 'notes.save', note: n } as never);
+  // The browser's news for the companion, as main.ts wires it. (Notes are no longer sent there: N0, noteswire.ts.)
   // Ctrl and + zooms the page while Samara is in front (his rule): the companion's talk key steps aside then (main.ts samaraInFront).
   b.onFront = (on) => { link.send({ t: 'relay', m: { t: 'samara.front', on } } as never); };
-  b.onNotePlace = (m) => link.send(m as never);
-  b.onNoteOpen = (id) => link.send({ t: 'relay', m: { t: 'samara.note.open', id } } as never);
   b.onRouteDone = (r) => link.send({ t: 'hyrule.route.done', ...r } as never);
   // Send to the companion and Send mockup to the companion (2026-11-20, his "Fix it now"): over the relay to the companion's windows, which answer.
   // Pictures go as files beside this program's state; the companion's windows read them by name and delete them.
@@ -326,7 +323,8 @@ app.whenReady().then(async () => {
   }
   link.start();
   // Started by a link, a task or his click: the window comes up. Started quietly (--quiet, a Claude session): only the doors.
-  if (!process.argv.includes('--quiet') || waitingUrls.length) {
+  // New note from the taskbar list with Samara closed: only the quick note comes up, not a browser window.
+  if ((!process.argv.includes('--quiet') && startTask !== 'new-note') || waitingUrls.length) {
     b.open(waitingUrls.shift());
     for (const u of waitingUrls.splice(0)) b.open(u);
   }

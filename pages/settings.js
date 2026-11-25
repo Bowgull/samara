@@ -357,6 +357,25 @@ function paint(d) {
   siteRows(d.sites ?? []);
   chips('trusted', d.trusted ?? [], 'trusted');
   chips('httpOk', d.httpOk ?? [], 'httpOk');
+  // notes (N0): Samara's own notes store
+  const ns = d.notes;
+  $('#notesv').textContent = ns ? `${n(ns.notes, 'note', 'notes') || 'None yet'}${ns.trash ? ` · ${ns.trash} in the Trash` : ''}` : 'Starting';
+  $('#notessealv').textContent = !ns ? '' : ns.locked ? 'LOCKED' : ns.sealed ? 'ON' : 'NOT ON THIS COMPUTER';
+  $('#notessealv').classList.toggle('off', !!ns && (ns.locked || !ns.sealed));
+  $('#notessealed').dataset.help = !ns ? '' : ns.locked ? "This computer's key won't open the notes kept here. They are left exactly as they are; new notes are still kept."
+    : ns.sealed ? "Locked with this computer's own key. Copied anywhere else, the files can't be read." : 'This computer has no key to seal with, so notes are kept as plain files.';
+  $('#noteskeyv').textContent = ns?.quickKey ? (d.mac ? 'Control + Num *' : 'Ctrl + Num *') : 'Taken by another program';
+  $('#noteskeyv').classList.toggle('dim', !ns?.quickKey);
+  $('#noteskey').dataset.help = ns?.quickKey ? 'A small note, ready to type. Enter keeps it; Esc closes it (what you typed is kept).' : 'Another program holds Ctrl + Num *. New note in the taskbar list still works.';
+  $('#notesbackupv').textContent = ns?.lastBackup ? `Last ${new Date(ns.lastBackup).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : 'None yet';
+  $('#notesbackupv').classList.toggle('dim', !ns?.lastBackup);
+  const imp = ns?.companion;
+  $('#notesimport').hidden = !imp;
+  if (imp) {
+    $('#notesimportv').textContent = `${imp.found} found${imp.skipped?.length ? ` · ${imp.skipped.length} skipped` : ''}`;
+    $('#notesimport').dataset.help = `Brought in once, and again at each start, without changing the companion's file. ${imp.added} new, ${imp.updated} updated, ${imp.kept} kept beside one you changed here, ${imp.same} already here.`
+      + (imp.skipped?.length ? ` Skipped: ${imp.skipped.slice(0, 3).map((x) => `${x.id} (${x.why})`).join(', ')}.` : '');
+  }
   // about
   $('#enginev').textContent = `CHROMIUM ${String(d.versions?.chrome ?? '').split('.')[0]}`;
   $('#enginerow').dataset.help = `Chromium ${d.versions?.chrome ?? ''} (Electron ${d.versions?.electron ?? ''}).`;

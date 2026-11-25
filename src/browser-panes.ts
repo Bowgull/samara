@@ -882,6 +882,8 @@ export const PanesPart = {
       versions: { electron: process.versions.electron, chrome: process.versions.chrome }, mac: process.platform === 'darwin' || Boolean(this.o.tvAt),
       // Sheet 99: his TV (kept on this Mac only, tv-remote.json; the PC has no TV link)
       ...(() => { const c = this.tvCfg(); return { tv: { name: c.name, linked: c.linked }, tvAnswer: c.answer, tvPause: c.pause }; })(),
+      // N0: his notes, as Settings › Notes shows them (null until they have started).
+      notes: this.notesHub?.status() ?? null,
     };
   },
 
@@ -969,6 +971,7 @@ export const PanesPart = {
     else if (act === 'lockvault') { this.vault.lock(); this.pushSettings(); }
     else if (act === 'afforgetpin') { this.pinSeal.wipe(); this.pushSettings(); }
     else if (act === 'tvunlink') { this.saveTvCfg({ ...this.tvCfg(), linked: false }); console.log('shell: TV: unlinked'); this.pushSettings(); }
+    else if (act === 'notesbackup' || act === 'notesexport') this.notesHub?.act(act);
     else if (act === 'signout') { this.pinSeal.wipe(); void this.vault.signOut().then(() => this.pushSettings()); }
   },
 

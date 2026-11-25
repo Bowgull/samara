@@ -21,6 +21,7 @@ import type { Chat } from './claudehand.ts';
 import type { DoorUpdates, PlanStarted } from './claudedoor.ts';
 import type { EngineOptions, Offer, Source, UpdateEngine } from './updateengine.ts';
 import type { SyncMsg } from './bsync.ts';
+import type { NotesHub, NotesOpts } from './noteswire.ts';
 import { serviceFor } from './services.ts';
 import { sched } from './sched.ts';
 import { describeJobs } from './scheduler.ts';
@@ -74,6 +75,8 @@ export interface BootDeps {
   /** Samara runs on castLabs' engine: paid video plays right in the tabs. */
   onCastlabs(): boolean;
   onQuit(fn: () => void): void;
+  /** N0 (2026-11-25): Samara's own notes (noteswire.ts). Optional so the wiring tests need no Electron. */
+  startNotes?(o: NotesOpts): NotesHub | null;
 }
 
 /** The machine's own part of Samara's startup. */
@@ -152,6 +155,8 @@ export interface SamaraBase {
 
 export interface SamaraBooted extends SamaraBase {
   browserNow: SamaraBrowser;
+  /** His notes (N0), null when they could not start (the log says why). */
+  notes: NotesHub | null;
   plans: PlanMemory;
   updates: UpdateEngine;
   /** The open-urls folder, read again (a test, or a drop that raced the watcher). */
@@ -271,6 +276,12 @@ export function samaraBrowser(base: SamaraBase, p: Platform, bp: BrowserPlatform
   };
   d.watchFolder(dropDir, takeDrops);
 
+  // N0 (2026-11-25): his notes are Samara's, on both machines (the companion is retired). Started before the sync, so
+  // the first catch-up with the other machine carries them.
+  let notes: NotesHub | null = null;
+  try { notes = d.startNotes?.({ browser, here: p.here, stateDir: p.stateDir, origin: pages.origin, dev: p.name, log: (s) => p.log(s) }) ?? null; }
+  catch (e) { p.log('notes did not start: ' + (e as Error).message); }
+
   // M6: one browser on both machines. Changes go to the other machine's browser.
   browser.startSync((m) => bp.syncSend(m), (s) => p.log(s));
 
@@ -334,5 +345,5 @@ export function samaraBrowser(base: SamaraBase, p: Platform, bp: BrowserPlatform
     settle();
     sched.every('canary.settle', 10 * 60_000, settle, { first: 60_000 });
   }
-  return { ...base, browserNow: browser, plans, updates: ue, takeDrops };
+  return { ...base, browserNow: browser, notes, plans, updates: ue, takeDrops };
 }

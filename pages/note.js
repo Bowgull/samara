@@ -1,7 +1,7 @@
 // Sheet 17: one sticky note on their screen. Type on it; drag it by its top; resize from the corner; right-click
 // for text, size, font, see-through, pin, back to board, delete. Drop it on the companion to put it back.
 // Sheet 60 (2026-10-22): look B, colour from the category, the ribbon tab, and the one control row on every note.
-// The QUICK NOTE (Ctrl + *) is this same page opened with ?quick: the same note, just small, empty and ready to type.
+// The QUICK NOTE (Ctrl + *, or New note in Samara's taskbar list and Dock menu) is this same page opened with ?quick: the same note, just small, empty and ready to type.
 // Enter keeps it (Shift + Enter is a new line), Esc closes (whatever the user typed is kept; an empty one is simply gone).
 import { buildPaper, openMenu, closeMenu, paintNote } from './notepaper.js';
 import { setOwnCats, closePicker } from './notecats.js';
@@ -29,8 +29,9 @@ window.samara?.onNoteData?.((raw) => {
   if (!first && (busy || same)) { paintNote(paperEl, note); return; }
   paper = buildPaper(paperEl, note, (changed) => {
     typedAt = Date.now();
-    // The quick note is not a note until the user keeps it (Enter or Esc): nothing is saved while the user types in it.
-    if (QUICK) return;
+    // The quick note is not a note until the user keeps it (Enter or Esc). What they type is kept as a draft meanwhile
+    // (N0, 2026-11-25): a quick note closed by a crash or a power cut comes back the next time Samara starts.
+    if (QUICK) { window.samara?.noteDraft?.({ id: changed.id, title: changed.title ?? '', html: changed.html ?? '', cat: changed.cat ?? '' }); return; }
     if (!changed.title) changed.title = 'Note';
     window.samara?.noteSave?.(changed);
   }, { quick: QUICK, pickHost: document.body, onPicker: grow });
