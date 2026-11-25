@@ -590,6 +590,7 @@ export const MockupsPart = {
       case 'timer': this.timersHub?.setup(); break;
       case 'music': this.musicHub?.open(); break;
       // S1: the menu closes first, so it is not in the frozen screen.
+      case 'newnote': this.quickNote?.(); break;
       case 'snip': { const h = this.snipHub; if (h) setTimeout(() => void h.start(), 250); break; }
       case 'print': if (wc && t && !t.internal) wc.print({}); break;
       // The mockups' broom (Phase R, 2026-11-24: tab clean up is retired; the overnight tidy moves old tabs to Earlier).

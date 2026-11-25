@@ -2198,6 +2198,8 @@ export class SamaraBrowser {
   musicHub: import('./musicwire.ts').MusicHub | null = null;
   /** S1 (2026-11-25): Snip (snipwire.ts); none until it has started. */
   snipHub: import('./snipwire.ts').SnipHub | null = null;
+  /** U1: ☰ › Tools › New note, the quick note (noteswire.ts); none until notes have started. */
+  quickNote: (() => void) | null = null;
   /** N3: "Note this" on a selection (noteswire.ts keeps it). */
   onNoteThis: ((q: { url: string; title: string; before: string; exact: string; after: string }) => void) | null = null;
   /** N3: a web page finished loading (its pins are marked). */

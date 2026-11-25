@@ -25,6 +25,8 @@ import type { NotesHub, NotesOpts } from './noteswire.ts';
 import type { TimersHub, TimersOpts } from './timerswire.ts';
 import type { MusicHub, MusicOpts } from './musicwire.ts';
 import type { SnipHub, SnipOpts } from './snipwire.ts';
+import type { ToolsHub } from './toolswire.ts';
+import type { ToolHubs } from './tools.ts';
 import { serviceFor } from './services.ts';
 import { sched } from './sched.ts';
 import { describeJobs } from './scheduler.ts';
@@ -86,6 +88,8 @@ export interface BootDeps {
   startMusic?(o: Omit<MusicOpts, 'appData'>): MusicHub | null;
   /** S1 (2026-11-25): Snip (snipwire.ts). Optional so the wiring tests need no Electron. */
   startSnip?(o: SnipOpts): SnipHub | null;
+  /** U1 (2026-11-25): the tools key (toolswire.ts). Optional so the wiring tests need no Electron. */
+  startTools?(o: { hubs: ToolHubs; noteKey: string | null; log(s: string): void }): ToolsHub | null;
   /** The Mac's Dock menu (right-click Samara in the Dock): New note, Set a timer, Music player, Snip. */
   dockMenu?(rows: { label: string; click: () => void }[]): void;
 }
@@ -174,6 +178,8 @@ export interface SamaraBooted extends SamaraBase {
   music: MusicHub | null;
   /** Snip (S1), null when it could not start. */
   snips: SnipHub | null;
+  /** The tools key's menu (U1), null when it could not start. */
+  tools: ToolsHub | null;
   plans: PlanMemory;
   updates: UpdateEngine;
   /** The open-urls folder, read again (a test, or a drop that raced the watcher). */
@@ -313,6 +319,16 @@ export function samaraBrowser(base: SamaraBase, p: Platform, bp: BrowserPlatform
   try { snips = d.startSnip?.({ browser, here: p.here, stateDir: p.stateDir, origin: pages.origin, log: (s) => p.log(s) }) ?? null; }
   catch (e) { p.log('snip did not start: ' + (e as Error).message); }
   browser.snipHub = snips;
+  // U1 (2026-11-25): one key brings the tools up anywhere (Control + Option + T on the Mac, Ctrl + Alt + T on the PC);
+  // in the ☰ menu they are the TOOLS group. New note there is the quick note.
+  const hubs: ToolHubs = {
+    timer: timers ? () => timers!.setup() : null, music: music ? () => music!.open() : null,
+    snip: snips ? () => void snips!.start() : null, note: notes ? () => notes!.quick() : null,
+  };
+  browser.quickNote = hubs.note ?? null;
+  let tools: ToolsHub | null = null;
+  try { tools = d.startTools?.({ hubs, noteKey: notes ? String(notes.status().quickKey ?? '') || null : null, log: (s) => p.log(s) }) ?? null; }
+  catch (e) { p.log('the tools key did not start: ' + (e as Error).message); }
   const dock: { label: string; click: () => void }[] = [];
   if (notes) { const n = notes; dock.push({ label: 'New note', click: () => n.quick() }); }
   if (timers) { const t = timers; dock.push({ label: 'Set a timer', click: () => t.setup() }); }
@@ -383,5 +399,5 @@ export function samaraBrowser(base: SamaraBase, p: Platform, bp: BrowserPlatform
     settle();
     sched.every('canary.settle', 10 * 60_000, settle, { first: 60_000 });
   }
-  return { ...base, browserNow: browser, notes, timers, music, snips, plans, updates: ue, takeDrops };
+  return { ...base, browserNow: browser, notes, timers, music, snips, tools, plans, updates: ue, takeDrops };
 }
