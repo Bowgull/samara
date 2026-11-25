@@ -94,6 +94,8 @@ export class Hlc {
   static fmt(ms: number, c: number, dev: Dev): string { return `${String(ms).padStart(13, '0')}:${String(c).padStart(4, '0')}:${dev}`; }
 }
 
+/** Everything about a note he can see (not when or where it was saved, nor where it sits on this screen). */
+const wholeKey = (n: Note) => contentKey(n) + JSON.stringify([n.font, n.size, n.tfont ?? '', n.tsize ?? '', n.notice ?? true, n.src ?? null, n.place ?? null, n.anchor ?? null, n.remind ?? null]);
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
 
 // ------------------------------------------------------------------ the store
@@ -396,7 +398,9 @@ export class NotesStore {
       const lDel = !!l.deleted, rDel = !!r.deleted;
       const rWins = lDel !== rDel ? lDel : r.stamp > l.stamp;
       const win = rWins ? r : l, lose = rWins ? l : r;
-      if (!lose.deleted && contentKey({ ...lose, deleted: undefined }) !== contentKey({ ...win, deleted: undefined })) {
+      // Kept beside it whenever the other side differs in anything he sees (its words, and its font, sizes, source, map
+      // place, page pin, reminder): with no common version kept, which side changed what cannot be told, so neither is lost.
+      if (!lose.deleted && wholeKey({ ...lose, deleted: undefined }) !== wholeKey({ ...win, deleted: undefined })) {
         const copyId = 'n' + hash(`${lose.id}|${lose.stamp}`).slice(0, 16);
         if (!this.notes.has(copyId)) {
           const where = lose.dev === 'mac' ? 'Mac' : 'PC';
@@ -483,7 +487,7 @@ export class NotesStore {
       const t = tidyNote(item, { dev: this.dev, now: this.now() });
       if (!t) { report.skipped.push({ id: typeof id === 'string' ? id.slice(0, 30) : '(no id)', why: 'not a note' }); continue; }
       const key = `${tag}:${t.id}`;
-      const h = hash(contentKey(t) + JSON.stringify([t.src ?? null, t.place ?? null, t.font, t.size]));
+      const h = hash(wholeKey(t));
       const was = this.imported.get(key);
       if (was === h) { report.same++; continue; }
       const here = this.notes.get(t.id);
@@ -507,7 +511,7 @@ export class NotesStore {
     return report;
   }
   private importedUntouched(here: Note, wasHash: string): boolean {
-    return hash(contentKey(here) + JSON.stringify([here.src ?? null, here.place ?? null, here.font, here.size])) === wasHash;
+    return hash(wholeKey(here)) === wasHash;
   }
 
   /** Every note as Markdown files in `dir` (one each, plus an index). Returns how many. */

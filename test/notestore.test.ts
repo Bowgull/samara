@@ -303,3 +303,27 @@ test('the companion\'s notes file is found by its shape, never by a name; Samara
   assert.equal(findCompanionNotes(appData, { SAMARA_COMPANION_NOTES: '/x/notes.json' }), '/x/notes.json');
   assert.equal(findCompanionNotes(path.join(appData, 'missing'), {}), null);
 });
+
+test('review: a change to the title style alone in the companion still comes across on the next import', () => {
+  const file = companion([{ id: 'na', title: 'A', html: '<div>1</div>', font: 'figtree', size: 'm' }]);
+  const s = store(tmp());
+  s.importCompanion(file, 'pc');
+  writeFileSync(file, JSON.stringify([{ id: 'na', title: 'A', html: '<div>1</div>', font: 'figtree', size: 'm', tfont: 'caveat', tsize: 26 }]));
+  const r = s.importCompanion(file, 'pc');
+  assert.equal(r.updated, 1);
+  assert.equal(s.get('na')?.tfont, 'caveat');
+});
+
+test('review: a font changed on one machine and a size on the other, apart: neither change is lost', () => {
+  const { now, pc, mac, send } = pair();
+  pc.save({ id: 'na', title: 'T', html: '<div>x</div>' });
+  send(pc, mac);
+  now.add(1000); pc.save({ id: 'na', font: 'caveat' });
+  now.add(1000); mac.save({ id: 'na', size: 'l' });
+  send(pc, mac); send(mac, pc);
+  for (const s of [pc, mac]) {
+    const all = s.list();
+    assert.ok(all.some((n) => n.font === 'caveat') && all.some((n) => n.size === 'l'), JSON.stringify(all.map((n) => [n.font, n.size])));
+    assert.equal(all.length, 2);
+  }
+});
