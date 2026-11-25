@@ -140,3 +140,23 @@ test('the next update deletes what waited in browser/old', () => {
   execFileSync('bash', ['-c', `BR='${br}'\n${(() => { const s = macUpdateScript(ok); return s.slice(s.indexOf('OLD="$BR/old"'), s.indexOf('[ "$PHASE" = "swap" ]')); })()}\nclear_old`]);
   assert.ok(!existsSync(path.join(br, 'old')));
 });
+
+// Phase 1 (2026-11-24): signing fails closed. A copy that cannot be signed or verified is never swapped in.
+test('a failed sign or verify stops the update before the copy is marked ready', () => {
+  const s = macUpdateScript(ok);
+  assert.doesNotMatch(s, /codesign[^\n]*\|\| true/, 'no signing step may swallow its failure');
+  const signAt = s.indexOf('sign_app "$NEWAPP" ||'), verifyAt = s.indexOf('codesign --verify --deep "$NEWAPP" >/dev/null 2>&1 ||'), readyAt = s.indexOf('> "$STAGE/version"');
+  assert.ok(signAt > 0 && verifyAt > signAt && readyAt > verifyAt, 'sign, then verify, then (only then) marked ready');
+  // Run the two steps with a codesign that always refuses: the script ends with an error and never reaches "Ready".
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'mu-sign-'));
+  mkdirSync(path.join(dir, 'bin'));
+  writeFileSync(path.join(dir, 'bin', 'codesign'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  const fn = s.slice(s.indexOf('sign_app() {'), s.indexOf('\n', s.indexOf('sign_app() {')));
+  const steps = s.slice(signAt, s.indexOf('\n', verifyAt));
+  let code = 0, out = '';
+  try { out = execFileSync('bash', ['-c', `set -e\nNEWAPP='${dir}/Samara.app'\n${fn}\n${steps}\necho Ready`], { env: { ...process.env, PATH: `${path.join(dir, 'bin')}:${process.env.PATH}` }, encoding: 'utf8' }); }
+  catch (e) { code = (e as { status: number }).status; out = String((e as { stdout?: string }).stdout ?? ''); }
+  assert.equal(code, 1);
+  assert.match(out, /could not be signed; this Samara stays/);
+  assert.doesNotMatch(out, /Ready/);
+});

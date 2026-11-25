@@ -27,10 +27,16 @@ mkdirSync(out, { recursive: true });
 // Same files and order as macBrowserBundle, plus the Shell's assets (the PC's window icon; 2026-10-29, the PC installs
 // releases too). On GitHub (GNU tar) owner and times are fixed too, so the same code always
 // makes the same package; a Mac's own tar (for a trial run here) has no such switches.
+// Phase 1 (2026-11-24): the list of every code file and its fingerprint, sealed with the same key, goes inside the
+// bundle; each Samara checks its own files against it after start (src/integrity.ts).
+const { listOf } = await import('../../src/integrity.ts');
+const list = listOf(shell, version);
+writeFileSync(path.join(out, 'integrity.json'), list);
+writeFileSync(path.join(out, 'integrity.sig'), sign(null, Buffer.from(list), createPrivateKey(pem)).toString('base64'));
 const bundle = path.join(out, 'samara-bundle.tgz');
 const gnu = /GNU tar/.test(execFileSync('tar', ['--version'], { encoding: 'utf8' }));
 execFileSync('tar', [...(gnu ? ['--sort=name', '--owner=0', '--group=0', '--numeric-owner', '--mtime=@0'] : []), '-czf', bundle,
-  '-C', shell, 'src', 'pages', 'drm', 'assets', 'test/electron/engine-safety-check.ts', 'package.json', 'package-lock.json'], { stdio: 'inherit', env: { ...process.env, GZIP: '-n' } });
+  '-C', shell, 'src', 'pages', 'drm', 'assets', 'test/electron/engine-safety-check.ts', 'package.json', 'package-lock.json', '-C', path.resolve(out), 'integrity.json', 'integrity.sig'], { stdio: 'inherit', env: { ...process.env, GZIP: '-n' } });
 const bytes = readFileSync(bundle);
 
 const commit = execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();

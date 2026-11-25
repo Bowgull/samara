@@ -6871,7 +6871,9 @@ export class SamaraBrowser {
             if (w === 'lever' && a?.allowed !== true) return { ok: false, needs: 'lever', what: `press ${key === 'enter' ? 'Enter' : 'Space'} on ${where} (it could send the form)` };
             if (w === 'pick') { key = 'space'; swapped = true; }
           }
-          const r = await d.key(page, key);
+          // Phase 1: a key that looks free is pressed with the effect guard, unless he already allowed it.
+          const r = await d.key(page, key, a?.allowed !== true);
+          if ('needs' in r) return { ok: false, needs: r.needs, what: r.what };
           return { ok: true, ...(swapped ? { ...r, changed: ['Enter there would have sent the form, so Space was pressed instead: it only picks', ...r.changed] } : r) };
         }
         case 'click': case 'type': {
@@ -7365,7 +7367,7 @@ export class SamaraBrowser {
     for (const kj of k.jobs) {
       let j: Job;
       try { j = this.driver.startJob('claude', kj.name, undefined, kj.id); } catch { continue; }
-      if (kj.plan) { j.sites = new Set(kj.plan.login); j.denied = new Set(kj.plan.denied); j.allowed = new Set(kj.plan.allowed); j.steps = kj.plan.steps; j.step = kj.plan.step; j.planned = kj.plan.planned; }
+      if (kj.plan) { j.sites = new Set(kj.plan.login); j.denied = new Set(kj.plan.denied); j.allowed = new Set([...kj.plan.allowed, ...kj.plan.login]); j.steps = kj.plan.steps; j.step = kj.plan.step; j.planned = kj.plan.planned; }
       j.working = false; j.stopped = kj.stopped === true;
       this.keptJobs.add(j.id);
       if (kj.token) this.keepTokens.set(j.id, kj.token);

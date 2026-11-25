@@ -230,3 +230,15 @@ export function cookieHeaders(wall: CookieWall): (d: Electron.OnHeadersReceivedL
     return changed ? out : null;
   };
 }
+
+// Phase 1 (2026-11-24, his default: Quad9): DNS over HTTPS. Every address Samara looks up goes to Quad9 encrypted, so
+// his internet provider and the network he is on no longer see which sites he visits by name. Quad9 keeps no logs and
+// blocks known malware hosts. "automatic": when Quad9 cannot be reached (a hotel's sign-in page, a broken network), the
+// normal lookup is used for that moment instead of Samara failing to load anything.
+export interface SecureDns { secureDnsMode: 'automatic' | 'secure' | 'off'; secureDnsServers: string[]; enableBuiltInResolver: boolean }
+export const SECURE_DNS: Readonly<SecureDns> = { secureDnsMode: 'automatic', secureDnsServers: ['https://dns.quad9.net/dns-query'], enableBuiltInResolver: true };
+/** Turn it on for the whole app; call once the app is ready. Says so in the log, never fails the start. */
+export function secureDns(app: { configureHostResolver(o: SecureDns): void }, log: (s: string) => void = () => {}): boolean {
+  try { app.configureHostResolver({ ...SECURE_DNS, secureDnsServers: [...SECURE_DNS.secureDnsServers] }); log('DNS over HTTPS on (Quad9)'); return true; }
+  catch (e) { log('DNS over HTTPS could not be turned on: ' + (e as Error).message); return false; }
+}

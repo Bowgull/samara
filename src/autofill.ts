@@ -96,25 +96,34 @@ export class DetailsStore {
   empty(): boolean { this.open(); const d = this.d; return !d.emails.length && !d.given && !d.family && !d.phone && !d.street; }
 }
 
-// Modest on purpose: a 4-digit PIN is only ever 10,000 guesses, so the Keychain around it is the real lock; this keeps
-// the unlock quick on his slow Mac (~25 ms) instead of half a second.
-const scrypt = (pin: string, salt: Buffer) => new Promise<Buffer>((res, rej) => scryptCb(pin, salt, 32, { N: 1 << 12, r: 8, p: 1, maxmem: 32 * 1024 * 1024 }, (e, k) => (e ? rej(e) : res(k))));
+// Phase 1 (2026-11-24): the PIN key costs 2^17 (128 MB, about half a second) instead of 2^12. A 4-digit PIN is only
+// 10,000 guesses, so the Keychain around it stays the first lock; this makes guessing from a copy of the sealed file,
+// once it is out of the Keychain, hours of work instead of minutes. A seal made at the old cost opens as before and is
+// sealed again at the new one on its first right PIN.
+export const PIN_COST = 17;
+const OLD_COST = 12;
+const scrypt = (pin: string, salt: Buffer, cost = PIN_COST) => new Promise<Buffer>((res, rej) => scryptCb(pin, salt, 32, { N: 1 << cost, r: 8, p: 1, maxmem: 160 * 1024 * 1024 }, (e, k) => (e ? rej(e) : res(k))));
 export const pinOk = (pin: string) => new RegExp(`^[0-9]{${PIN_MIN},${PIN_MAX}}$`).test(pin);
 
 /** Bitwarden's session key, sealed with his PIN and then the Keychain. */
 export class PinSeal {
   private readonly file: string;
   private len: number | null = null;   // how many numbers his PIN has (read once, so typing it never waits on the Keychain)
-  constructor(file: string) { this.file = file; }
-  private read(): { salt: string; iv: string; tag: string; ct: string; check: string; tries: number; len?: number } | null {
-    try { const j = readJson<any>(this.file, null); const t = typeof j?.sealed === 'string' ? openText(j.sealed) : null; return t ? JSON.parse(t) : null; } catch { return null; }
+  /** What seals the file around the PIN's own seal: the Keychain (a test gives a stand-in). */
+  private readonly lock: (s: string) => string | null;
+  private readonly unlock: (s: string) => string | null;
+  constructor(file: string, keeper?: { lock: (s: string) => string | null; open: (s: string) => string | null }) {
+    this.file = file; this.lock = keeper?.lock ?? lockText; this.unlock = keeper?.open ?? openText;
+  }
+  private read(): { salt: string; iv: string; tag: string; ct: string; check: string; tries: number; len?: number; n?: number } | null {
+    try { const j = readJson<any>(this.file, null); const t = typeof j?.sealed === 'string' ? this.unlock(j.sealed) : null; return t ? JSON.parse(t) : null; } catch { return null; }
   }
   /** How many numbers his PIN has (4 for one set before he could choose). */
   length(): number {
     if (this.len === null) { const n = this.read()?.len; this.len = typeof n === 'number' && n >= PIN_MIN && n <= PIN_MAX ? n : PIN_MIN; }
     return this.len;
   }
-  private write(o: object): boolean { const s = lockText(JSON.stringify(o)); if (!s) return false; try { writeFileAtomic(this.file, JSON.stringify({ v: 1, sealed: s })); return true; } catch { return false; } }
+  private write(o: object): boolean { const s = this.lock(JSON.stringify(o)); if (!s) return false; try { writeFileAtomic(this.file, JSON.stringify({ v: 1, sealed: s })); return true; } catch { return false; } }
   has(): boolean { return existsSync(this.file) && this.read() !== null; }
   /** His PIN is here but the Mac's Keychain would not open it (the box after an update was refused or missed). */
   unreadable(): boolean { try { return typeof readJson<any>(this.file, null)?.sealed === 'string' && this.read() === null; } catch { return false; } }
@@ -125,7 +134,7 @@ export class PinSeal {
     const c = createCipheriv('aes-256-gcm', key, iv);
     const ct = Buffer.concat([c.update(session, 'utf8'), c.final()]);
     this.len = pin.length;
-    return this.write({ salt: salt.toString('base64'), iv: iv.toString('base64'), tag: c.getAuthTag().toString('base64'), ct: ct.toString('base64'), check: 'v1', tries: 0, len: pin.length });
+    return this.write({ salt: salt.toString('base64'), iv: iv.toString('base64'), tag: c.getAuthTag().toString('base64'), ct: ct.toString('base64'), check: 'v1', tries: 0, len: pin.length, n: PIN_COST });
   }
   /** The session for the right PIN; 'wrong' with the tries left; 'gone' after the last wrong one (the seal is wiped). */
   async open(pin: string): Promise<{ session: string } | { wrong: number } | 'gone'> {
@@ -133,11 +142,13 @@ export class PinSeal {
     if (!s) return 'gone';
     if (pinOk(pin)) {
       try {
-        const key = await scrypt(pin, Buffer.from(s.salt, 'base64'));
+        const cost = s.n === PIN_COST ? PIN_COST : OLD_COST;
+        const key = await scrypt(pin, Buffer.from(s.salt, 'base64'), cost);
         const d = createDecipheriv('aes-256-gcm', key, Buffer.from(s.iv, 'base64'));
         d.setAuthTag(Buffer.from(s.tag, 'base64'));
         const session = Buffer.concat([d.update(Buffer.from(s.ct, 'base64')), d.final()]).toString('utf8');
-        if (s.tries) this.write({ ...s, tries: 0 });
+        if (cost !== PIN_COST) await this.seal(pin, session);     // an old seal: sealed again at the new cost
+        else if (s.tries) this.write({ ...s, tries: 0 });
         return { session };
       } catch { /* wrong PIN: the tag does not match */ }
     }

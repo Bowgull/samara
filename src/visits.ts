@@ -2,7 +2,7 @@
 // One small JSON file in the Shell's own state folder, written atomically and at most every few seconds.
 // Plain functions over a list, so they can be tested without Electron.
 import { writeFileAtomic, writeFileAtomicSoon } from './atomic.ts';
-import { readJson } from './store.ts';
+import { osKeeper, readSealed, sealText, Unreadable, type Keeper } from './sealedfile.ts';
 
 export interface Visit { url: string; title: string; at: number }
 
@@ -103,13 +103,16 @@ export class Visits {
   list: Visit[] = [];
   private timer: NodeJS.Timeout | null = null;
   private readonly file: string;
-  constructor(file: string) {
-    this.file = file;
+  private readonly keeper: Keeper;
+  /** Phase 1: the file is sealed and this computer's key would not open it: nothing is written over it this run. */
+  locked = false;
+  constructor(file: string, keeper: Keeper = osKeeper) {
+    this.file = file; this.keeper = keeper;
     try {
-      const a = readJson<unknown>(file, null);
+      const a = readSealed<unknown>(file, keeper);
       if (Array.isArray(a)) this.list = prune(a.filter((v: Partial<Visit>) => typeof v?.url === 'string' && counts(v.url) && !neverKeep(v.url) && Number.isFinite(v.at))
         .map((v: Visit) => ({ url: v.url, title: String(v.title ?? '').slice(0, 300), at: Number(v.at) })).sort((x, y) => x.at - y.at), Date.now());
-    } catch { /* none yet */ }
+    } catch (e) { if (e instanceof Unreadable) { this.locked = true; console.error('shell: history is ' + e.message + '; it is left as it is'); } /* else none yet */ }
   }
   /** M6: told of each change, so the other machine's browser gets it too. */
   onChange: ((c: { op: 'add'; v: Visit } | { op: 'forget'; url: string; at: number } | { op: 'clear'; from: number }) => void) | null = null;
@@ -131,8 +134,9 @@ export class Visits {
   /** Written a few seconds after the last change (a page load names itself in bursts); right away for a removal. */
   save(now = false): void {
     if (this.timer) clearTimeout(this.timer);
-    const write = () => { this.timer = null; writeFileAtomicSoon(this.file, JSON.stringify(this.list)).catch((e) => console.error('shell: history not saved: ' + (e as Error).message)); };
+    if (this.locked) return;
+    const write = () => { this.timer = null; writeFileAtomicSoon(this.file, sealText(JSON.stringify(this.list), this.keeper)).catch((e) => console.error('shell: history not saved: ' + (e as Error).message)); };
     if (now) write(); else this.timer = setTimeout(write, 4000);
   }
-  flush(): void { if (this.timer) { clearTimeout(this.timer); this.timer = null; try { writeFileAtomic(this.file, JSON.stringify(this.list)); } catch { /* best effort */ } } }
+  flush(): void { if (this.timer) { clearTimeout(this.timer); this.timer = null; if (this.locked) return; try { writeFileAtomic(this.file, sealText(JSON.stringify(this.list), this.keeper)); } catch { /* best effort */ } } }
 }

@@ -7,6 +7,8 @@
 import { app, globalShortcut, Menu, nativeImage, net } from 'electron';
 import { existsSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import { MacEngine, MacPaths, MacSamara, MacStage } from './macsource.ts';
+import { secureDns } from './privacy.ts';
+import { checkIntegrity, sayIntegrity } from './integrity.ts';
 import os from 'node:os';
 import path from 'node:path';
 import { WebSocket } from 'ws';
@@ -60,6 +62,7 @@ if (!solo) app.quit();
 
 app.whenReady().then(async () => {
   if (!solo) return;
+  secureDns(app, (s) => console.log('samara: ' + s));
   // The Mac's own menu, so Cmd+C, Cmd+V, Cmd+Q and the rest work as on every Mac app.
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     // View > Enter Full Screen (Ctrl+Cmd+F), as on every Mac app (2026-10-23, his ask: "act like any other window").
@@ -152,6 +155,8 @@ app.whenReady().then(async () => {
     },
   }, deps);
   const browser = boot.browserNow;
+  // Phase 1 (2026-11-24): a little after start, Samara's code is checked against its release's sealed list.
+  setTimeout(() => { const r = checkIntegrity(app.getAppPath()); ((s: string) => console.log('samara: ' + s))(sayIntegrity(r)); if (r.state === 'changed' || r.state === 'unsealed') browser.say('Samara', sayIntegrity(r)); }, 20_000).unref?.();
   const { popout, drm } = base;
   browser.onPaid = (url) => paidAway(drm, url);
   browser.onPaidFallback = (url) => paidWindow(drm, url);
