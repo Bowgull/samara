@@ -29,6 +29,7 @@ import { serviceFor } from './services.ts';
 import { homeGate, myTailnetAddr } from './homeroute.ts';
 import http from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
+import { DirectClient, DIRECT_PORT } from './directsync.ts';
 
 const HERE = import.meta.dirname;
 const LISTENER = path.join(os.homedir(), 'Library', 'Application Support', 'Samara');
@@ -95,6 +96,12 @@ app.whenReady().then(async () => {
   let skipSettings: SkipSettings = DEFAULT_SKIPS;
   try { const raw = readJson<unknown>(path.join(stateDir, 'skips.json'), null); if (raw !== null) skipSettings = withDefaults(raw); } catch { /* defaults */ }
   let ws: WebSocket | null = null;
+  // N2 (2026-11-25): Samara to Samara over Tailscale (directsync.ts). bsync goes this way while it is open; the
+  // companion's hub is the fallback, and how the two meet the first time.
+  let syncNow: { got(m: never): Promise<void>; link(up: boolean): Promise<void> } | null = null;
+  const direct = new DirectClient({ stateDir: app.getPath('userData'), log: (t) => console.log('samara: ' + t),
+    onMessage: (m) => { void syncNow?.got(m as never).catch((e: Error) => console.error('samara: sync: ' + e.message)); },
+    onLink: (up) => { if (up) void syncNow?.link(true); else if (ws?.readyState !== WebSocket.OPEN) void syncNow?.link(false); } });
   const toPc = (m: Record<string, unknown>, otherwise?: string): void => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); else if (otherwise) log(otherwise); };
   // Paid video (2026-10-13): Netflix, Crave, Disney+, Prime and Crunchyroll play in the castLabs window, signed for
   // streaming on his own free castLabs account. One engine (his yes, 2026-10-13): Samara.app is built on castLabs' engine,
@@ -141,7 +148,7 @@ app.whenReady().then(async () => {
     // Sheet 109: Ask Claude's chats and picks go through the companion's door to the brain on this Mac.
     claude: plans,
     mockupDoor: { offWhy: () => "Samara's Mockups trail on this Mac needs Apple's command line tools (git). Tell the user where the file is; they can install them with: xcode-select --install" },
-    syncSend: (m) => toPc(m as never),
+    syncSend: (m) => { if (!direct.send(m as never)) toPc(m as never); },
     updates: {
       sources: (changed) => {
         const stage = new MacStage(paths, { log, changed });
@@ -165,6 +172,7 @@ app.whenReady().then(async () => {
   browser.onPaid = (url) => paidAway(drm, url);
   browser.onPaidFallback = (url) => paidWindow(drm, url);
   const sync = browser.sync!;
+  syncNow = sync;
   // Phase 4: what the PC said about a version it ran first (good: the Mac may take it now; bad: never).
   sync.onCanary = (v, verdict) => { peer.set(v, verdict); void samara?.check(verdict === 'good' ? 'the PC ran it a quiet day' : 'the PC turned it back'); };
 
@@ -237,6 +245,8 @@ app.whenReady().then(async () => {
     ws = s;
     s.on('message', (raw) => {
       let m: any; try { m = JSON.parse(String(raw)); } catch { return; }
+      // N2: the PC's Samara took this Mac's pairing: dial it straight.
+      if (m?.t === 'bsync.paired') { direct.start(shadow, Number(m.port) || DIRECT_PORT); return; }
       if (typeof m?.t === 'string' && m.t.startsWith('bsync.')) void sync.got(m).catch((e: Error) => console.error('samara: sync: ' + e.message));
       // "Open on Mac" from the PC: a full tab here, and the companion comes to the front.
       else if (m?.t === 'tab.open' && typeof m.url === 'string' && /^https?:\/\//.test(m.url)) { browser?.openForward(m.url); app.focus({ steal: true }); }
@@ -260,13 +270,20 @@ app.whenReady().then(async () => {
     }, 30_000);
     beat.unref?.();
     s.on('pong', () => { alive = true; });
-    s.on('open', () => { retry = 15_000; if (process.uptime() > 75) reportUpdate(); });
+    s.on('open', () => {
+      retry = 15_000; if (process.uptime() > 75) reportUpdate();
+      // N2: tell the PC's Samara who this Mac is, through the hub it already trusts.
+      const pm = direct.pairMsg(); if (pm) s.send(JSON.stringify(pm));
+    });
     // On the scheduler (2026-10-30): 15 s, then longer each miss up to 2 minutes, while the PC is off (it was every
     // 15 s for as long as the PC stayed off). Back to 15 s once it answers.
-    s.on('close', () => { clearInterval(beat); if (ws === s) { ws = null; void sync.link(false); sched.at(Date.now() + retry, connect, { name: 'bsync.reconnect' }); retry = Math.min(retry * 2, 2 * 60_000); } });
+    s.on('close', () => { clearInterval(beat); if (ws === s) { ws = null; if (!direct.up) void sync.link(false); sched.at(Date.now() + retry, connect, { name: 'bsync.reconnect' }); retry = Math.min(retry * 2, 2 * 60_000); } });
     s.on('error', () => { /* close follows */ });
   };
   connect();
+  // N2: paired before, the PC's Samara is dialled straight away (the companion may be off). Refused until it is paired.
+  if (/^100\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(shadow)) direct.start(shadow);
+  app.on('before-quit', () => direct.close());
 
   // A Mac app stays open with no windows; clicking it in the Dock brings the browser back.
   app.on('activate', () => browser?.open());
