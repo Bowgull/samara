@@ -23,6 +23,7 @@ import type { EngineOptions, Offer, Source, UpdateEngine } from './updateengine.
 import type { SyncMsg } from './bsync.ts';
 import type { NotesHub, NotesOpts } from './noteswire.ts';
 import type { TimersHub, TimersOpts } from './timerswire.ts';
+import type { MusicHub, MusicOpts } from './musicwire.ts';
 import { serviceFor } from './services.ts';
 import { sched } from './sched.ts';
 import { describeJobs } from './scheduler.ts';
@@ -80,6 +81,8 @@ export interface BootDeps {
   startNotes?(o: NotesOpts): NotesHub | null;
   /** T1 (2026-11-25): Samara's own timers (timerswire.ts). Optional so the wiring tests need no Electron. */
   startTimers?(o: TimersOpts): TimersHub | null;
+  /** M1 (2026-11-25): Samara's own music player (musicwire.ts). Optional so the wiring tests need no Electron. */
+  startMusic?(o: Omit<MusicOpts, 'appData'>): MusicHub | null;
   /** The Mac's Dock menu (right-click Samara in the Dock): New note, Set a timer. */
   dockMenu?(rows: { label: string; click: () => void }[]): void;
 }
@@ -164,6 +167,8 @@ export interface SamaraBooted extends SamaraBase {
   notes: NotesHub | null;
   /** His timers (T1), null when they could not start (the log says why). */
   timers: TimersHub | null;
+  /** The music player (M1), null when it could not start. */
+  music: MusicHub | null;
   plans: PlanMemory;
   updates: UpdateEngine;
   /** The open-urls folder, read again (a test, or a drop that raced the watcher). */
@@ -293,9 +298,15 @@ export function samaraBrowser(base: SamaraBase, p: Platform, bp: BrowserPlatform
   try { timers = d.startTimers?.({ browser, here: p.here, stateDir: p.stateDir, origin: pages.origin, log: (s) => p.log(s) }) ?? null; }
   catch (e) { p.log('timers did not start: ' + (e as Error).message); }
   browser.timersHub = timers;
+  // M1 (2026-11-25): the music player is Samara's too (Spotify, on this computer or whatever device his account plays on).
+  let music: MusicHub | null = null;
+  try { music = d.startMusic?.({ here: p.here, stateDir: p.stateDir, origin: pages.origin, log: (s) => p.log(s) }) ?? null; }
+  catch (e) { p.log('the music player did not start: ' + (e as Error).message); }
+  browser.musicHub = music;
   const dock: { label: string; click: () => void }[] = [];
   if (notes) { const n = notes; dock.push({ label: 'New note', click: () => n.quick() }); }
   if (timers) { const t = timers; dock.push({ label: 'Set a timer', click: () => t.setup() }); }
+  if (music) { const m = music; dock.push({ label: 'Music player', click: () => m.open() }); }
   if (dock.length) d.dockMenu?.(dock);
 
   // M6: one browser on both machines. Changes go to the other machine's browser.
@@ -361,5 +372,5 @@ export function samaraBrowser(base: SamaraBase, p: Platform, bp: BrowserPlatform
     settle();
     sched.every('canary.settle', 10 * 60_000, settle, { first: 60_000 });
   }
-  return { ...base, browserNow: browser, notes, timers, plans, updates: ue, takeDrops };
+  return { ...base, browserNow: browser, notes, timers, music, plans, updates: ue, takeDrops };
 }

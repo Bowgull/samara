@@ -16,10 +16,10 @@ import path from 'node:path';
 export const POPOUT_TASKS = ['popouts-show', 'popouts-hide', 'popouts-gather', 'new-note', 'timer', 'player'] as const;
 export type PopoutTask = typeof POPOUT_TASKS[number];
 /**
- * The Music player still needs the companion. New note is Samara's own since N0 and Timer since T1 (2026-11-25): both
- * moved into Samara, so neither waits on the companion.
+ * Nothing needs the companion any more: New note (N0), Timer (T1) and the Music player (M1) moved into Samara on
+ * 2026-11-25. Kept (empty) so the hand-over code stays one place should a tool ever need it again.
  */
-export const NEEDS_COMPANION: ReadonlySet<PopoutTask> = new Set(['player']);
+export const NEEDS_COMPANION: ReadonlySet<PopoutTask> = new Set<PopoutTask>([]);
 export const isPopoutTask = (t: unknown): t is PopoutTask => typeof t === 'string' && (POPOUT_TASKS as readonly string[]).includes(t);
 
 // Sheet 66 A (2026-10-22): a "Pop-outs" section above the Tasks (Show all, Hide all, Gather them by the companion, New note,

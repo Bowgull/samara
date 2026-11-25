@@ -2194,6 +2194,8 @@ export class SamaraBrowser {
   notesHub: import('./noteswire.ts').NotesLink | null = null;
   /** T1 (2026-11-25): his timers (timerswire.ts); none until they have started. */
   timersHub: import('./timerswire.ts').TimersHub | null = null;
+  /** M1 (2026-11-25): the music player (musicwire.ts); none until it has started. */
+  musicHub: import('./musicwire.ts').MusicHub | null = null;
   /** N3: "Note this" on a selection (noteswire.ts keeps it). */
   onNoteThis: ((q: { url: string; title: string; before: string; exact: string; after: string }) => void) | null = null;
   /** N3: a web page finished loading (its pins are marked). */

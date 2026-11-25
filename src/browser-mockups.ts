@@ -588,6 +588,7 @@ export const MockupsPart = {
       case 'downloads': this.openThings('downloads'); break;
       case 'notes': this.openThings('notes'); break;
       case 'timer': this.timersHub?.setup(); break;
+      case 'music': this.musicHub?.open(); break;
       case 'print': if (wc && t && !t.internal) wc.print({}); break;
       // The mockups' broom (Phase R, 2026-11-24: tab clean up is retired; the overnight tidy moves old tabs to Earlier).
       case 'tidy': void this.mockTidy(true); break;
