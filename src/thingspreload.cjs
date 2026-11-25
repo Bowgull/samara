@@ -12,7 +12,7 @@ contextBridge.exposeInMainWorld('things', {
   open: url => ipcRenderer.send('things:open', url),
   go: where => ipcRenderer.send('things:go', where),
   // N1 (2026-11-25): his notes. The board for what he typed, one note's actions, and a copy locked with his passphrase.
-  notes: (q, cat, view) => ipcRenderer.invoke('things:notes', { q, cat, view }),
+  notes: (q, cat, view, limit) => ipcRenderer.invoke('things:notes', { q, cat, view, limit }),
   note: (act, id, extra) => ipcRenderer.invoke('things:note', { act, id, extra }),
   notesLock: (act, pass) => ipcRenderer.invoke('things:noteslock', { act, pass }),
   onChanged(fn) { const h = (_e, w) => fn(w); ipcRenderer.on('things:changed', h); return () => ipcRenderer.removeListener('things:changed', h); },

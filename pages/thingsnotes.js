@@ -11,18 +11,20 @@ const $ = (s, r = document) => r.querySelector(s);
 const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const day = (t) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase();
 
-let view = 'notes', cat = '*', board = null, qTimer = 0, on = false;
+let view = 'notes', cat = '*', board = null, qTimer = 0, on = false, limit = 300;
 
-async function load() {
+/** 'more': the next lot; 'keep': as many as now (a note changed); otherwise from the top (a new search or chip). */
+async function load(how) {
   if (!T?.notes) return;
-  const b = await T.notes($('#nq').value, cat, view);
+  limit = how === 'more' ? limit + 300 : how === 'keep' ? limit : 300;
+  const b = await T.notes($('#nq').value, cat, view, limit);
   if (!b) return;
   board = b;
   setOwnCats(b.cats.own);
   paint();
 }
 window.addEventListener('notes:show', () => { on = true; load(); $('#nq').focus(); });
-window.addEventListener('notes:changed', () => { if (on) load(); });
+window.addEventListener('notes:changed', () => { if (on) load('keep'); });
 $('#nq').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(load, 120); });
 $('#nq').addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#nq').value) { e.preventDefault(); $('#nq').value = ''; load(); } });
 for (const a of document.querySelectorAll('.side a[data-sec]')) a.addEventListener('click', () => { on = a.dataset.sec === 'notes'; });
@@ -55,6 +57,8 @@ function paint() {
   empty.hidden = b.cards.length > 0;
   empty.textContent = $('#nq').value.trim() ? 'No note matches that.' : view === 'trash' ? 'The Trash is empty. Deleted notes stay here for 30 days.' : cat !== '*' ? 'No notes in this category.' : 'No notes yet. Ctrl + Num * makes one anywhere.';
   $('#nnew').hidden = view === 'trash';
+  $('#nmore').hidden = b.cards.length >= b.total;
+  $('#nmore').textContent = `Show more (${b.total - b.cards.length} older)`;
 }
 function card(n) {
   const c = mk('div', 'ncard npaper' + (n.out ? ' out' : '') + (view === 'trash' ? ' gone' : ''));
@@ -108,6 +112,7 @@ async function versions(n, c) {
   c.querySelector('.np-in').append(v);
 }
 
+$('#nmore').addEventListener('click', () => load('more'));
 $('#nnew').addEventListener('click', () => T?.note('new', '', cat !== '*' ? cat : undefined));
 
 // ---- the locked copy: a passphrase, then lock one or bring one back. The passphrase goes to Samara once, never kept.
