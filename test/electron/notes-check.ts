@@ -3,7 +3,7 @@
 // goes to the Trash, the rail gets the page notes, and the Hyrule map file is written in the companion's format.
 //
 // Run: npx electron test/electron/notes-check.ts <folder for the pictures>
-import { app, BrowserWindow, screen } from 'electron';
+import { app, BrowserWindow, screen, shell } from 'electron';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -27,6 +27,13 @@ const check = (what: string, ok: boolean, d = '') => { console.log(`${ok ? 'PASS
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const noteWins = () => BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && /\/note\.html/.test(w.webContents.getURL()));
 
+// Nothing leaves the test for the system (CI, 2026-11-25): "Show in folder" ran xdg-open on the Linux runner, which
+// started a real browser that held the check's output open until the job timed out. Each call is recorded instead.
+const shown: string[] = [];
+void shown;
+(shell as any).showItemInFolder = (p: string) => { shown.push('folder:' + p); };
+(shell as any).openPath = async (p: string) => { shown.push('path:' + p); return ''; };
+(shell as any).openExternal = async (u: string) => { shown.push('link:' + u); };
 app.whenReady().then(async () => {
   (screen as any).getCursorScreenPoint = () => ({ x: 400, y: 300 });
   const tmp = mkdtempSync(path.join(os.tmpdir(), 'notes-check-'));
