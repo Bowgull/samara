@@ -112,12 +112,14 @@ const waitingUrls: string[] = [];
 const urlsIn = (argv: string[]) => argv.filter((a) => /^https?:\/\//i.test(a)).slice(0, 5);
 waitingUrls.push(...urlsIn(process.argv));
 
-/** A taskbar task: the browser's own here, and New note (Samara's notes); Timer and the Music player are the companion's, handed to him. */
+/** A taskbar task: the browser's own here, New note and Timer (Samara's own); the Music player is still the companion's, handed to him. */
 function runTask(t: SamaraTask): void {
   // Phase 5: Quit Samara (taskbar list or its ... menu). A real quit: it leaves its mark, so the companion shows no crash card.
   if (t === 'quit') { console.log('samara: quit, on his ask'); app.quit(); return; }
   // N0 (2026-11-25): New note is Samara's own (the quick note), never the companion's.
   if (t === 'new-note') { if (boot?.notes) boot.notes.quick(); else pending = t; return; }
+  // T1 (2026-11-25): Timer is Samara's own too: the dial, without a browser window.
+  if (t === 'timer') { if (boot?.timers) boot.timers.setup(); else pending = t; return; }
   // the companion's own tools never wait for Samara's window (they are not Samara's): straight to him.
   if (isPopoutTask(t) && NEEDS_COMPANION.has(t)) {
     if (link.connected) link.send({ t: 'relay', m: { t: 'samara.task', task: t } } as never); else wakeCompanion(t);
@@ -341,8 +343,8 @@ app.whenReady().then(async () => {
   // N2: paired before, the Mac's Samara can reach this one straight away, the companion running or not.
   direct.listen();
   // Started by a link, a task or his click: the window comes up. Started quietly (--quiet, a Claude session): only the doors.
-  // New note from the taskbar list with Samara closed: only the quick note comes up, not a browser window.
-  if ((!process.argv.includes('--quiet') && startTask !== 'new-note') || waitingUrls.length) {
+  // New note or Timer from the taskbar list with Samara closed: only the quick note or the dial comes up, not a browser window.
+  if ((!process.argv.includes('--quiet') && startTask !== 'new-note' && startTask !== 'timer') || waitingUrls.length) {
     b.open(waitingUrls.shift());
     for (const u of waitingUrls.splice(0)) b.open(u);
   }

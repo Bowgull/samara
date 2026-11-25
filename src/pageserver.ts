@@ -29,6 +29,8 @@ const TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',
   '.json': 'application/json; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8',
+  // the timer's three wood knocks (T1, 2026-11-25)
+  '.wav': 'audio/wav',
 };
 
 export interface PageServerOpts {

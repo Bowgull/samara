@@ -1,6 +1,6 @@
 // The boot engine's real hands (boot.ts): Electron, the disk and the doors. Kept apart so boot.ts itself has no Electron
 // import and its wiring can be unit tested.
-import { app, ipcMain, net, powerMonitor, session } from 'electron';
+import { app, ipcMain, Menu, net, powerMonitor, session } from 'electron';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, watch } from 'node:fs';
 import type { BootDeps } from './boot.ts';
 import { startFlight, trouble } from './flight.ts';
@@ -22,6 +22,7 @@ import { writeFileAtomic } from './atomic.ts';
 import { readJson, saveJson } from './store.ts';
 import { onCastlabs } from './engineupdate.ts';
 import { startNotes } from './noteswire.ts';
+import { startTimers } from './timerswire.ts';
 
 export function bootDeps(log: (s: string) => void): BootDeps {
   return {
@@ -44,6 +45,8 @@ export function bootDeps(log: (s: string) => void): BootDeps {
     writeBox: (dir, box) => { if (!saveJson(popoutFile(dir), box)) log('could not remember the pop-out size'); },
     newBrowser: (o) => new SamaraBrowser(o),
     startNotes,
+    startTimers,
+    dockMenu: (rows) => { if (process.platform !== 'darwin') return; try { app.dock?.setMenu(Menu.buildFromTemplate(rows)); } catch { /* no Dock */ } },
     mkdir: (dir) => { try { mkdirSync(dir, { recursive: true, mode: 0o700 }); return true; } catch { return false; } },
     wireBrowser,
     wirePopout,

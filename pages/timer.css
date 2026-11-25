@@ -1,0 +1,60 @@
+/* Timers in Samara (T1, 2026-11-25; sheet 67 v2 + 67b): the timer plate, ported from the companion. Samara's pixel wood
+   (band.png) with a dark-wood edge, the glass in a dark recessed slot, a carved nameplate (tray.png) with two brass
+   pins, Figtree for the name and the time (his call: the squashed pixel font is unreadable on numbers). The window is a
+   little larger than the plate so the keys, the +1:00 chip and the hop have room; elsewhere the mouse goes through. */
+html,body{margin:0;background:transparent;overflow:hidden;font:500 14px var(--body);user-select:none}
+.tw{position:absolute;left:10px;top:16px;display:inline-flex;align-items:center;gap:12px;padding:8px 16px 8px 10px;border-radius:14px;
+  border:2px solid #2a1808;
+  background:linear-gradient(180deg,rgba(255,224,150,.05),rgba(0,0,0,.30)),url(art/browser/band.png) 0 0/128px 58px;
+  image-rendering:pixelated;box-shadow:inset 0 2px 0 rgba(255,224,150,.10),0 3px 0 #1a1009,0 8px 12px rgba(0,0,0,.40);cursor:grab}
+.tw.held{cursor:grabbing}
+/* the glass sits in a square, so lying on its side never moves the words; the turning picture may reach past it */
+.gbox{position:relative;flex:none;width:70px;height:70px;cursor:pointer}
+.gbox::before{content:"";position:absolute;inset:-5px;border-radius:10px;background:rgba(12,7,3,.62);
+  box-shadow:inset 0 3px 0 rgba(0,0,0,.55),inset 0 0 0 2px rgba(0,0,0,.35),0 1px 0 rgba(255,224,150,.16)}
+.gbox canvas.gl{position:absolute;left:-10px;top:-10px;image-rendering:pixelated;pointer-events:none}
+.gbox canvas.ring{position:absolute;left:-8px;top:-8px;image-rendering:pixelated;pointer-events:none;opacity:0;transition:opacity .12s}
+.gbox.holding canvas.ring{opacity:1}
+.twr{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:96px}
+/* the name: a small carved nameplate with two brass pins */
+.np{position:relative;display:inline-block;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box;
+  font:700 14px/1 var(--body);letter-spacing:.2px;color:#F1E4CC;text-shadow:0 1px 0 #000;padding:5px 12px 6px;border-radius:7px;
+  background:linear-gradient(rgba(0,0,0,.5),rgba(0,0,0,.5)),url(art/browser/tray.png) 0 0/128px 256px;
+  box-shadow:inset 0 2px 0 rgba(0,0,0,.55),0 1px 0 rgba(255,224,150,.16)}
+.np::before,.np::after{content:"";position:absolute;top:50%;width:3px;height:3px;margin-top:-1.5px;background:#C98C14;box-shadow:inset 1px 1px 0 #FFE096}
+.np::before{left:4px}.np::after{right:4px}
+.np input{all:unset;width:110px;font:inherit;color:#fffaf0;caret-color:#FFC43C}
+.tw.renaming .np{overflow:visible;box-shadow:inset 0 2px 0 rgba(0,0,0,.55),0 0 0 2px #FFC43C,0 0 10px rgba(255,196,60,.45)}
+.tmv{font:800 26px/1 var(--body);font-variant-numeric:tabular-nums;color:#FFC43C;letter-spacing:.3px;text-shadow:0 2px 0 #1a1009;padding-left:2px}
+.pz{display:none;font:700 11px var(--body);letter-spacing:1.4px;color:#cbbda6;padding-left:3px}
+.tw.paused .tmv{color:#cbbda6}
+.tw.paused .pz{display:block}
+.tw.done .tmv,.tw.done .np{color:#FFE9A8}
+
+/* ---- keys: slide in from under the plate on hover (in at once, out after half a second, his rhythm) ---- */
+.tw::after{content:"";position:absolute;left:-6px;right:-6px;top:100%;height:14px}
+.trow{position:absolute;left:50%;top:100%;display:flex;gap:8px;padding:7px 9px 9px;border-radius:0 0 11px 11px;border:2px solid #2a1808;border-top:0;
+  background:linear-gradient(180deg,rgba(0,0,0,.35),rgba(0,0,0,.12) 40%),url(art/browser/band.png) 0 -20px/128px 58px;image-rendering:pixelated;
+  box-shadow:0 3px 0 #1a1009,0 6px 10px rgba(0,0,0,.35);z-index:3;white-space:nowrap;
+  opacity:0;visibility:hidden;transform:translate(-50%,-8px);transition:opacity .14s ease .5s,transform .16s ease .5s,visibility 0s linear .66s}
+.tw:hover .trow,.trow:hover,.tw.done .trow{opacity:1;visibility:visible;transform:translate(-50%,0);transition:opacity .12s ease 0s,transform .16s cubic-bezier(.3,1.4,.5,1) 0s,visibility 0s}
+.tb{position:relative;overflow:hidden;cursor:pointer;border:0;min-width:24px;font:700 13.5px/16px var(--body);letter-spacing:.2px;color:#fff;
+  text-shadow:0 1px 0 rgba(0,0,0,.7);padding:4px 9px 5px;border-radius:6px;background:var(--plum);
+  box-shadow:0 0 0 2px #2a1a10,0 3px 0 2px #2a1a10,inset 0 2px 0 rgba(150,110,200,.5)}
+.tb:hover{background:#5a3884}
+.tb:active{transform:translateY(2px);box-shadow:0 0 0 2px #2a1a10,0 1px 0 2px #2a1a10,inset 0 2px 0 rgba(150,110,200,.5)}
+.tb.go{background:#2f7f76;box-shadow:0 0 0 2px #2a1a10,0 3px 0 2px #2a1a10,inset 0 2px 0 rgba(160,240,225,.45)}
+.tb.stop{background:#7a2a1c;box-shadow:0 0 0 2px #2a1a10,0 3px 0 2px #2a1a10,inset 0 2px 0 rgba(255,150,130,.45)}
+/* hold: a gold sweep fills the key (the hotkeys menu's hold) */
+.tb .fill{position:absolute;inset:0;background:rgba(255,196,60,.45);transform-origin:left;transform:scaleX(0)}
+.tb.holding .fill{transform:scaleX(1);transition:transform .6s linear}
+/* scroll: a small chip */
+.chip2{position:absolute;right:8px;top:-12px;font:800 12.5px var(--body);font-variant-numeric:tabular-nums;color:#2a1c00;background:#FFE096;border-radius:6px;padding:2px 7px;
+  box-shadow:0 0 0 2px #6b4316;opacity:0;transform:translateY(4px);pointer-events:none;transition:opacity .15s,transform .15s}
+.chip2.on{opacity:1;transform:none}
+/* time's up: one soft hop */
+@keyframes hop{0%{transform:translateY(0)}22%{transform:translateY(-7px)}44%{transform:translateY(0)}62%{transform:translateY(-3px)}80%,100%{transform:translateY(0)}}
+.tw.hop{animation:hop .55s cubic-bezier(.3,.7,.4,1) 1}
+.tw.gone{opacity:0;transition:opacity .25s}
+
+@media (prefers-reduced-motion:reduce){.trow,.chip2{transition:none}.tw.hop{animation:none}}

@@ -48,6 +48,7 @@ lockdown-check.ts
 effect-check.ts
 sy-check.ts
 notes-check.ts
+timer-check.ts
 notesboard-check.ts
 notepins-check.ts
 asknotes-check.ts
