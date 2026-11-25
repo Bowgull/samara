@@ -176,6 +176,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--wood2);font:500 
 .pg3{overflow:hidden}
 .slot .edit{flex:1;min-width:0;font:500 15px var(--body);color:#F0E6FF;background:none;border:none;outline:none;caret-color:var(--gold)}
 .slot .edit[hidden]{display:none}
+/* Phase R: the whole address selected on click, but not painted (browser.js editSlot). */
+.slot .edit.allsel::selection{background:transparent;color:inherit}
 /* 6.23: the vault key, beside the star, only on a page with a password box. */
 .slot .vkey{flex:0 0 auto;display:grid;place-items:center;width:26px;height:24px;padding:0;border:none;border-radius:6px;background:none;cursor:pointer}
 .slot .vkey[hidden]{display:none}
@@ -461,19 +463,35 @@ body.drawer-open .drawer{transform:none;visibility:visible;transition:transform 
 @media (prefers-reduced-motion:reduce){#tabs.tidying::after{animation:none;display:none}}
 
 /* ---- the Stash: a chest at the bottom of the list ---- */
-.drawer .stash{display:flex;align-items:center;gap:10px;margin:14px 0 6px}
-.drawer .stash[hidden],.drawer .stashlist[hidden]{display:none}
-.drawer .chest{flex:0 0 auto;width:30px;height:26px;padding:0;border-radius:5px;cursor:pointer;background:linear-gradient(180deg,#a8743e,#6e4422);border:2.5px solid var(--outline);
-  box-shadow:inset 0 8px 0 rgba(0,0,0,.25);position:relative}
-.drawer .chest::after{content:"";position:absolute;left:10px;top:7px;width:5px;height:6px;background:#ffe28c;border-radius:1px}
-.drawer .chest:hover{filter:brightness(1.15)}
-.drawer .stash .s1{font:700 13px var(--display);color:#ffe28c}
-.drawer .stash .s2{font:500 12px var(--body);color:#c9c2a8}
-.drawer .stashlist{display:grid;gap:4px;margin:0 0 8px 40px}
-.drawer .srow{display:flex;align-items:center;gap:6px}
-.drawer .sback{flex:1;text-align:left;background:none;border:none;color:#efe4cc;font:700 12.5px var(--body);text-shadow:1px 1px 0 #000;cursor:pointer;padding:3px 4px}
-.drawer .sback:hover{color:#ffe28c}
-.drawer .sx{width:20px;height:20px;border:none;border-radius:50%;background:rgba(255,226,140,.1);color:#d8ccb4;cursor:pointer;font:700 11px var(--body)}
+/* ---- Phase R (2026-11-24): pinned, TONIGHT, and Earlier ---- */
+.drawer .tabpanel[hidden]{display:none}
+/* Pinned: a gold edge on the left, and a carved line under the pinned group. */
+.drawer #tabs .tp.pin::before{content:"";position:absolute;left:-1px;top:5px;bottom:5px;width:4px;border-radius:0 3px 3px 0;background:var(--gold);box-shadow:1px 0 0 var(--outline)}
+.pindiv{height:4px;margin:4px 2px 10px;border-radius:2px;background:linear-gradient(180deg,rgba(0,0,0,.6) 0 2px,rgba(255,224,150,.2) 2px 4px)}
+/* Not opened in 12 hours: faded, and TONIGHT says when it moves. Pointing at it brings it back to full. */
+.tp.fade:not(.on){opacity:.55;transition:opacity .15s ease-out}
+.tp.fade:hover{opacity:1}
+.tp .tonight{flex:0 0 auto;border:none;border-radius:4px;padding:1px 5px;cursor:pointer;font:700 10px/14px var(--body);letter-spacing:.6px;
+  color:#2a1c00;background:#d9c08a;box-shadow:inset 0 -2px 0 rgba(0,0,0,.25)}
+.tp .tonight:hover{background:var(--gold-lit)}
+.drawer .earlierkey{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:8px;padding:7px 10px;border-radius:7px;cursor:pointer;
+  border:2.5px solid var(--outline);background:rgba(20,12,6,.82);box-shadow:inset 0 4px 0 rgba(0,0,0,.6);color:#e6dcc8;font:700 12.5px var(--body);text-shadow:1px 1px 0 #000}
+.drawer .earlierkey[hidden]{display:none}
+.drawer .earlierkey:hover{color:var(--gold-lit)}
+.drawer .earlierkey .n{color:#bfae8a;font-weight:700}
+.drawer .earlier .ehead{display:flex;align-items:center;gap:8px}
+.drawer .earlier .ehead .ptitle{flex:1}
+.drawer .eback{background:none;border:none;padding:2px 4px;margin:-12px 0 0;cursor:pointer;font:700 12px var(--body);color:#bfae8a}
+.drawer .eback:hover{color:var(--gold-lit)}
+.drawer .eq{position:relative;z-index:2;box-sizing:border-box;width:100%;margin:0 0 10px;padding:6px 9px;border-radius:6px;border:2.5px solid var(--outline);
+  background:#120b1f;color:#efe4cc;font:600 12.5px var(--body);outline:none}
+.drawer .eq:focus{border-color:var(--gold-deep)}
+.drawer .eday{position:relative;z-index:2;margin:10px 2px 6px;font:700 11px var(--body);letter-spacing:.8px;color:#bfae8a}
+.drawer .erow .t{display:flex;flex-direction:column;gap:1px}
+.drawer .erow .et{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drawer .erow .ef{font:500 11px var(--body);color:#bfae8a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drawer .eempty{position:relative;z-index:2;font:500 12px/1.4 var(--body);color:#c9c2a8;margin:6px 2px}
+.drawer .elist{position:relative;z-index:2}
 
 /* ---- Trail clean up at the bottom of the drawer: the panel (dark ink, raised, gold caps) above the broom ---- */
 /* Always at the very bottom of the drawer : the drawer is a column, the foot takes the space that is left

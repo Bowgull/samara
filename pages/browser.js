@@ -200,7 +200,10 @@ window.samara?.onBrowserTray?.((s) => {
       document.body.classList.remove('out');
       // Next frame; a short timer too, so a window that is not drawing right now still ends up with the rail out.
       let gone = false;
-      const go = () => { if (gone) return; gone = true; void document.body.offsetWidth; document.body.classList.add('out'); };
+      // Phase R (2026-11-24): no forced layout here (it laid out the whole list on the slide's first frame, 18 ms
+      // measured). Two frames have passed since the fold, so the slide has its start; the timer path is for a
+      // layer that is not drawing, where there is no frame to drop.
+      const go = () => { if (gone) return; gone = true; document.body.classList.add('out'); };
       requestAnimationFrame(() => requestAnimationFrame(go));
       setTimeout(go, 40);
     } else document.body.classList.remove('out');
@@ -376,7 +379,6 @@ el('m-tvwin').addEventListener('click', () => { closeMenu(); if (state.active !=
 el('m-tvvid').addEventListener('click', () => { closeMenu(); if (state.active != null) window.samara?.browserTab?.({ id: state.active, act: 'tvvideo' }); });
 el('m-other').addEventListener('click', () => { closeMenu(); if (state.active != null) window.samara?.browserToMac?.(state.active); });
 el('m-split').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('split'); });
-el('m-tidy').addEventListener('click', () => { closeMenu(); onBand('drawer', openDrawer); window.samara?.browserAct?.('tidy'); });
 el('m-marks').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('bookmarks'); });
 el('m-settings').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('settings'); });
 el('m-quit').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('quit'); });
@@ -385,57 +387,71 @@ el('m-history').addEventListener('click', () => { closeMenu(); window.samara?.br
 el('mqkey').addEventListener('click', () => window.samara?.browserMockup?.({ act: 'log' }));
 el('hykey').addEventListener('click', () => window.samara?.browserGo?.('samara:hyrule'));
 el('m-downloads').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('downloads'); });
-// ---- Trail clean up: the broom at the bottom of the drawer, the panel just above it
-el('broom').addEventListener('click', () => window.samara?.browserAct?.('tidy'));
-el('tidykeep').addEventListener('click', () => window.samara?.browserAct?.('tidykeep'));
-el('tidyundo').addEventListener('click', () => window.samara?.browserAct?.('tidyundo'));
-el('tidypanel').addEventListener('click', (e) => { if (state.tidy?.phase === 'working' && !e.target.closest('button')) window.samara?.browserAct?.('tidyundo'); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.tidy?.phase === 'working') window.samara?.browserAct?.('tidyundo'); });
-let tidyTick = null;
+// The tab count at the foot of the drawer (Phase R: trail clean up is retired; the overnight tidy does it).
 function paintTidy() {
-  const td = state.tidy;
-  el('tidypanel').hidden = !td;
-  el('broom').disabled = Boolean(td);
-  const live = state.tabs.filter((t) => !t.done && !String(t.url).startsWith('samara:')).length;
+  const live = state.tabs.filter((t) => !String(t.url).startsWith('samara:')).length;
   el('tabcount').textContent = `${live} TAB${live === 1 ? '' : 'S'}`;
-  document.getElementById('tabs').classList.toggle('tidying', td?.phase === 'working');
-  clearInterval(tidyTick);
-  if (!td) return;
-  const working = td.phase === 'working';
-  el('tidytitle').textContent = working ? 'TIDYING' : 'TIDIED';
-  el('tidyprog').hidden = !working;
-  el('tidykeys').hidden = working;
-  if (working) {
-    el('tidyline').textContent = (td.text || 'Sorting your tabs.') + ' Keep browsing: nothing closes until you keep it.';
-    el('tidydim').textContent = td.waiting ? 'WAITING FOR WOW TO CLOSE' : 'ESC OR CLICK HERE TO STOP';
-  } else {
-    const parts = [];
-    if (td.created) parts.push(`${td.created} trail${td.created === 1 ? '' : 's'} made`);
-    if (td.doubles) parts.push(`${td.doubles} double${td.doubles === 1 ? '' : 's'} closing`);
-    if (td.stashed) parts.push(`${td.stashed} old trail${td.stashed === 1 ? '' : 's'} put in the Stash`);
-    el('tidyline').textContent = (parts.length ? parts.join(', ') + '.' : 'Already tidy: nothing to change.') + (td.text ? ' ' + td.text : '');
-    const tick = () => { const s = Math.max(0, Math.ceil((td.keepAt - Date.now()) / 1000)); el('tidydim').textContent = `KEEPS ITSELF IN ${s} SECOND${s === 1 ? '' : 'S'}`; };
-    tick(); tidyTick = setInterval(tick, 500);
+}
+// ---- Phase R (2026-11-24): Earlier. The key under the list says how many pages it holds; opening it shows them by
+// day, newest first, with a search. A click brings the page back as a tab where he left it; × lets it go for good.
+// The day words and the search follow src/rail.ts (dayLabel, matches).
+let earlierOpen = false, earlierData = null;
+function paintEarlierKey() {
+  const n = Number(state.earlierN) || 0;
+  el('earlierkey').hidden = !n;
+  el('earliern').textContent = String(n);
+  if (earlierOpen && !n) showEarlier(false);
+}
+function eDay(at, now) {
+  const day = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const diff = Math.round((day(now) - day(at)) / 86400000);
+  if (diff <= 0) return 'TODAY';
+  if (diff === 1) return 'YESTERDAY';
+  const d = new Date(at);
+  if (diff < 7) return d.toLocaleDateString('en-CA', { weekday: 'long' }).toUpperCase();
+  return d.toLocaleDateString('en-CA', { month: 'short', day: 'numeric', ...(d.getFullYear() !== new Date(now).getFullYear() ? { year: 'numeric' } : {}) }).toUpperCase();
+}
+async function showEarlier(on) {
+  earlierOpen = on;
+  document.querySelector('.tabpanel:not(.earlier)').hidden = on;
+  el('earlier').hidden = !on;
+  if (!on) { el('earlierq').value = ''; earlierData = null; return; }
+  earlierData = await window.samara?.browserEarlier?.({ act: 'list' }) ?? { entries: [], now: Date.now() };
+  paintEarlier();
+  el('earlierq').focus();
+}
+function paintEarlier() {
+  if (!earlierOpen || !earlierData) return;
+  const words = el('earlierq').value.toLowerCase().split(/\s+/).filter(Boolean);
+  const list = earlierData.entries.filter((e) => { const hay = `${e.title} ${e.url} ${e.from ?? ''}`.toLowerCase(); return words.every((w) => hay.includes(w)); });
+  const out = [];
+  let day = '';
+  for (const e of list) {
+    const d = eDay(e.at, Date.now());
+    if (d !== day) { day = d; out.push(Object.assign(document.createElement('div'), { className: 'eday', textContent: d })); }
+    const row = document.createElement('div'); row.className = 'tp erow'; row.tabIndex = 0; row.title = e.url; row.dataset.key = e.key;
+    if (e.favicon) { const i = document.createElement('img'); i.className = 'fi'; i.alt = ''; i.src = e.favicon; i.referrerPolicy = 'no-referrer'; i.onerror = () => i.replaceWith(tileFor(e)); row.append(i); }
+    else row.append(tileFor(e));
+    const words2 = document.createElement('span'); words2.className = 't';
+    words2.append(Object.assign(document.createElement('span'), { className: 'et', textContent: e.title || e.url }));
+    if (e.from) words2.append(Object.assign(document.createElement('span'), { className: 'ef', textContent: e.from }));
+    row.append(words2);
+    const x = Object.assign(document.createElement('button'), { type: 'button', className: 'x', textContent: '×', title: 'Remove it for good' });
+    x.setAttribute('aria-label', 'Remove from Earlier');
+    x.addEventListener('click', async (ev) => { ev.stopPropagation(); tap(0.7); earlierData = await window.samara?.browserEarlier?.({ act: 'remove', key: e.key }) ?? earlierData; paintEarlier(); });
+    const go = async () => { earlierData = await window.samara?.browserEarlier?.({ act: 'open', key: e.key }) ?? earlierData; showEarlier(false); };
+    row.addEventListener('click', (ev) => { if (!ev.target.closest('button')) go(); });
+    row.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); go(); } });
+    row.append(x);
+    out.push(row);
   }
+  if (!out.length) out.push(Object.assign(document.createElement('div'), { className: 'eempty', textContent: words.length ? 'Nothing in Earlier matches that.' : 'Nothing in Earlier.' }));
+  el('earlierlist').replaceChildren(...out);
 }
-// ---- the Stash: the chest at the bottom of the list; click it to see the trails put away
-el('chest').addEventListener('click', () => { el('stashlist').hidden = !el('stashlist').hidden; paintStash(); });
-function paintStash() {
-  const st = Array.isArray(state.stash) ? state.stash : [];
-  el('stash').hidden = !st.length;
-  el('stashn').textContent = `${st.length} trail${st.length === 1 ? '' : 's'} put away. Click to bring one back.`;
-  if (!st.length) el('stashlist').hidden = true;
-  if (el('stashlist').hidden) return;
-  el('stashlist').replaceChildren(...st.map((s) => {
-    const row = document.createElement('div'); row.className = 'srow';
-    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'sback', textContent: `${s.name} (${s.count} tab${s.count === 1 ? '' : 's'})`, title: 'Bring it back' });
-    b.addEventListener('click', () => window.samara?.browserTrail?.({ act: 'stash', id: s.id, what: 'restore' }));
-    const x = Object.assign(document.createElement('button'), { type: 'button', className: 'sx', textContent: 'x', title: 'Let it go for good' });
-    x.addEventListener('click', () => window.samara?.browserTrail?.({ act: 'stash', id: s.id, what: 'forget' }));
-    row.append(b, x);
-    return row;
-  }));
-}
+el('earlierkey').addEventListener('click', () => showEarlier(true));
+el('earlierback').addEventListener('click', () => showEarlier(false));
+el('earlierq').addEventListener('input', paintEarlier);
+el('earlierq').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); if (el('earlierq').value) { el('earlierq').value = ''; paintEarlier(); } else showEarlier(false); } });
 /** What on the band is not its wood: its keys, the address, its menus and asks. */
 const BAND_KEYS = 'button, input, .slot, .menu, .suggest, .bandchip, .dltray, .rnd';
 // His own window buttons. Double-clicking the band still maximises (Windows does that for the drag area).
@@ -638,7 +654,20 @@ el('drawerkey').addEventListener('animationend', (e) => { if (e.animationName ==
 // passing over it on the way somewhere does nothing; dragging a tab onto it opens it too.
 let hoverOpen = 0;
 const handle = el('drawerkey');
-handle.addEventListener('pointerenter', () => { window.samara?.browserAct?.('peek'); clearTimeout(hoverOpen); if (!drawerOpen) hoverOpen = setTimeout(openDrawer, 250); });   // 0.25 s (2026-10-20; was 0.4)
+// Phase R (2026-11-24): the rail stays shut at start. A mouse that was already resting on the left edge when Samara
+// opened does not count: Chromium sends an enter and a move when the page lays out under a still pointer. Only a move
+// to a different spot does (by position in the page: movementX and screenX are 0 on some systems and for synthetic moves).
+let movedSinceStart = false, firstAt = null;
+const realMove = (e) => {
+  if (movedSinceStart) return true;
+  if (!firstAt) { firstAt = [e.clientX, e.clientY]; return false; }
+  if (e.clientX !== firstAt[0] || e.clientY !== firstAt[1]) movedSinceStart = true;
+  return movedSinceStart;
+};
+const handleHover = () => { window.samara?.browserAct?.('peek'); clearTimeout(hoverOpen); if (!drawerOpen) hoverOpen = setTimeout(openDrawer, 250); };
+handle.addEventListener('pointerenter', () => { if (movedSinceStart) handleHover(); });
+handle.addEventListener('pointermove', (e) => { if (movedSinceStart) return; if (realMove(e)) handleHover(); });
+document.addEventListener('pointermove', realMove, { passive: true });   // 0.25 s (2026-10-20; was 0.4)
 handle.addEventListener('pointerleave', () => clearTimeout(hoverOpen));
 handle.addEventListener('pointerdown', () => clearTimeout(hoverOpen));
 handle.addEventListener('dragenter', () => { if (!drawerOpen) openDrawer(); });
@@ -689,6 +718,10 @@ function editSlot(keepList = false) {
   }
   slot.classList.add('editing');                 // sheet 88 B: out wider while he types (sheet 102: to 1280)
   edit.value = t?.url ?? '';
+  // Phase R (2026-11-24, his ask: "no yellow highlight, just let me type"): the whole address is still selected, so
+  // typing replaces it as in Chrome, but the selection is not painted (on a Mac it takes the system's bright
+  // highlight). It shows normally again once he moves in the text, selects with the mouse, or types.
+  edit.classList.add('allsel');
   edit.focus(); edit.select();
   window.samara?.browserSlot?.(true);              // Samara keeps the keyboard here while tabs come back
   // What he typed while Samara was still opening (early.js) goes in now (2026-11-20).
@@ -700,7 +733,11 @@ function editSlot(keepList = false) {
   }
   zeroSuggest();
 }
-function closeSlot() { if (!edit.hidden) window.samara?.browserSlot?.(false); edit.placeholder = ''; edit.hidden = true; urlEl.hidden = false; el('slot').classList.remove('editing'); slotTo = null; }
+const plainSel = () => edit.classList.remove('allsel');
+edit.addEventListener('pointerdown', plainSel);
+edit.addEventListener('input', plainSel);
+edit.addEventListener('keydown', (e) => { if (e.key.length > 1 && e.key !== 'Enter' && e.key !== 'Escape' && e.key !== 'Tab') plainSel(); });
+function closeSlot() { plainSel(); if (!edit.hidden) window.samara?.browserSlot?.(false); edit.placeholder = ''; edit.hidden = true; urlEl.hidden = false; el('slot').classList.remove('editing'); slotTo = null; }
 addEventListener('resize', () => { slotTo = null; if (sugg.length) paintSuggest(); });
 el('slot').addEventListener('click', (e) => { if (finding || lock.contains(e.target)) return; if (edit.hidden) editSlot(); });
 // ---- address suggestions (6.22b item 6; sheet 88; sheet 102). The list is drawn on its own layer over the live page
@@ -966,86 +1003,50 @@ const SPEAKER = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6h3l4-3
 const rows = new Map();
 const heads = new Map();
 /**
- * The drawer's list, sheet 3 section 3: loose tabs first, then each trail under its carved heading, then the
- * DONE shelf. Rows are kept and only rebuilt when something about that tab changed (the flicker fix).
+ * The drawer's list, Phase R (2026-11-24, his pick A: tabs and auto-tidy): pinned tabs first (as he arranged them), then
+ * Today, newest opened first, then Claude's box. Tabs he has not opened in 12 hours fade and say TONIGHT: at 3 AM they move
+ * to Earlier (the button under the list). Rows are kept and only rebuilt when something about that tab changed (the
+ * flicker fix). The order follows src/rail.ts (railOrder): never by when he last looked, so a click never moves a tab.
  */
 function paintTabs() {
   // Just after a drop, where every row was, so the rows can glide to their new places (dragging, 2026-10-21).
   const flipWas = performance.now() < flipUntil ? rowSpots() : null;
   const open = new Set(state.tabs.map((t) => t.id));
-  const trails = Array.isArray(state.trails) ? state.trails : [];
   // Sheet 107 v5 : Mockups is the plaque, never a row in the tab list. Hyrule the same (2026-11-03):
   // its key is the only way in, never a tab.
   // Sheet 111: a tab a Claude job has is in Claude's group below, not here (it comes back when the job lets go of it).
-  const live = state.tabs.filter((t) => !t.done && !t.mocklog && !t.hyrule && t.claudeJob == null);
-  const groups = [{ id: null, tabs: live.filter((t) => t.trail == null) }];
-  for (const tr of trails) { const tabs = live.filter((t) => t.trail === tr.id); if (tabs.length && !tr.mock) groups.push({ id: tr.id, trail: tr, tabs }); }
-  const done = state.tabs.filter((t) => t.done);
-  const rowFor = (t, kid) => {
-    const dup = Boolean(state.tidy?.dup?.includes(t.id));
-    const sig = JSON.stringify([t.id === state.active, t.crashed, t.asleep, t.loading, t.phase, t.favicon, t.title, t.url, t.audible, t.muted, kid, t.done, t.lent, dup, t.mock?.v ?? null, t.mock?.stage ?? null, t.mock?.unseen === true]);
+  const live = state.tabs.filter((t) => !t.mocklog && !t.hyrule && t.claudeJob == null);
+  const pinned = live.filter((t) => t.pinned);
+  const today = live.filter((t) => !t.pinned).reverse();
+  const rowFor = (t, sec) => {
+    const sig = JSON.stringify([t.id === state.active, t.crashed, t.asleep, t.loading, t.phase, t.favicon, t.title, t.url, t.audible, t.muted, t.lent, t.pinned === true, t.fade === true, t.mock?.v ?? null, t.mock?.stage ?? null, t.mock?.unseen === true]);
     let r = rows.get(t.id);
     if (!r || r.sig !== sig) {
-      const fresh = buildRow(t, kid);
-      if (dup) { fresh.classList.add('dup'); fresh.append(Object.assign(document.createElement('span'), { className: 'dupchip', textContent: 'X2 CLOSING' })); }
+      const fresh = buildRow(t, false);
       fresh.dataset.tab = String(t.id);
       if (r) r.el.replaceWith(fresh); r = { sig, el: fresh }; rows.set(t.id, r);
     }
-    // Where it sits, for dragging (2026-10-21): written every time, since a move changes these without a rebuild.
-    r.el.dataset.trail = t.trail == null ? '' : String(t.trail);
-    r.el.dataset.depth = kid ? '1' : '0';
-    r.el.dataset.parent = kid && !t.mock && t.opener != null ? String(t.opener) : '';
+    // Where it sits, for dragging: written every time, since a move changes these without a rebuild.
+    r.el.dataset.trail = '';
+    r.el.dataset.sec = sec;
+    r.el.dataset.depth = '0';
+    r.el.dataset.parent = '';
     return r.el;
   };
   const want = [];
-  for (const g of groups) {
-    if (g.id !== null) want.push(headFor(g.trail, g.tabs.length));
-    const inGroup = new Set(g.tabs.map((t) => t.id));
-    // Only inside a trail does a tab sit under the one it came from; loose tabs are a flat list.
-    if (g.trail?.collapsed) continue;
-    for (const t of g.tabs) want.push(rowFor(t, g.id !== null && Boolean(t.opener && inGroup.has(t.opener))));
-  }
-  let shelf = document.getElementById('doneshelf');
-  if (done.length) {
-    if (!shelf) { shelf = document.createElement('div'); shelf.id = 'doneshelf'; shelf.className = 'shelf'; }
-    const lab = document.createElement('div'); lab.className = 'lab';
-    lab.append(Object.assign(document.createElement('span'), { textContent: 'DONE' }), Object.assign(document.createElement('span'), { textContent: String(done.length) }));
-    shelf.replaceChildren(lab, ...done.map((t) => rowFor(t, false)));
-    want.push(shelf);
-  }
+  for (const t of pinned) want.push(rowFor(t, 'pin'));
+  if (pinned.length && today.length) { pinDiv ??= Object.assign(document.createElement('div'), { className: 'pindiv', id: 'pindiv' }); want.push(pinDiv); }
+  for (const t of today) want.push(rowFor(t, 'today'));
   for (const [id, r] of rows) if (!open.has(id)) { r.el.remove(); rows.delete(id); }
-  for (const [id, h] of heads) if (!groups.some((g) => g.id === id)) { h.remove(); heads.delete(id); }
-  if (!done.length && shelf) shelf.remove();
+  for (const [id, h] of heads) { h.remove(); heads.delete(id); }
+  document.getElementById('doneshelf')?.remove();
   want.push(...driverNodes());
   want.forEach((node, i) => { if (tabsBox.children[i] !== node) tabsBox.insertBefore(node, tabsBox.children[i] ?? null); });
   while (tabsBox.children.length > want.length) tabsBox.lastElementChild.remove();
+  paintEarlierKey();
   afterPaint(flipWas);
 }
-/** A trail's carved heading. Click the name to rename it; his name is kept for good (Qwen never renames it). */
-function headFor(tr, n) {
-  let h = heads.get(tr.id);
-  if (!h) { h = document.createElement('div'); h.className = 'th'; heads.set(tr.id, h); }
-  if (h.querySelector('input')) return h;               // he is typing its name: leave it be
-  const nm = Object.assign(document.createElement('span'), { className: 'nm', textContent: tr.name, title: 'Click to rename' });
-  nm.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const box = Object.assign(document.createElement('input'), { value: tr.name, maxLength: 24, spellcheck: false });
-    box.setAttribute('aria-label', 'Trail name');
-    const done = (save) => { if (save && box.value.trim()) window.samara?.browserTrail?.({ act: 'rename', id: tr.id, name: box.value }); box.replaceWith(nm); };
-    box.addEventListener('keydown', (k) => { if (k.key === 'Enter') done(true); if (k.key === 'Escape') { k.stopPropagation(); done(false); } });
-    box.addEventListener('blur', () => done(true));
-    nm.replaceWith(box); box.focus(); box.select();
-  });
-  const grip = Object.assign(document.createElement('i'), { className: 'grip', title: 'Drag to move this trail' });
-  const more = Object.assign(document.createElement('button'), { type: 'button', className: 'thm', textContent: '\u00b7\u00b7\u00b7', title: 'Trail options' });
-  more.addEventListener('click', (e) => { e.stopPropagation(); trailMenu(tr, e.clientX, e.clientY); });
-  h.classList.toggle('fresh', tr.fresh === true);
-  h.classList.toggle('shut', tr.collapsed === true);
-  h.dataset.trail = String(tr.id);
-  h.replaceChildren(grip, nm, Object.assign(document.createElement('span'), { className: 'n', textContent: `${n} TAB${n === 1 ? '' : 'S'}` }), more);
-  return h;
-}
-
+let pinDiv = null;
 // ---- the tab's own menu (right-click), sheet 3 section 7
 function closeTabMenu() { document.getElementById('tabmenu')?.remove(); }
 /** A bookmark's own menu (2026-10-20): the same wood menu as a tab's. */
@@ -1109,8 +1110,10 @@ function tabMenu(t, x, y) {
   gh('THIS TAB');
   item('Reload', () => window.samara?.browserTab?.({ id: t.id, act: 'reload' }));
   item(t.muted ? 'Unmute' : 'Mute', () => window.samara?.browserTab?.({ id: t.id, act: 'mute' }));
+  // Phase R: pinned stays at the top and never goes to Earlier overnight.
+  if (!t.mock && !t.internal) item(t.pinned ? 'Unpin' : 'Pin to the top', () => window.samara?.browserTab?.({ id: t.id, act: t.pinned ? 'unpin' : 'pin' }));
+  if (t.fade) item('Keep it (not tonight)', () => window.samara?.browserTab?.({ id: t.id, act: 'keep' }));
   sep();
-  const trails = (Array.isArray(state.trails) ? state.trails : []).filter((tr) => !tr.mock);
   if (t.mock) {
     // Sheet 47: a mockup stays in MOCKUPS. Its versions, and where it sits in the tree (2026-10-21).
     // Sheet 81: mark the version this tab shows (each one comes off the same way). Parked, it goes to History.
@@ -1130,14 +1133,8 @@ function tabMenu(t, x, y) {
     if (t.mock.branch != null || t.mock.parent) item('Make it top level', () => window.samara?.browserMockup?.({ act: 'top', sheet: t.mock.sheet }));
     // Send to companion (2026-10-21): only while the companion is running, like the words item on a page.
     if (state.mockups?.toCompanion) { item('Send to companion', () => window.samara?.browserMockup?.({ act: 'sendtab', id: t.id })); samaraFaceOn(m); }
-  } else {
-    gh('TRAIL');
-    const move = expander(m, 'Move to a trail');
-    for (const tr of trails) if (tr.id !== t.trail) move(tr.name.toLowerCase().replace(/^./, (c) => c.toUpperCase()), () => window.samara?.browserTrail?.({ act: 'move', tab: t.id, to: tr.id }));
-    move('A new trail', () => window.samara?.browserTrail?.({ act: 'move', tab: t.id, to: 'new' }));
-    if (t.trail != null) move('Out of the trail', () => window.samara?.browserTrail?.({ act: 'move', tab: t.id, to: null }));
+    sep();
   }
-  sep();
   gh('SEND');
   item('Pop out', () => window.samara?.browserPopout?.(t.id));
   // The same as dragging it out of the window (2026-10-13).
@@ -1157,14 +1154,6 @@ function tabMenu(t, x, y) {
   m.style.top = Math.max(4, Math.min(y, innerHeight - r.height - 4)) + 'px';
   setTimeout(() => document.addEventListener('pointerdown', (e) => { if (!m.contains(e.target)) closeTabMenu(); }, { once: true }), 0);
 }
-/** "QUEST COMPLETE" over the tab for a moment, then it drops to the DONE shelf with a quiet tick (sheet 3). */
-function turnIn(id) {
-  const r = rows.get(id)?.el;
-  if (r) r.append(Object.assign(document.createElement('span'), { className: 'quest', textContent: 'QUEST COMPLETE' }));
-  setTimeout(() => { tap(1.25); window.samara?.browserTab?.({ id, act: 'done' }); }, 850);
-}
-
-
 /** A tab's icon slot when the site has no icon: its first letter. */
 function tileFor(t) {
   const s = document.createElement('span'); s.className = 'fi letter';
@@ -1176,7 +1165,7 @@ function buildRow(t, kid) {
   {
     const row = document.createElement('div');
     const asleep = t.asleep && t.id !== state.active;
-    row.className = 'tp' + (t.id === state.active ? ' on' : '') + (t.crashed ? ' crash' : '') + (asleep ? ' sleep' : '') + (kid ? ' kid' : '') + (t.done ? ' done' : '');
+    row.className = 'tp' + (t.id === state.active ? ' on' : '') + (t.crashed ? ' crash' : '') + (asleep ? ' sleep' : '') + (kid ? ' kid' : '') + (t.pinned ? ' pin' : '') + (t.fade ? ' fade' : '');
     row.title = t.url;
     row.tabIndex = 0;
     const ph = t.phase ?? (t.loading ? 'loading' : 'idle');
@@ -1203,6 +1192,12 @@ function buildRow(t, kid) {
     // Sheet 43d (2026-10-20): a small pixel moon instead of the word, which was too small to read.
     if (asleep && !t.lent) { const z = document.createElement('span'); z.className = 'zz moon'; z.title = 'Asleep: click to wake it'; z.setAttribute('aria-label', 'Asleep'); const m = pixIcon('moon', 1); if (m) z.append(m); else z.textContent = 'ASLEEP'; row.append(z); }
     if (t.lent) { const z = document.createElement('span'); z.className = 'zz lent'; z.textContent = 'IN POPOUT'; row.append(z); }
+    // Phase R: not opened in 12 hours; it moves to Earlier at 3 AM. Click the tag to keep it.
+    if (t.fade) {
+      const k = Object.assign(document.createElement('button'), { type: 'button', className: 'tonight', textContent: 'TONIGHT', title: 'Moves to Earlier at 3 AM. Click to keep it.' });
+      k.addEventListener('click', (e) => { e.stopPropagation(); window.samara?.browserTab?.({ id: t.id, act: 'keep' }); });
+      row.append(k);
+    }
     // The pop-out keycap, only on video tabs: a video site, or anything playing sound right now.
     if (!t.done && !t.lent && (t.audible || VIDEO_SITE.test(hostOf(t.url)))) {
       const p = document.createElement('button'); p.type = 'button'; p.className = 'pip';
@@ -1490,7 +1485,6 @@ window.samara?.onBrowserTabs?.((s) => {
   paintHyruleKey(s);
   el('m-sitenotes').hidden = s.notes === false;
   paintTidy();
-  paintStash();
   // The key: only where Bitwarden has a login here; gold with one soft pulse when it first shows.
   const vk = el('vkey');
   const showKey = s.hasLogin === true;
@@ -1593,39 +1587,6 @@ window.samara?.onBrowserTabs?.((s) => {
   if (crashed) el('crashtitle').textContent = `${(t.title || 'This page').slice(0, 60)} stopped working`;
 });
 
-
-// ---- the trail menu (the ··· on a trail's name): wood, like the tab's menu, the glove on what you point at
-function trailMenu(tr, x, y) {
-  closeTabMenu();
-  const m = document.createElement('div'); m.id = 'tabmenu'; m.className = 'tabmenu'; m.setAttribute('role', 'menu');
-  const item = (label, go, cls = '') => {
-    const b = Object.assign(document.createElement('button'), { type: 'button', className: cls, textContent: label });
-    b.setAttribute('role', 'menuitem');
-    b.addEventListener('click', () => { closeTabMenu(); go(); });
-    m.append(b);
-  };
-  const sep = () => m.append(Object.assign(document.createElement('div'), { className: 'sep' }));
-  const n = state.tabs.filter((t) => t.trail === tr.id).length;
-  // Sheet 47: the MOCKUPS trail folds or closes; its history is kept either way.
-  if (tr.mock) {
-    item(tr.collapsed ? 'Open it up' : 'Collapse', () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'collapse' }));
-    sep();
-    item(`Close the mockups (${n} tab${n === 1 ? '' : 's'})`, () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'close' }), 'danger');
-    placeMenu(m, x, y);
-    return;
-  }
-  item('Rename', () => heads.get(tr.id)?.querySelector('.nm')?.click());
-  item(tr.collapsed ? 'Open it up' : 'Collapse', () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'collapse' }));
-  item('Move to the Stash', () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'stash' }));
-  item('Ungroup (keep the tabs)', () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'ungroup' }));
-  sep();
-  item(`Close the trail and its ${n} tab${n === 1 ? '' : 's'}`, () => window.samara?.browserTrail?.({ act: 'trail', id: tr.id, what: 'close' }), 'danger');
-  document.body.append(m);
-  const r = m.getBoundingClientRect();
-  m.style.left = Math.max(4, Math.min(x, innerWidth - r.width - 4)) + 'px';
-  m.style.top = Math.max(4, Math.min(y, innerHeight - r.height - 4)) + 'px';
-  setTimeout(() => document.addEventListener('pointerdown', (e) => { if (!m.contains(e.target)) closeTabMenu(); }, { once: true }), 0);
-}
 
 // ---- Sheet 47 (2026-10-21): the MOCKUPS trail. Claude's icon and FROM CLAUDE on its head; each mockup wears
 // its version; the family tree (branch > mockup > children, all his to move); HISTORY at the bottom with every version,
@@ -1942,7 +1903,7 @@ function dgSlots() {
   for (const n of tabsBox.children) {
     if (n.classList.contains('lifted') || n.classList.contains('dragghost') || n === dropMark) continue;
     const top = n.offsetTop + (dgShift.get(n) || 0), h = n.offsetHeight;
-    if (n.matches('.tp[data-tab]')) out.push({ n, top, h, type: 'tab', id: Number(n.dataset.tab), trail: n.dataset.trail === '' ? null : Number(n.dataset.trail),
+    if (n.matches('.tp[data-tab]')) out.push({ n, top, h, type: 'tab', id: Number(n.dataset.tab), trail: n.dataset.trail === '' ? null : Number(n.dataset.trail), sec: n.dataset.sec || '',
       depth: Number(n.dataset.depth) || 0, sheet: n.dataset.mock || '', branch: n.dataset.mbranch ? Number(n.dataset.mbranch) : null });
     else if (n.matches('.th[data-trail]')) out.push({ n, top, h, type: 'head', trail: Number(n.dataset.trail), shut: n.classList.contains('shut') });
     else if (n.matches('.bh[data-branch]')) out.push({ n, top, h, type: 'branch', trail: DG_MOCK, branch: Number(n.dataset.branch), shut: n.classList.contains('folded') });
@@ -1991,7 +1952,15 @@ function dgAimTab(y) {
   let parent = null;
   if (depth) for (let k = g - 1; k >= 0 && same(S[k]); k--) if (S[k].depth === 0) { parent = S[k]; break; }
   if (depth && !parent) return null;
-  const before = same(next) ? next.id : null;
+  let before = same(next) ? next.id : null;
+  // Phase R: Today is drawn newest first (the list's order reversed), so a gap lands before the row ABOVE it in the
+  // list's own order; the top of Today is the end of the list. Pinned is drawn in order. A tab stays in its own group.
+  if (!d.mock && ctx.trail === null) {
+    const mine = rows.get(d.grab)?.el?.dataset.sec || 'today';
+    const secOf = (x) => (x && x.type === 'tab' ? x.sec : '');
+    if (mine === 'today') { if (secOf(next) === 'pin') return null; before = secOf(prev) === 'today' ? prev.id : null; }
+    else { if (secOf(prev) === 'today') return null; before = secOf(next) === 'pin' ? next.id : null; }
+  }
   const top = prev ? prev.n.offsetTop + prev.h : 0;
   const lineY = next ? (top + next.n.offsetTop + d.gap) / 2 : top + 5;
   const t = { kind: 'gap', from: next?.n ?? null, lineY, depth };

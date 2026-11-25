@@ -149,7 +149,6 @@ const link = new CompanionLink({
       const own = Array.isArray((m.cats as { own?: unknown } | undefined)?.own) ? ((m.cats as { own: unknown[] }).own).map(String) : [];
       b?.notesNews(m.notes, own); return;
     }
-    if (m.t === 'tidy.answer' && Number.isInteger(m.id)) { b?.tidyAnswer(Number(m.id), { ok: m.ok === true, text: typeof m.text === 'string' ? m.text : '', why: typeof m.why === 'string' ? m.why : '' }); return; }
     if (m.t === 'drive' && Number.isInteger(m.id) && typeof m.op === 'string') {
       const id = Number(m.id), a = (m.a && typeof m.a === 'object') ? m.a as Record<string, unknown> : {};
       // A card for Discord (9.D D3) is drawn by the companion's own windows (main.ts) since 2026-11-20; never answered here, so
@@ -301,7 +300,6 @@ app.whenReady().then(async () => {
   b.onClaude = (m) => { link.send(m as never); };
   b.onClaudeOpen = (target) => openInClaude(target);
   b.onDriverStop = (j) => { link.send({ t: 'drive.stopped', job: j.id } as never); };
-  b.onTidyAsk = (id, prompt) => { if (!link.send({ t: 'tidy.ask', id, prompt } as never)) b.tidyAnswer(id, { ok: false, why: 'offline' }); };
   b.onCall = (on) => { const e = engineUpdates as EngineUpdates | null; if (!on && e && !e.ready) void e.check(); };
   if (!onCastlabs()) b.onPaid = (url) => boot?.openPop(url) ?? false;
   // Made inside sources() above, which the boot engine has already called by now.

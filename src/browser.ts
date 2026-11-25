@@ -40,7 +40,6 @@ import { CastSession, DEFAULT_PLAYER, airplayNames, findRemoteTvs, findTvs } fro
 import { KEY, ensureCert, remote, startPairing, type TvTarget } from './tvremote.ts';
 import { PAGE_VIDEO_JS, PAUSE_PAGE_JS, YOUTUBE_APP, YOUTUBE_NS, copyProtected, plainMedia, seekPageJs, tvAppLink, tvSteps, twitchMedia, twitchOf, youTubeId, youTubeOnTv, type TvAppLink } from './tvmedia.ts';
 import { addressFor, engineHome, guessesUrl, parseGuesses, searchFor, setSearch, type Engine } from './address.ts';
-import { TIDY_SYSTEM, bySite, doubles, readTidy, staleTrails, tidyPrompt, type TidyTab } from './tidy.ts';
 import { writeFileAtomic, writeFileAtomicSoon } from './atomic.ts';
 import { SessionStore, type SessionData } from './sessionstore.ts';
 import { SPLIT_EDGE, SPLIT_GAP, SPLIT_HEAD, clampSplit, splitLeftWidth } from './splitview.ts';
@@ -116,6 +115,8 @@ import { createRequire } from 'node:module';
 import { pageMenuItems, sendKindFor } from './pagemenu.ts';
 import { WATCH_CSS, WATCH_HOSTS } from './watchmode.ts';
 import { GOOGLE_WORDS_JS, googleRefused, refusalTarget } from './passkeys.ts';
+import { EarlierStore } from './earlier.ts';
+import { afterClose, entryKey, fading, migrateV1, tidyDue as railTidyDue, toPutAway, type EarlierEntry, type RailTab, type V1File } from './rail.ts';
 
 /**
  * Dark mode for web pages (X, 2026-10-14): Dark Reader's own engine (darkreader 4.9.133,
@@ -212,6 +213,8 @@ interface Tab {
   pageBg?: string;
   zoom: number;
   lastSeen: number;
+  /** Phase R: pinned to the top of the rail; never put away overnight. */
+  pinned?: boolean;
   /** 6.24: a call is live in this tab (he allowed its camera, mic or a screen share): never slowed, never put to sleep. */
   call?: boolean;
   /** 6.22: stopped before loading because a list names it: which lists. */
@@ -261,6 +264,14 @@ interface Pane {
   hideTimer: NodeJS.Timeout | null;
   trayV: WebContentsView | null;
   trayOn: boolean;
+  /** The list's newest state, held while it is shut and sent a moment later, so an open never rebuilds it mid-slide. */
+  trayNext: Record<string, unknown> | null;
+  trayNextT: ReturnType<typeof setTimeout> | null;
+  /** Its page has loaded (an open before that is ignored, never a late slide). */
+  trayReady: boolean;
+  /** Which opening this is (a timer from an earlier one must not run during a later slide), and when it last shut. */
+  traySeq?: number;
+  trayShutAt?: number;
   trayAt: { x: number; y: number; hy?: number };
   /** Claude's rune panel, in its own see-through layer over the live page (2026-10-21, runeView). */
   runeV?: WebContentsView | null;
@@ -309,30 +320,14 @@ interface Pane {
 /** Sheet 60 section 4: a note as Samara's notes rail needs it (only notes that came from a page carry `src`). */
 export interface RailNote { id: string; title: string; html: string; cat?: string; src?: { url: string; site: string }; updated: number }
 const newPane = (id: number): Pane => ({ id, win: null, active: null, inset: { left: 30, top: 66, right: 8, bottom: 8 }, drawerOpen: false, peekShot: null, peeking: false,
-  hideTimer: null, trayV: null, trayOn: false, trayAt: { x: 42, y: 62 }, curtain: null, curtainReady: Promise.resolve(), veil: null, fullTab: null, watching: null, watchTimer: null });
+  hideTimer: null, trayV: null, trayOn: false, trayNext: null, trayNextT: null, trayReady: false, trayAt: { x: 42, y: 62 }, curtain: null, curtainReady: Promise.resolve(), veil: null, fullTab: null, watching: null, watchTimer: null });
 
 /** A trail (Horse Browser's idea, sheet 3): pages that belong to one thing he is doing. `named` = he named it. */
 interface Trail { id: number; name: string; named: boolean; collapsed?: boolean; fresh?: boolean; /** sheet 47: the MOCKUPS trail */ mock?: boolean }
 /** Sheet 47: the MOCKUPS trail always has this id, so it is the same trail across restarts and never mixed with his. */
 const MOCK_TRAIL = -1;
-/** A trail put away in the Stash (by Tidy or by him): its pages, ready to come back. Never closed for good by the companion. */
+/** A trail put away in the Stash, before Phase R: read once, to move its pages into Earlier (railMove). */
 interface Stashed { id: number; name: string; tabs: { url: string; title: string }[]; at: number }
-/** Everything Tidy changed, so Undo can put it all back exactly. */
-interface TidyRun {
-  id: number; phase: 'working' | 'review'; text: string; waiting: boolean;
-  trails: Trail[]; order: { id: number; trail: number | null }[];
-  dup: number[]; stashed: number[]; created: number[]; keepAt: number;
-  timer: NodeJS.Timeout | null; retry: NodeJS.Timeout | null;
-}
-
-/** A trail's first name, from the site it started on: "wowhead.com" becomes "WOWHEAD". He can rename it. */
-function trailNameFor(url: string): string {
-  try {
-    const h = new URL(url).hostname.replace(/^www\./, '');
-    const parts = h.split('.');
-    return (parts.length > 1 ? parts[parts.length - 2] : parts[0]).toUpperCase().slice(0, 24);
-  } catch { return 'TRAIL'; }
-}
 
 const isWeb = (u: string) => /^https?:\/\//i.test(u);
 /** A view whose page is still there (a view's page can be gone, or missing, once its window has closed). */
@@ -798,17 +793,11 @@ export class SamaraBrowser {
   prefs = { ads: true, popups: true, home: DEFAULT_HOME, search: 'brave' as Engine, aiBox: true, startup: 'tabs' as 'tabs' | 'home', dark: true, darkOff: [] as string[], afSounds: true, lockAfter: '30m' };
   /** His home page, or his search engine's front page. Web pages only. */
   private get HOME(): string { return isWeb(this.prefs.home) && this.prefs.home !== DEFAULT_HOME ? this.prefs.home : engineHome(); }
-  /** The Stash (Tidy and the trail menu put trails here). Kept between runs. */
+  /** The Stash of before Phase R, read once so railMove can put its pages in Earlier; empty after that. */
   private stash: Stashed[] = [];
-  private stashSeq = 0;
+  /** Phase R (2026-11-24): the tabs put away overnight, and what trails, the done shelf and the Stash held before. */
+  private earlier!: EarlierStore;
   private readonly stashFile: string;
-  /** The tidy in progress or waiting for Keep or Undo. */
-  private tidy: TidyRun | null = null;
-  private tidySeq = 0;
-  /** Set by main: ask Qwen (through the companion) to sort the tabs. The answer comes back to tidyAnswer(). */
-  onTidyAsk: ((id: number, prompt: string, system: string) => void) | null = null;
-  /** Set by main: the browser is closing a trail's tabs, keep them a moment for Undo. */
-  private lastClosed: { trail: Trail; tabs: { url: string; title: string }[] } | null = null;
   /** Sites he let open popups by themselves ("Allow popups on this site"). Kept between runs. */
   private popupOk = new Set<string>();
   private readonly popupOkFile: string;
@@ -984,7 +973,8 @@ export class SamaraBrowser {
       if (Array.isArray(a)) this.stash = a.filter((s: Partial<Stashed>) => Number.isInteger(s?.id) && typeof s?.name === 'string' && Array.isArray(s?.tabs)).slice(0, 50)
         .map((s: Stashed) => ({ id: s.id, name: s.name.slice(0, 24), at: Number(s.at) || 0, tabs: s.tabs.filter((t) => typeof t?.url === 'string' && isWeb(t.url)).slice(0, 80).map((t) => ({ url: t.url, title: String(t.title ?? t.url).slice(0, 200) })) }));
     } catch { /* none yet */ }
-    this.stashSeq = this.stash.reduce((m, s) => Math.max(m, s.id), 0);
+    this.earlier = new EarlierStore(path.join(o.stateDir, 'browser-earlier.json'), () => { if (this.restored) { this.sync?.changed('prefs'); this.sendTabs(); } });
+    this.railMove(o.stateDir);
     setSearch(this.prefs.search, this.prefs.aiBox);
     this.vault = new Vault();
     this.sitesFile = path.join(o.stateDir, 'vault-sites.json');
@@ -1751,12 +1741,10 @@ export class SamaraBrowser {
       this.ads?.pauseMany([...next].filter((h) => !this.paused.has(h)), true);
       this.paused = next; put(this.pausedFile, this.paused);
     }
-    if (Array.isArray(L.stash)) {
-      this.stash = L.stash.filter((x: any) => Number.isInteger(x?.id) && typeof x?.name === 'string' && Array.isArray(x?.tabs)).slice(0, 50)
-        .map((x: any) => ({ id: x.id, name: String(x.name).slice(0, 24), at: Number(x.at) || 0,
-          tabs: x.tabs.filter((t: any) => typeof t?.url === 'string' && isWeb(t.url) && urlKept(t.url)).slice(0, 80).map((t: any) => ({ url: t.url, title: String(t.title ?? t.url).slice(0, 200) })) }));
-      this.stashSeq = Math.max(this.stashSeq, ...this.stash.map((x) => x.id));
-      try { writeFileAtomic(this.stashFile, JSON.stringify(this.stash)); } catch { /* best effort */ }
+    // Phase R: the Stash no longer travels (each machine moved its own into Earlier); Earlier is joined, never replaced.
+    const E = (L as { earlier?: { entries?: unknown; gone?: unknown } }).earlier;
+    if (E && typeof E === 'object' && Array.isArray(E.entries)) {
+      this.earlier.join(E.entries.filter((e: any) => typeof e?.url === 'string' && urlKept(e.url)), E.gone && typeof E.gone === 'object' ? E.gone as Record<string, number> : {});
     }
     this.sendTabs(); this.pushSettings();
   }
@@ -1949,8 +1937,9 @@ export class SamaraBrowser {
     v.setBackgroundColor('#00000000');
     v.setVisible(false);
     const P = this.pane;
-    // Opened before its page had loaded (his first hover right after start): slide out once it has.
-    v.webContents.on('did-finish-load', () => { this.pane = P; this.sendTabs(); v.webContents.send('browser:tray', { size: this.tabSize }); if (P.trayOn) v.webContents.send('browser:tray', { open: true, hy: P.trayAt.hy, size: this.tabSize }); else this.warmTray(P, v); });
+    P.trayReady = false; P.trayNext = null;
+    // Phase R (2026-11-24): an open before its page has loaded is ignored (see tray()), so it never slides out late.
+    v.webContents.on('did-finish-load', () => { this.pane = P; P.trayReady = true; P.trayNext = null; this.sendTabs(); this.trayFlush(P); v.webContents.send('browser:tray', { size: this.tabSize }); this.warmTray(P, v); });
     v.webContents.on('before-input-event', (e, input) => { this.pane = P; if (this.key(input)) e.preventDefault(); });
     void v.webContents.loadURL(`${this.o.origin}/browser.html?tray=1`).catch(() => { /* its window closed while it loaded */ });
     this.trayV = v;
@@ -1989,6 +1978,7 @@ export class SamaraBrowser {
       void this.tabPeek(null);
       if (!this.trayOn) { v?.setVisible(false); return; }
       this.trayOn = false;
+      this.pane.traySeq = (this.pane.traySeq ?? 0) + 1; this.pane.trayShutAt = Date.now();
       v?.webContents.send('browser:tray', { open: false });
       setTimeout(() => {
         if (this.trayOn || w.isDestroyed()) return;
@@ -1999,9 +1989,14 @@ export class SamaraBrowser {
     }
     const v = this.trayView();
     if (!v) return;
+    // Not drawn yet (his hover in the first moment after start): stay shut rather than slide out late. The band's
+    // handle is told, so the next hover opens it normally.
+    if (!this.pane.trayReady) { w.webContents.send('browser:tray', { open: false }); return; }
     this.newSince = 0;
-    void this.cardOf(this.cur());                // the page in front, for the list's hover picture
-    this.tabPeekView();                          // and its layer, loaded before the first hover
+    // Phase R (2026-11-24, measured): nothing but the slide runs while the rail moves. The page picture for the hover
+    // card (a capture and a JPEG, ~9 ms) waits until the slide is over; the hover layer was built at start.
+    const P0 = this.pane, seq = P0.traySeq = (P0.traySeq ?? 0) + 1;
+    setTimeout(() => { if (P0.trayOn && P0.traySeq === seq) { const was = this.pane; this.pane = P0; void this.cardOf(this.cur()); this.pane = was; } }, TRAY_SLIDE_MS + 40);
     const n = (x: unknown, d: number) => (Number.isFinite(Number(x)) ? Math.max(0, Math.round(Number(x))) : d);
     this.trayAt = { x: n(at?.x, this.trayAt.x), y: n(at?.y, this.trayAt.y), hy: n((at as { hy?: unknown })?.hy, this.trayAt.hy ?? 80) };
     this.trayOn = true;
@@ -2009,10 +2004,17 @@ export class SamaraBrowser {
     w.contentView.addChildView(v);             // to the top, over the page
     // The rail starts folded, its handle exactly over the band's, then slides out carrying it (2026-10-20).
     v.setVisible(true);
+    // The list is already current (sent while it was shut); only a change still waiting goes first.
+    this.trayFlush(this.pane);
     v.webContents.send('browser:tray', { open: true, hy: this.trayAt.hy, size: this.tabSize });
     v.webContents.focus();
     w.webContents.send('browser:tray', { open: true });
-    this.sendTabs();
+  }
+  /** Send the shut list its newest state now (a change waiting for the quiet moment). */
+  private trayFlush(P: Pane): void {
+    if (P.trayNextT) { clearTimeout(P.trayNextT); P.trayNextT = null; }
+    const d = P.trayNext; P.trayNext = null;
+    if (d && P.trayV && !P.trayV.webContents.isDestroyed() && P.trayReady) P.trayV.webContents.send('browser:tabs', d);
   }
   // ------------------------------------------------------------------ sheet 121 (4): two pages side by side
   /**
@@ -2825,7 +2827,11 @@ export class SamaraBrowser {
     if (first) w.once('show', () => setTimeout(() => this.details.open(), 1200));
     // The tab list is made ready a few seconds after the window shows (measured 2026-10-20: built on his first hover it
     // took 0.2 s, and 0.5 s on a slow machine), so the first open is as quick as every other.
-    w.once('ready-to-show', () => setTimeout(() => { if (w.isDestroyed() || p.win !== w) return; const was = this.pane; this.pane = p; this.trayView(); this.runeView(); this.sugView(); this.noticeView(); this.pane = was; }, 3000));
+    w.once('ready-to-show', () => {
+      // The rail first (Phase R: it must be drawn before he can reach for it), the other layers once start has settled.
+      setTimeout(() => { if (w.isDestroyed() || p.win !== w) return; const was = this.pane; this.pane = p; this.trayView(); this.pane = was; }, 400);
+      setTimeout(() => { if (w.isDestroyed() || p.win !== w) return; const was = this.pane; this.pane = p; this.tabPeekView(); this.runeView(); this.sugView(); this.noticeView(); this.pane = was; }, 3000);
+    });
     // The panels' layer sooner: the ⋯ menu is often the first thing he clicks. Until it has loaded, the band opens its
     // panels the old way (on a picture of the page).
     w.once('ready-to-show', () => setTimeout(() => { if (w.isDestroyed() || p.win !== w) return; const was = this.pane; this.pane = p; this.floatView(); this.pane = was; }, 600));
@@ -2862,6 +2868,9 @@ export class SamaraBrowser {
       sched.every(this.jobNames[1]!, 60_000, () => this.sleepIdle());
       sched.every(this.jobNames[2]!, FORM_EVERY_MS, () => this.grabForms());
       this.timers.push(setInterval(() => { void this.lookForLogin(); }, 1500));
+      // Phase R: the overnight tidy, checked every minute (and a few seconds after start, for a night Samara was shut).
+      this.timers.push(setInterval(() => { this.railTidy(); }, 60_000));
+      setTimeout(() => { this.railTidy(); }, 5000);
     }
   }
 
@@ -3846,22 +3855,13 @@ export class SamaraBrowser {
     const url = isWeb(address) ? address : addressFor(address);
     if (!url) return null;
     if (this.toPaid(url)) return null;
-    // "You don't have to start a trail. A link you open from a page joins that page's trail" (sheet 3). A loose
-    // page that opens a link starts one, named after its site; nothing is ever sorted by guesswork here.
-    let trail: number | null = null;
+    // Phase R (2026-11-24): trails are retired; a tab opened from a link remembers its opener (closing it goes back
+    // there) and sits in Today like any other.
+    const trail: number | null = null;
     const from = opener !== null ? this.tabs.find((x) => x.id === opener) : undefined;
-    if (from) {
-      if (from.trail === null && !from.done) { from.trail = this.addTrail(trailNameFor(from.url)); }
-      trail = from.done ? null : from.trail;
-    } else if (this.pendingTrail !== null) { trail = this.pendingTrail; }
     this.pendingTrail = null;
     const tab: Tab = { id: ++this.seq, view: null, opener, title: 'New tab', url, favicon: '', loading: true, audible: false, muted: false, crashed: false, scrollY: 0, zoom: 0, lastSeen: Date.now(), blocked: null, trail, done: false, lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id, ...(this.nextTab ? { claude: true, guest: this.nextTab.guest } : {}) };
-    // A child sits right under the last tab of its trail, so the trail reads top to bottom.
-    if (from) {
-      let at = this.tabs.indexOf(from);
-      while (at + 1 < this.tabs.length && this.tabs[at + 1]!.opener !== null && this.tabs[at + 1]!.trail === trail && trail !== null) at++;
-      this.tabs.splice(at + 1, 0, tab);
-    } else this.tabs.push(tab);
+    if (from) this.tabs.splice(this.tabs.indexOf(from) + 1, 0, tab); else this.tabs.push(tab);
     tab.pending = url;
     // 2026-10-25 (: a tab opened from a link while the list is
     // closed counts on the tab arrow (it breathes and shows +1) until he opens the list.
@@ -3881,7 +3881,7 @@ export class SamaraBrowser {
     if (!this.inTab(t)) return;
     const w = this.win;
     const prev = this.cur();
-    if (prev) this.scrollDue.add(prev.id);             // its scroll is saved at the next save
+    if (prev) { this.scrollDue.add(prev.id); prev.lastSeen = Date.now(); }   // its scroll is saved at the next save; leaving it counts as seen
     if (!w || w.isDestroyed()) return;
     if (other) w.focus();
     const mine = this.paneTabs();
@@ -3947,7 +3947,9 @@ export class SamaraBrowser {
     this.tidyTrails();
     if (this.active === id) {
       const rest = this.paneTabs();
-      const next = rest[Math.min(Math.max(0, at), rest.length - 1)];
+      // Phase R: back to the tab that opened it, else the one he used last (Firefox's rule), never just the neighbour.
+      const back = afterClose(this.railTab(t!), rest.map((x) => this.railTab(x)));
+      const next = rest.find((x) => x.id === back) ?? rest[Math.min(Math.max(0, at), rest.length - 1)];
       this.active = null;
       if (next) this.activate(next.id);
       else if (lastClosesWindow && this.win && !this.win.isDestroyed()) {
@@ -3975,8 +3977,9 @@ export class SamaraBrowser {
     else if (act === 'newwindow') this.newWindowFor(id);
     else if (act === 'tvwindow') void this.tvWindow(t);
     else if (act === 'tvvideo') void this.tvVideo(t);
-    else if (act === 'done') this.markDone(id, true);
-    else if (act === 'undone') this.markDone(id, false);
+    else if (act === 'pin' || act === 'unpin') { t.pinned = act === 'pin'; t.lastSeen = Date.now(); this.changed(); }
+    // TONIGHT on a faded tab: he wants it kept, so it counts as seen now.
+    else if (act === 'keep') { t.lastSeen = Date.now(); this.changed(); }
   }
 
   reopen(): void { const u = this.closed.pop(); if (u) this.newTab(u); }
@@ -4995,7 +4998,8 @@ export class SamaraBrowser {
     // His details travel to his other machine only (2026-10-23), with the rest of his settings.
     prefs: () => ({ sounds: this.sounds, ...this.prefs, ...(this.details.empty() ? {} : { autofill: this.details.get() }), lists: {
       popupOk: [...this.popupOk], trusted: [...this.trusted, ...this.peerTrusted], httpOk: [...this.httpOk, ...this.peerHttp], adsPaused: [...this.paused], siteRules: this.rules.all(),
-      stash: this.stash.map((x) => ({ ...x, tabs: x.tabs.filter((t) => urlKept(t.url)) })),
+      // Phase R: Earlier travels (money sites never do); a page he removed on one machine is removed on both.
+      earlier: { entries: this.earlier.entries.filter((e) => urlKept(e.url)), gone: this.earlier.gone },
     } }) as Record<string, unknown>,
     setPrefs: (p: Record<string, unknown>) => {
       const adsWas = this.prefs.ads;
@@ -5047,7 +5051,8 @@ export class SamaraBrowser {
    */
   private takeTabs(snap: TabSnap): void {
     const want = (snap?.tabs ?? []).filter((t) => typeof t?.url === 'string' && isWeb(t.url)).slice(0, 80);
-    const trails = (snap?.trails ?? []).filter((x) => Number.isInteger(x?.id)).map((x) => ({ id: x.id, name: String(x.name ?? '').slice(0, 24) || 'Trail', named: true }));
+    // Phase R: trails are retired; a machine still on an older Samara may send them, and they are ignored here.
+    const trails: Trail[] = [];
     const home = this.panes.find((p) => this.alive(p));
     if (home) this.pane = home;
     if (!home) {
@@ -5093,7 +5098,7 @@ export class SamaraBrowser {
       const k = left.findIndex((w) => w.url === t.url);
       if (k < 0) continue;
       const [w] = left.splice(k, 1);
-      t.trail = w!.trail !== null && trails.some((x) => x.id === w!.trail) ? w!.trail : null; t.done = w!.done;
+      t.trail = null; t.done = false;
     }
     this.tidyTrails();
     // Any window left without a tab in front shows its first one; a window left with no tabs at all closes.
@@ -5634,55 +5639,111 @@ export class SamaraBrowser {
 
   // ------------------------------------------------------------------ trails and the done shelf (sheet 3 section 3)
   /** "+ New trail": the next tab he opens starts it. */
+  // ------------------------------------------------------------------ Phase R (2026-11-24): the rail
+  /** What the rail's rules (rail.ts) need of a tab. A tab in front of any window, in a split or lent stays put. */
+  private railTab(t: Tab): RailTab {
+    const front = this.panes.some((p) => p.active === t.id || p.split?.left === t.id || p.split?.right === t.id);
+    const job = (() => { const p = this.driver.pageOfTab(t.id); return p && this.driver.job(p.job)?.kind === 'claude' ? p.job : null; })();
+    return { id: t.id, lastSeen: t.lastSeen, opener: t.opener, pinned: t.pinned || front || t.lent, audible: t.audible, call: t.call,
+      claudeJob: job ?? (t.claude ? -1 : null), internal: t.internal ?? (t.mock || !isWeb(t.url) ? 'own' : undefined) };
+  }
+  /** One tab as Earlier keeps it. */
+  private entryOf(t: Tab, at: number, from?: string): EarlierEntry {
+    return { key: entryKey(t.url, at), url: t.url, title: t.title || t.url, at,
+      ...(t.favicon && /^(https:|data:image\/)/.test(t.favicon) && t.favicon.length < 4000 ? { favicon: t.favicon } : {}),
+      ...(t.scrollY > 0 ? { scrollY: Math.round(t.scrollY) } : {}), ...(t.zoom ? { zoom: t.zoom } : {}), ...(from ? { from } : {}) };
+  }
+  /**
+   * The one-time move (Phase R): trails, the done shelf and the Stash go to Earlier, so nothing he had is lost when trails
+   * go. The files as they were are copied aside first (browser-tabs.v1.json, browser-stash.v1.json) and never touched
+   * again. It runs once (Earlier remembers), and running it twice changes nothing: Earlier keys repeat, so they merge.
+   */
+  private railMove(dir: string): void {
+    if (this.earlier.migrated) return;
+    try {
+      const s = this.session.peek() as (Partial<SessionData> & { tabs?: any[] }) | null;
+      const tabs = Array.isArray(s?.tabs) ? s!.tabs : [];
+      const trails = (Array.isArray(s?.trails) ? s!.trails : []) as V1File['trails'];
+      const own = (trails ?? []).filter((x) => x?.id !== MOCK_TRAIL);
+      const needs = own.length > 0 || tabs.some((t) => t?.done === true) || this.stash.length > 0;
+      if (!needs) { this.earlier.markMigrated(); return; }
+      const aside = (from: string, to: string) => { const a = path.join(dir, from), b = path.join(dir, to); if (existsSync(a) && !existsSync(b)) copyFileSync(a, b); };
+      aside('browser-tabs.json', 'browser-tabs.v1.json');
+      aside('browser-stash.json', 'browser-stash.v1.json');
+      const v1: V1File = { tabs: tabs.filter((t) => typeof t?.url === 'string'), trails, stash: this.stash.map((x) => ({ name: x.name, at: x.at, tabs: x.tabs })) };
+      const { keep, earlier } = migrateV1(v1, Date.now());
+      this.earlier.add(earlier);
+      if (s && tabs.length) {
+        // Indexes in the file (opener, the tab in front, splits) point at the old list: they follow the tabs that stay.
+        const kept = v1.tabs;
+        const map = new Map<number, number>(); keep.forEach((old, i) => map.set(tabs.indexOf(kept[old]), i));
+        const at = (n: unknown) => (Number.isInteger(n) ? map.get(n as number) : undefined);
+        const next: SessionData = { v: 1, closed: Array.isArray(s.closed) ? s.closed : [], trails: [],
+          active: at(s.active) ?? 0,
+          fronts: (Array.isArray(s.fronts) ? s.fronts : []).map((n) => at(n) ?? -1),
+          tabs: keep.map((i) => { const t = { ...kept[i] } as Record<string, unknown>; t.opener = at(t.opener) ?? null; delete t.trail; delete t.done; return t as SessionData['tabs'][number]; }),
+          splits: (Array.isArray(s.splits) ? s.splits : []).flatMap((x: any) => { const l = at(x?.left), r = at(x?.right); return l !== undefined && r !== undefined ? [{ ...x, left: l, right: r }] : []; }) };
+        this.session.write(next, { now: true, force: true, why: 'rail-move' });
+      }
+      this.stash = [];
+      try { writeFileAtomic(this.stashFile, '[]'); } catch { /* the copy aside holds it */ }
+      this.earlier.markMigrated();
+      console.log(`shell: browser: trails retired: ${earlier.length} page${earlier.length === 1 ? '' : 's'} moved to Earlier, ${keep.length} tab${keep.length === 1 ? '' : 's'} stay open`);
+    } catch (e) { console.error('shell: browser: the move to Earlier did not run (nothing changed): ' + (e as Error).message); }
+  }
+  /** The overnight tidy, when it is due (at 3 AM, or on the next start after a night Samara was shut). */
+  railTidy(now = Date.now()): number {
+    if (!this.restored || !railTidyDue(this.earlier.lastTidy, now)) return 0;
+    const ids = toPutAway(this.tabs.map((t) => this.railTab(t)), now, null);
+    this.earlier.tidied(now);
+    if (!ids.length) return 0;
+    const put = this.putAway(ids, now);
+    if (put.length) {
+      this.note('', { from: 'tabs', icon: 'tabs', kick: 'Overnight', title: `${put.length} tab${put.length === 1 ? '' : 's'} moved to Earlier`,
+        rows: [{ g: 'Why', v: 'Not opened in 12 hours. Nothing was closed for good.' }], keys: [{ label: 'Bring them back', act: 'back' }, { label: 'Got it', act: 'ok' }] },
+      (act) => { if (act === 'back') this.earlierBack(put.map((e) => e.key)); });
+    }
+    return put.length;
+  }
+  /** Close these tabs into Earlier (their address, scroll and zoom kept). The tab in front of a window never goes. */
+  private putAway(ids: number[], at: number): EarlierEntry[] {
+    const out: EarlierEntry[] = [];
+    for (const id of ids) {
+      const t = this.tabs.find((x) => x.id === id);
+      if (!t || !isWeb(t.url) || this.panes.some((p) => p.active === id)) continue;
+      out.push(this.entryOf(t, at + out.length));
+      this.closeView(t);
+      this.tabs.splice(this.tabs.indexOf(t), 1);
+    }
+    this.earlier.add(out);
+    this.changed();
+    return out;
+  }
+  /** Bring entries back from Earlier as tabs, asleep (each loads when he opens it), where they were. */
+  private earlierBack(keys: string[], show = false): void {
+    let last: Tab | null = null;
+    for (const k of keys) {
+      const e = this.earlier.take(k);
+      if (!e || !isWeb(e.url)) continue;
+      last = { id: ++this.seq, view: null, opener: null, title: e.title, url: e.url, favicon: e.favicon ?? '', loading: false, audible: false, muted: false, crashed: false,
+        scrollY: e.scrollY ?? 0, zoom: e.zoom ?? 0, lastSeen: Date.now(), blocked: null, trail: null, done: false, lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id };
+      this.tabs.push(last);
+    }
+    if (show && last) this.activate(last.id); else this.changed();
+  }
+  /** Earlier, from the rail: the list (to the tray that asked), open one, or remove one for good. */
+  earlierAct(a: { act: string; key?: string }, reply?: (data: unknown) => void): void {
+    if (a.act === 'list') { reply?.({ entries: this.earlier.entries, now: Date.now() }); return; }
+    if (!a.key) return;
+    if (a.act === 'open') this.earlierBack([a.key], true);
+    else if (a.act === 'remove') { this.earlier.take(a.key); this.sendTabs(); }
+    reply?.({ entries: this.earlier.entries, now: Date.now() });
+  }
   private pendingTrail: number | null = null;
-  private addTrail(name: string): number { const id = ++this.trailSeq; this.trails.push({ id, name, named: false }); return id; }
   /** A trail with nothing left in it goes. */
   private tidyTrails(): void {
     // Sheet 107 (2026-10-30): no MOCKUPS trail any more; Mockups is its one plaque in the tray.
     this.trails = this.trails.filter((tr) => !tr.mock && (tr.id === this.pendingTrail || this.tabs.some((t) => t.trail === tr.id && !t.done)));
-  }
-  newTrail(): void {
-    this.pendingTrail = this.addTrail('NEW TRAIL');
-    this.newTab(this.HOME);
-    this.win?.webContents.send('browser:focusslot');
-  }
-  renameTrail(id: number, name: string): void {
-    const tr = this.trails.find((x) => x.id === id);
-    const n = String(name).replace(/\s+/g, ' ').trim().slice(0, 24).toUpperCase();
-    if (!tr || !n || tr.mock) return;
-    tr.name = n; tr.named = true;          // his name: Qwen never renames it
-    this.changed();
-  }
-  /** Move a tab into a trail, out to loose (null), or into a brand-new trail ('new'). */
-  moveTab(tabId: number, to: number | null | 'new'): void {
-    const t = this.tabs.find((x) => x.id === tabId);
-    // Sheet 47: the MOCKUPS trail holds Claude's mockups only, and a mockup stays in it.
-    if (!t || t.mock || to === MOCK_TRAIL) return;
-    t.trail = to === 'new' ? this.addTrail(trailNameFor(t.url)) : (to !== null && this.trails.some((x) => x.id === to) ? to : null);
-    t.done = false;
-    this.tidyTrails();
-    this.changed();
-  }
-  /** Drag a tab: into a trail (or loose, null), placed before another tab (or at the end of its group). */
-  placeTab(tabId: number, trail: number | null, before: number | null): void {
-    this.takeFromClaude([tabId]);
-    const i = this.tabs.findIndex((x) => x.id === tabId);
-    if (i < 0) return;
-    const t = this.tabs[i]!;
-    if (Boolean(t.mock) !== (trail === MOCK_TRAIL)) return;
-    t.trail = trail !== null && this.trails.some((x) => x.id === trail) ? trail : null;
-    t.done = false;
-    this.tabs.splice(i, 1);
-    const j = before !== null ? this.tabs.findIndex((x) => x.id === before) : -1;
-    if (j >= 0) this.tabs.splice(j, 0, t);
-    else {
-      // the end of its group: after the last tab already in that trail (or after the last loose tab)
-      let k = -1;
-      this.tabs.forEach((x, n) => { if (x.trail === t.trail) k = n; });
-      this.tabs.splice(k + 1, 0, t);
-    }
-    this.tidyTrails();
-    this.changed();
   }
   /**
    * Drag one tab or several (2026-10-21): into a trail (or loose, null), in their order, before another tab (or
@@ -5716,7 +5777,8 @@ export class SamaraBrowser {
       }
     }
     for (const t of moving as Tab[]) {
-      if (!mock) t.opener = parent === null && trail !== null && t.opener !== null && set.has(t.opener) ? t.opener : parent;
+      // Phase R: moving a tab in the rail keeps where it came from (closing it still goes back there).
+      if (!mock && (trail !== null || parent !== null)) t.opener = parent === null && trail !== null && t.opener !== null && set.has(t.opener) ? t.opener : parent;
       t.trail = trail;
       t.done = false;
     }
@@ -5734,91 +5796,6 @@ export class SamaraBrowser {
     this.changed();
     return true;
   }
-  /** Drag a trail by its heading: put it before another trail (or last). */
-  moveTrail(id: number, before: number | null): void {
-    const i = this.trails.findIndex((x) => x.id === id);
-    if (i < 0 || id === before) return;
-    const [tr] = this.trails.splice(i, 1);
-    const j = before !== null ? this.trails.findIndex((x) => x.id === before) : -1;
-    if (j >= 0) this.trails.splice(j, 0, tr!); else this.trails.push(tr!);
-    this.changed();
-  }
-  /** The trail menu: collapse, put in the Stash, ungroup (tabs stay), or close it with its tabs (Undo for a while). */
-  trailAct(id: number, act: string): void {
-    const tr = this.trails.find((x) => x.id === id);
-    if (!tr) return;
-    const own = this.tabs.filter((t) => t.trail === id);
-    if (act === 'collapse') { tr.collapsed = !tr.collapsed; this.changed(); return; }
-    // Sheet 47: the MOCKUPS trail can only be closed (its history stays in mockups.json, the ... menu brings it back).
-    if (tr.mock) {
-      if (act !== 'close') return;
-      for (const t of own) this.close(t.id, false);
-      this.trails = this.trails.filter((x) => x.id !== id);
-      this.changed();
-      this.note('Closed the mockups. Their history is kept: Mockups in the ... menu brings them back.');
-      return;
-    }
-    if (act === 'ungroup') { for (const t of own) t.trail = null; this.trails = this.trails.filter((x) => x.id !== id); this.changed(); return; }
-    if (act === 'stash') { this.stashTrail(id); this.changed(); this.note('', { from: 'tabs', small: true, icon: 'tabs', kick: 'In the Stash', title: tr.name }); return; }
-    if (act === 'close') {
-      this.lastClosed = { trail: { ...tr }, tabs: own.filter((t) => isWeb(t.url)).map((t) => ({ url: t.url, title: t.title })) };
-      for (const t of own) this.close(t.id, false);
-      this.trails = this.trails.filter((x) => x.id !== id);
-      this.changed();
-      this.note('', { from: 'tabs', small: true, icon: 'tabs', kick: `Closed with ${own.length} tab${own.length === 1 ? '' : 's'}`, title: tr.name, keys: [{ label: 'Undo', act: 'undo' }] }, (act) => { if (act === 'undo') this.undoTrailClose(); });
-    }
-  }
-  /** Undo for "close the trail": its pages come back, asleep, in a trail of the same name. */
-  undoTrailClose(): void {
-    const c = this.lastClosed;
-    this.lastClosed = null;
-    if (!c) return;
-    this.reviveTrail(c.trail.name, c.tabs, c.trail.named);
-  }
-  private reviveTrail(name: string, pages: { url: string; title: string }[], named = false): number {
-    const id = ++this.trailSeq;
-    this.trails.push({ id, name, named });
-    for (const p of pages) {
-      if (!isWeb(p.url)) continue;
-      this.tabs.push({ id: ++this.seq, view: null, opener: null, title: p.title, url: p.url, favicon: '', loading: false, audible: false, muted: false, crashed: false,
-        scrollY: 0, zoom: 0, lastSeen: Date.now(), blocked: null, trail: id, done: false, lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id });
-    }
-    this.changed();
-    return id;
-  }
-  /** Put a trail away: its tabs close (their pages kept in the Stash), never lost. */
-  private stashTrail(id: number): number | null {
-    const tr = this.trails.find((x) => x.id === id);
-    if (!tr) return null;
-    const own = this.tabs.filter((t) => t.trail === id && !t.lent);
-    const s: Stashed = { id: ++this.stashSeq, name: tr.name, tabs: own.filter((t) => isWeb(t.url)).map((t) => ({ url: t.url, title: t.title })), at: Date.now() };
-    this.stash.unshift(s);
-    this.stash = this.stash.slice(0, 50);
-    for (const t of own) { const i = this.tabs.indexOf(t); if (i >= 0) { this.closeView(t); this.tabs.splice(i, 1); } }
-    this.trails = this.trails.filter((x) => x.id !== id);
-    const was = this.pane;
-    for (const p of this.panes) {
-      if (!this.alive(p) || this.tabs.some((t) => t.id === p.active)) continue;
-      this.pane = p;
-      p.active = null;
-      const n = this.paneTabs(p)[0];
-      if (n) this.activate(n.id); else this.newTab(this.HOME);
-    }
-    this.pane = was;
-    this.saveStash();
-    return s.id;
-  }
-  private saveStash(): void { try { writeFileAtomic(this.stashFile, JSON.stringify(this.stash)); } catch { /* best effort */ } this.sync?.changed('prefs'); }
-  /** Bring a stashed trail back (its pages wake when he opens them), or let it go. */
-  stashAct(id: number, act: 'restore' | 'forget'): void {
-    const i = this.stash.findIndex((s) => s.id === id);
-    if (i < 0) return;
-    const [s] = this.stash.splice(i, 1);
-    if (act === 'restore') this.reviveTrail(s!.name, s!.tabs, true);
-    this.saveStash();
-    this.changed();
-  }
-
   // ------------------------------------------------------------------ Sheet 47: the MOCKUPS trail (2026-10-21)
   /** Mockups are on here: there is a git repo beside the Shell (not on his Mac). */
   get mockupsOn(): boolean { return Boolean(this.mockServer && this.mockStore); }
@@ -6342,118 +6319,6 @@ export class SamaraBrowser {
   mockLogSend(id: number): void { this.mockAct('send', { id }); }
 
 
-  // ------------------------------------------------------------------ Trail clean up (Tidy)
-  private tidyTabs(): TidyTab[] {
-    return this.tabs.filter((t) => isWeb(t.url) && !t.internal && !t.mock).map((t) => ({ id: t.id, url: t.url, title: t.title, trail: t.trail, lastSeen: t.lastSeen, active: this.panes.some((p) => p.active === t.id), audible: t.audible, lent: t.lent }));
-  }
-  /**
-   * The broom (or Trail clean up in the menu). The instant part happens at once: doubles are marked (closed only on
-   * Keep), trails untouched for two weeks go into the Stash. Then Qwen sorts the loose tabs and names the companion's trails;
-   * while WoW is in front it waits, and says so. Everything is undoable until he keeps it.
-   */
-  tidyStart(): void {
-    if (this.tidy) return;
-    const run: TidyRun = { id: ++this.tidySeq, phase: 'working', text: '', waiting: false, trails: this.trails.map((x) => ({ ...x })),
-      order: this.tabs.map((t) => ({ id: t.id, trail: t.trail })), dup: [], stashed: [], created: [], keepAt: 0, timer: null, retry: null };
-    this.tidy = run;
-    const tabs = this.tidyTabs();
-    run.dup = doubles(tabs);
-    for (const id of staleTrails(this.trails.filter((x) => !x.mock), tabs, Date.now())) { const s = this.stashTrail(id); if (s !== null) run.stashed.push(s); }
-    this.askQwen(run);
-    this.changed();
-  }
-  private askQwen(run: TidyRun): void {
-    const tabs = this.tidyTabs().filter((t) => t.trail === null && !run.dup.includes(t.id));
-    const unnamed = this.trails.filter((tr) => !tr.named).map((tr) => ({ trail: tr, titles: this.tabs.filter((t) => t.trail === tr.id).map((t) => t.title) }));
-    run.text = `Sorting ${tabs.length} loose tab${tabs.length === 1 ? '' : 's'}.`;
-    if (!tabs.length && !unnamed.length) { this.tidyApply(run, { groups: [], names: [] }); return; }
-    (run as TidyRun & { loose?: TidyTab[]; unnamed?: Trail[] }).loose = tabs;
-    (run as TidyRun & { loose?: TidyTab[]; unnamed?: Trail[] }).unnamed = unnamed.map((u) => u.trail);
-    if (!this.onTidyAsk) { this.tidyApply(run, { groups: bySite(tabs), names: [] }, 'Qwen is not connected, so tabs were grouped by site.'); return; }
-    this.onTidyAsk(run.id, tidyPrompt(tabs, unnamed), TIDY_SYSTEM);
-  }
-  /** Qwen's answer (or why there is none). */
-  tidyAnswer(id: number, r: { ok: boolean; text?: string; why?: string }): void {
-    const run = this.tidy;
-    if (!run || run.id !== id || run.phase !== 'working') return;
-    const x = run as TidyRun & { loose?: TidyTab[]; unnamed?: Trail[] };
-    if (r.ok) { this.tidyApply(run, readTidy(String(r.text ?? ''), x.loose ?? [], x.unnamed ?? [])); return; }
-    if (r.why === 'game') {
-      // The card belongs to the game: wait, and try again every 30 seconds until he is out.
-      run.waiting = true; run.text = 'Qwen waits until you are out of WoW.';
-      if (run.retry) clearTimeout(run.retry);
-      run.retry = setTimeout(() => { if (this.tidy === run && run.phase === 'working') { run.waiting = false; this.askQwen(run); this.changed(); } }, 30_000);
-      this.changed();
-      return;
-    }
-    this.tidyApply(run, { groups: bySite(x.loose ?? []), names: [] }, 'Qwen was not available, so tabs were grouped by site.');
-  }
-  private tidyApply(run: TidyRun, plan: { groups: { name: string; tabs: number[] }[]; names: { trail: number; name: string }[] }, note = ''): void {
-    if (this.tidy !== run) return;
-    for (const g of plan.groups) {
-      const tid = ++this.trailSeq;
-      this.trails.push({ id: tid, name: g.name, named: false, fresh: true });
-      run.created.push(tid);
-      for (const id of g.tabs) { const t = this.tabs.find((x) => x.id === id); if (t && t.trail === null) t.trail = tid; }
-    }
-    for (const n of plan.names) { const tr = this.trails.find((x) => x.id === n.trail); if (tr && !tr.named) { tr.name = n.name; tr.fresh = true; } }
-    run.phase = 'review';
-    run.waiting = false;
-    run.text = note;
-    run.keepAt = Date.now() + 10_000;
-    run.timer = setTimeout(() => this.tidyKeep(), 10_000);
-    this.changed();
-  }
-  /** Keep: the doubles close now; the NEW marks fade. */
-  tidyKeep(): void {
-    const run = this.tidy;
-    if (!run) return;
-    if (run.timer) clearTimeout(run.timer);
-    if (run.retry) clearTimeout(run.retry);
-    this.tidy = null;
-    for (const id of run.dup) if (this.tabs.some((t) => t.id === id)) this.close(id);
-    setTimeout(() => { for (const tr of this.trails) tr.fresh = false; this.changed(); }, 8000);
-    this.changed();
-  }
-  /** Undo (or Stop): everything goes back exactly as it was, stashed trails included. */
-  tidyUndo(): void {
-    const run = this.tidy;
-    if (!run) return;
-    if (run.timer) clearTimeout(run.timer);
-    if (run.retry) clearTimeout(run.retry);
-    this.tidy = null;
-    for (const sid of run.stashed) {
-      const i = this.stash.findIndex((s) => s.id === sid);
-      if (i < 0) continue;
-      const [s] = this.stash.splice(i, 1);
-      const old = run.trails.find((x) => x.name === s!.name);
-      const tid = this.reviveTrail(s!.name, s!.tabs, old?.named ?? false);
-      if (old) { const tr = this.trails.find((x) => x.id === tid); if (tr) tr.id = old.id; for (const t of this.tabs) if (t.trail === tid) t.trail = old.id; }
-    }
-    this.saveStash();
-    const pos = new Map(run.order.map((o, n) => [o.id, n]));
-    for (const t of this.tabs) { const o = run.order.find((x) => x.id === t.id); if (o) t.trail = o.trail; }
-    this.tabs.sort((a, b) => (pos.get(a.id) ?? 1e9) - (pos.get(b.id) ?? 1e9));
-    const revived = this.trails.filter((x) => !run.trails.some((y) => y.id === x.id) && !run.created.includes(x.id));
-    this.trails = [...run.trails.map((x) => ({ ...x })), ...revived];
-    this.tidyTrails();
-    this.changed();
-  }
-  private tidyState(): Record<string, unknown> | null {
-    const r = this.tidy;
-    if (!r) return null;
-    return { phase: r.phase, text: r.text, waiting: r.waiting, dup: r.dup, created: r.created.length, stashed: r.stashed.length, doubles: r.dup.length, keepAt: r.keepAt };
-  }
-
-  /** "Done is a quest turn-in": it drops to the DONE shelf. It is not closed, so he can always look back. */
-  markDone(tabId: number, done: boolean): void {
-    const t = this.tabs.find((x) => x.id === tabId);
-    if (!t) return;
-    t.done = done;
-    this.tidyTrails();
-    this.changed();
-  }
-
   private cur(): Tab | undefined { return this.tabs.find((x) => x.id === this.active); }
 
   go(address: string): void {
@@ -6508,11 +6373,8 @@ export class SamaraBrowser {
       case 'history': this.openThings('history'); break;
       case 'downloads': this.openThings('downloads'); break;
       case 'print': if (wc && t && !t.internal) wc.print({}); break;
-      // ONE broom (2026-10-22: "isn't there already a broom somewhere?"): it tidies the tabs AND the mockups.
-      case 'tidy': this.tidyStart(); void this.mockTidy(true); break;
-      case 'tidykeep': this.tidyKeep(); break;
-      case 'tidyundo': this.tidyUndo(); break;
-      case 'trailundo': this.undoTrailClose(); break;
+      // The mockups' broom (Phase R, 2026-11-24: tab clean up is retired; the overnight tidy moves old tabs to Earlier).
+      case 'tidy': void this.mockTidy(true); break;
       case 'mockups': this.reopenMockups(); break;
       // The blue shield: open the popup he was looking for (as a tab, beside the page), or allow the site from now on.
       case 'popupopen': case 'popupallow': if (t?.blockedPopup) {
@@ -6654,7 +6516,7 @@ export class SamaraBrowser {
     const winOf = new Map(windows.map((p, i) => [p.id, i]));
     const front = (this.lastPane() ?? this.pane).active;
     const fronts = windows.map((p) => keep.findIndex((t) => t.id === p.active));
-    const trails = this.trails.map((x) => ({ ...x }));
+    const trails: Trail[] = [];
     const closed = this.closed.slice(-25);
     const make = () => ({
       v: 1,
@@ -6663,7 +6525,9 @@ export class SamaraBrowser {
       fronts,
       tabs: keep.map((t) => ({
         url: t.url, title: t.title, opener: t.opener === null ? null : keep.findIndex((x) => x.id === t.opener),
-        scrollY: Math.round(t.scrollY), zoom: t.zoom, muted: t.muted, trail: t.trail, done: t.done, win: winOf.get(t.pane) ?? 0,
+        scrollY: Math.round(t.scrollY), zoom: t.zoom, muted: t.muted, win: winOf.get(t.pane) ?? 0,
+        // Phase R: when he last had it in front (a tab in front counts as now), and pinned.
+        lastSeen: this.panes.some((p) => p.active === t.id) ? Date.now() : t.lastSeen, ...(t.pinned ? { pinned: true } : {}),
         ...(t.mock ? { mock: { ...t.mock } } : {}),
         ...(t.pageBg ? { pageBg: t.pageBg } : {}),
         ...(t.pageState && !t.mock ? { pageState: t.pageState } : {}),
@@ -6712,8 +6576,9 @@ export class SamaraBrowser {
       for (const t of list) {
         const fav = typeof t.favicon === 'string' && /^(https:|data:image\/)/.test(t.favicon) && t.favicon.length < 4000 ? t.favicon : '';
         const tab: Tab = { id: ++this.seq, view: null, opener: null, title: String(t.title ?? t.url).slice(0, 300), url: t.url, favicon: fav,
-          loading: false, audible: false, muted: t.muted === true, crashed: false, scrollY: Number(t.scrollY) || 0, zoom: Number(t.zoom) || 0, lastSeen: Date.now(), blocked: null,
-          trail: Number.isInteger(t.trail) ? t.trail : null, done: false, lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id };
+          loading: false, audible: false, muted: t.muted === true, crashed: false, scrollY: Number(t.scrollY) || 0, zoom: Number(t.zoom) || 0,
+          lastSeen: Number.isFinite(t.lastSeen) && t.lastSeen > 0 && t.lastSeen <= Date.now() ? t.lastSeen : Date.now(), blocked: null,
+          trail: null, done: false, ...(t.pinned === true ? { pinned: true } : {}), lent: false, upgraded: null, failed: null, blockedPopup: null, pane: this.pane.id };
         if (typeof t.pageBg === 'string' && /^#[0-9a-f]{6}$/.test(t.pageBg)) tab.pageBg = t.pageBg;
         if (typeof t.pageState === 'string' && t.pageState.length <= PAGE_STATE_MAX && /^[A-Za-z0-9+/=]+$/.test(t.pageState)) tab.pageState = t.pageState;
         ids.push(tab.id);
@@ -6721,10 +6586,7 @@ export class SamaraBrowser {
       }
       list.forEach((t: { opener?: unknown }, i: number) => { const o = Number(t.opener); if (Number.isInteger(o) && o >= 0 && o < ids.length && o !== i) this.tabs[at0 + i]!.opener = ids[o]!; });
       if (Array.isArray(s.closed)) this.closed = s.closed.filter((u: unknown) => typeof u === 'string' && isWeb(u as string)).slice(-25);
-      if (Array.isArray(s.trails)) this.trails = s.trails.filter((x: Partial<Trail>) => Number.isInteger(x?.id) && typeof x?.name === 'string')
-        .filter((x: Trail) => x.id !== MOCK_TRAIL).map((x: Trail) => ({ id: x.id, name: x.name.slice(0, 24), named: x.named === true, collapsed: x.collapsed === true }));
-      this.trailSeq = this.trails.reduce((m, x) => Math.max(m, x.id), 0);
-      for (const t of this.tabs) if (t.trail !== null && !this.trails.some((x) => x.id === t.trail)) t.trail = null;
+      // Phase R: no trails come back (railMove already put their pages in Earlier).
       this.tidyTrails();
       // Every window he had open comes back with its own tabs (2026-10-14). The first one is this window.
       const wins = new Map<number, Tab[]>();
@@ -6788,13 +6650,26 @@ export class SamaraBrowser {
     const tray = this.trayV && !this.trayV.webContents.isDestroyed() ? this.trayV.webContents : null;
     // The tab list only while it is open (measured 2026-10-20: every message went to it hidden too). Opening it sends
     // the current state first, so it is never stale.
-    const send = (data: Record<string, unknown>) => { w.webContents.send('browser:tabs', data); if (this.trayOn) tray?.send('browser:tabs', data); };
+    // Phase R (2026-11-24): the shut list is kept current too, at most every 150 ms (a burst of changes draws once), so
+    // opening it never rebuilds the list in the middle of its slide. Open, it follows at once as before.
+    const P = this.pane;
+    const send = (data: Record<string, unknown>) => {
+      w.webContents.send('browser:tabs', data);
+      if (!tray) return;
+      if (this.trayOn) { tray.send('browser:tabs', data); return; }
+      P.trayNext = data;
+      // Not while it is still sliding shut either: the list waits until the close is over.
+      P.trayNextT ??= setTimeout(() => { P.trayNextT = null; this.trayFlush(P); }, Math.max(150, (P.trayShutAt ?? 0) + TRAY_SLIDE_MS + 20 - Date.now()));
+    };
+    const now = Date.now();
     send({
       active: this.active,
+      // Phase R: how many pages are in Earlier (its button shows the count).
+      earlierN: this.earlier.entries.length,
       update: this.update, updated: this.updated, checking: this.checking, inCall: this.inCall, canQuit: this.onQuit !== null,
       canBack: Boolean(wc?.navigationHistory.canGoBack()), canForward: Boolean(wc?.navigationHistory.canGoForward()),
       // A sleeping tab keeps its logo (2026-10-20): its last one, else the site's from bookmarks.
-      tabs: mine.map((x) => ({ id: x.id, opener: x.opener, title: x.title, url: x.url, favicon: x.favicon || this.iconOf(x.url), loading: x.loading, phase: x.phase ?? (x.loading ? 'loading' : 'idle'), prog: x.prog ?? 0, pending: x.pending ?? null, audible: x.audible, muted: x.muted, crashed: x.crashed, asleep: !x.view, blocked: x.blocked, failed: x.failed, trail: x.trail, done: x.done, lent: x.lent, popup: x.blockedPopup?.url ?? null, mock: x.mock ? this.mockTab(x) : null, internal: x.internal ? true : undefined, mocklog: x.internal === 'mocklog' ? true : undefined, hyrule: x.internal === 'hyrule' ? true : undefined,
+      tabs: mine.map((x) => ({ id: x.id, opener: x.opener, title: x.title, url: x.url, favicon: x.favicon || this.iconOf(x.url), loading: x.loading, phase: x.phase ?? (x.loading ? 'loading' : 'idle'), prog: x.prog ?? 0, pending: x.pending ?? null, audible: x.audible, muted: x.muted, crashed: x.crashed, asleep: !x.view, blocked: x.blocked, failed: x.failed, trail: x.trail, done: x.done, lent: x.lent, pinned: x.pinned === true, lastSeen: x.lastSeen, fade: fading(this.railTab(x), now, this.active), popup: x.blockedPopup?.url ?? null, mock: x.mock ? this.mockTab(x) : null, internal: x.internal ? true : undefined, mocklog: x.internal === 'mocklog' ? true : undefined, hyrule: x.internal === 'hyrule' ? true : undefined,
         // Sheet 111: a tab a Claude job has shows in Claude's group, not in his list.
         claudeJob: (() => { const p = this.driver.pageOfTab(x.id); return p && this.driver.job(p.job)?.kind === 'claude' ? p.job : undefined; })() })),
       // Sheet 47: the MOCKUPS trail's history (the whole list only while it is open), or null where mockups are off.
@@ -6813,7 +6688,6 @@ export class SamaraBrowser {
       // Sheet 109: and whether he has it back for now (YOU HAVE IT): Take over and STOP make way while he does.
       driving: (() => { const w = t?.view?.webContents; const d = w ? this.driver.drivingTab(w) : null; return d ? { ...d, hand: this.hands.get(d.page)?.mode ?? null } : null; })(),
       watching: this.watching === null ? null : (() => { const p = this.driver.page(this.watching!); const j = p ? this.driver.job(p.job) : undefined; return p && j ? { page: p.id, job: j.id, kind: j.kind, working: j.working, url: p.url, title: p.title } : null; })(),
-      tidy: this.tidyState(),
       stash: this.stash.map((s) => ({ id: s.id, name: s.name, count: s.tabs.length })),
       adsPaused: (() => { try { return this.paused.has(new URL(t?.url ?? '').hostname.replace(/^www\./, '')); } catch { return false; } })(),
       adsOn: Boolean(this.ads),

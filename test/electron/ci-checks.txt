@@ -40,3 +40,5 @@ tray-motion-check.ts
 twitch-resync-check.ts
 update-check-check.ts
 wake-check.ts
+rail-start-check.ts
+rail-earlier-check.ts

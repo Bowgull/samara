@@ -1,5 +1,5 @@
-// (2026-10-14): when the browser closes it remembers which tabs and trails were open.
-// The real browser, off screen: (1) one window closed with its own X keeps every tab and trail (the snapshot used to be
+// (2026-10-14): when the browser closes it remembers which tabs were open (Phase R, 2026-11-24: and which are pinned;
+// trails are retired). The real browser, off screen: (1) one window closed with its own X keeps every tab and its pin (the snapshot used to be
 // written AFTER the window had emptied its list, so an empty one was saved); (2) two windows open when he quits both
 // come back, each with its own tabs, the right one in front.
 //
@@ -40,17 +40,17 @@ app.whenReady().then(async () => {
   b.newTab(base + '/b'); b.newTab(base + '/c'); await wait(1500);
   let any = b as any;
   const c = any.tabs.find((t: any) => t.url.endsWith('/c'));
-  b.moveTab(c.id, 'new');                       // a trail of its own
+  b.tabAct(c.id, 'pin');                        // pinned to the top
   await wait(300);
   any.win.close();                              // his X
   await wait(2500);
   const saved = JSON.parse(readFileSync(path.join(s1, 'browser-tabs.json'), 'utf8'));
   check('closing the window keeps every tab', saved.tabs.length === 3, saved.tabs.map((t: any) => t.url.replace(base, '')).join(' '));
-  check('and its trail', saved.trails.length === 1 && saved.tabs.some((t: any) => t.trail === saved.trails[0].id));
+  check('and its pin', saved.tabs.filter((t: any) => t.pinned === true).map((t: any) => t.url.replace(base, '')).join(' ') === '/c');
   b = make(s1); b.prefs.home = base + '/home'; any = b as any;
   b.open(); await wait(3000);
   check('opening again brings them back', any.tabs.map((t: any) => t.url.replace(base, '')).join(' ') === '/a /b /c', any.tabs.map((t: any) => t.url).join(' '));
-  check('with the trail', any.trails.length === 1);
+  check('with the pin', any.tabs.filter((t: any) => t.pinned).map((t: any) => t.url.replace(base, '')).join(' ') === '/c');
   b.closeAll(); await wait(1500);
 
   // (2) two windows open when he quits

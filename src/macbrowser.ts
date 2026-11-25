@@ -155,8 +155,6 @@ app.whenReady().then(async () => {
   const { popout, drm } = base;
   browser.onPaid = (url) => paidAway(drm, url);
   browser.onPaidFallback = (url) => paidWindow(drm, url);
-  // Tidy asks the companion, which is on the PC: from the Mac it says it is not reachable yet (until M7 links them).
-  browser.onTidyAsk = (id) => browser.tidyAnswer(id, { ok: false, why: 'offline' });
   const sync = browser.sync!;
 
   // The pop-out's keys: Ctrl+Shift+V hides and shows it; Ctrl+Alt+P pins it while it is up.

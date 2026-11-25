@@ -76,14 +76,10 @@ app.whenReady().then(async () => {
   await until(() => !!b.win && b.tabs.length === 1, 10000); await wait(1500);
   const id = (k: string) => b.tabs.find((t: any) => t.url === U(k))?.id;
   for (const k of ['tube', 'hub', 'red']) { b.newTab(U(k), null, false); await wait(250); }
-  // A trail: three Wowhead tabs, the third tucked under the second (a child tab).
-  b.newTab(U('wow1'), null, false); await wait(250);
-  b.moveTab(id('wow1'), 'new');
-  const trail = b.tabs.find((t: any) => t.url === U('wow1')).trail;
-  b.renameTrail(trail, 'Patch 1.15.8');
-  b.newTab(U('wow2'), null, false); await wait(250); b.moveTab(id('wow2'), trail);
-  b.newTab(U('wow3'), null, false); await wait(250); b.moveTab(id('wow3'), trail);
-  const placed = b.placeTabs([id('wow3')], trail, null, id('wow2'));
+  // Phase R (2026-11-24): trails are retired. Three Wowhead tabs, the first pinned to the top.
+  for (const k of ['wow1', 'wow2', 'wow3']) { b.newTab(U(k), null, false); await wait(250); }
+  b.tabAct(id('wow1'), 'pin');
+  const placed = true;
   // The MOCKUPS trail: sheet 56 and its lettered child 56b.
   await b.openMockup('docs/cockpit/sheet-56-tab-menu.html', '56 · Tab menu');
   await b.openMockup('docs/cockpit/sheet-56b-hush.html', '56b · Hush');
