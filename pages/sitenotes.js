@@ -9,6 +9,9 @@ import { paintCat, catColour, ribbon, setOwnCats } from './notecats.js';
 const WIDTH = 330;                        // the panel (300) and its wood margin
 let rail = null, list = null, siteEl = null;
 let open = false, url = '', notes = [], drafting = null;
+/** N1 (2026-11-25): the rail's tabs. 'page' this address, 'site' this site (as before), 'all' every note. */
+let tab = 'site', tabsEl = null;
+const TABS = [['page', 'This page'], ['site', 'Site'], ['all', 'All']];
 /** The spring: where the rail's width is, how fast it is moving, where it is going. */
 let x = 0, v = 0, goal = 0, raf = 0, last = 0;
 
@@ -28,29 +31,39 @@ function build() {
   x.addEventListener('click', () => closeRail());
   head.append(mk('div', 'sr-title', 'Notes for this site'), x);
   siteEl = mk('div', 'sr-site');
+  tabsEl = mk('div', 'sr-tabs'); tabsEl.setAttribute('role', 'tablist');
+  for (const [k, label] of TABS) {
+    const b = mk('button', 'sr-tab', label); b.type = 'button'; b.dataset.tab = k; b.setAttribute('role', 'tab');
+    b.addEventListener('click', () => { tab = k; paint(); });
+    tabsEl.append(b);
+  }
   list = mk('div', 'sr-list');
   const add = mk('button', 'sr-add', '+ note for this site'); add.type = 'button';
   add.addEventListener('click', () => draft());
   const foot = mk('div', 'sr-foot'); foot.innerHTML = '<b>ESC</b> OR <b>X</b> CLOSES IT';
-  panel.append(head, siteEl, list, add, foot);
+  panel.append(head, tabsEl, siteEl, list, add, foot);
   rail.append(panel);
   recess.append(rail);
 }
 
-/** This site's notes, newest first. */
+const bare = (u) => String(u ?? '').replace(/#.*$/, '').replace(/\/$/, '');
+/** The notes the tab in view shows, newest first: this address, this site, or all of them. */
 function mine() {
+  if (tab === 'all') return [...notes].sort((a, b) => b.updated - a.updated);
   const h = hostOf(url);
   if (!h) return [];
+  if (tab === 'page') return notes.filter((n) => n.src && bare(n.src.url) === bare(url)).sort((a, b) => b.updated - a.updated);
   return notes.filter((n) => n.src && (hostOf(n.src.url) === h || String(n.src.site ?? '').toLowerCase() === h)).sort((a, b) => b.updated - a.updated);
 }
 function paint() {
   if (!rail) return;
   const here = mine();
   const h = hostOf(url);
-  siteEl.textContent = h ? `${h} · ${here.length}` : 'Not a website';
+  for (const b of tabsEl.children) { const onIt = b.dataset.tab === tab; b.classList.toggle('on', onIt); b.setAttribute('aria-selected', String(onIt)); }
+  siteEl.textContent = tab === 'all' ? `All your notes · ${here.length}` : h ? `${tab === 'page' ? 'This page on ' : ''}${h} · ${here.length}` : 'Not a website';
   const keep = drafting && list.contains(drafting.card) ? drafting.card : null;
   list.replaceChildren(...(keep ? [keep] : []));
-  if (!here.length && !keep) list.append(mk('div', 'sr-none', h ? 'No notes for this site yet.' : 'Notes for a site live on its pages.'));
+  if (!here.length && !keep) list.append(mk('div', 'sr-none', tab === 'all' ? 'No notes yet.' : !h ? 'Notes for a site live on its pages.' : tab === 'page' ? 'No notes for this page yet.' : 'No notes for this site yet.'));
   for (const n of here) list.append(card(n));
 }
 function card(n) {
@@ -62,7 +75,8 @@ function card(n) {
   if (n.cat) { const chip = mk('span', 'np-chip'); chip.innerHTML = '<i>#</i>'; chip.append(document.createTextNode(n.cat)); inner.append(chip); }
   const lines = previewLines(n.html).map((l) => l.t).filter((t) => t !== n.src?.url).slice(0, 3);
   inner.append(mk('div', 'sr-l', lines.join(' ') || '(empty)'));
-  inner.append(mk('div', 'sr-m', `Written here · ${day(n.updated)}`));
+  const here = n.src && hostOf(n.src.url) === hostOf(url);
+  inner.append(mk('div', 'sr-m', `${here ? 'Written here' : n.src?.site ? n.src.site : 'Note'} · ${day(n.updated)}`));
   c.append(mk('div', 'np-edge'), mk('div', 'np-fill'), ribbon(catColour(n.cat).deep), inner);
   c.title = 'Open this note';
   c.addEventListener('click', () => window.samara?.browserNoteOpen?.(n.id));
@@ -140,7 +154,7 @@ export function railTabs(state) {
   const t = state && Array.isArray(state.tabs) ? state.tabs.find((x) => x.id === state.active) : null;
   const next = t ? String(t.url ?? '') : '';
   if (next === url) return;
-  const moved = hostOf(next) !== hostOf(url);
+  const moved = hostOf(next) !== hostOf(url) || (tab === 'page' && bare(next) !== bare(url));
   url = next;
   if (open && moved) paint();
 }

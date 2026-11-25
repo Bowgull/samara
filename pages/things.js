@@ -1,4 +1,4 @@
-// Your things: History and Downloads. Draws what the Shell sends (all text by textContent; titles and addresses
+// Your things: History, Notes (thingsnotes.js, N1) and Downloads. Draws what the Shell sends (all text by textContent; titles and addresses
 // are websites' own words) and sends back only: open this page in a new tab, take this off, clear a stretch, or
 // open / show / drag a download by its number.
 const $ = (s, r = document) => r.querySelector(s);
@@ -8,14 +8,14 @@ const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls)
 // ---- sections: the glove points at the open one
 let sec = 'history';
 function show(s) {
-  sec = s === 'downloads' ? 'downloads' : 'history';
+  sec = s === 'downloads' || s === 'notes' ? s : 'history';
   for (const el of document.querySelectorAll('section[data-sec]')) el.hidden = el.dataset.sec !== sec;
   for (const a of document.querySelectorAll('.side a[data-sec]')) a.classList.toggle('on', a.dataset.sec === sec);
-  if (sec === 'history') { loadHistory(true); $('#q').focus(); } else loadDownloads();
+  if (sec === 'history') { loadHistory(true); $('#q').focus(); } else if (sec === 'notes') window.dispatchEvent(new Event('notes:show')); else loadDownloads();
 }
 for (const a of document.querySelectorAll('.side a')) a.addEventListener('click', (e) => { e.preventDefault(); if (a.dataset.go) T?.go(a.dataset.go); else show(a.dataset.sec); });
 T?.onSection?.((s) => show(String(s)));
-T?.onChanged?.((w) => { if (w === 'history' && sec === 'history') loadHistory(true); if (w === 'downloads' && sec === 'downloads') loadDownloads(); });
+T?.onChanged?.((w) => { if (w === 'history' && sec === 'history') loadHistory(true); if (w === 'downloads' && sec === 'downloads') loadDownloads(); if (w === 'notes' && sec === 'notes') window.dispatchEvent(new Event('notes:changed')); });
 
 // ---- History: grouped by day, newest first, 100 at a time
 let items = [], more = false, busy = false, qTimer = 0;

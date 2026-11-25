@@ -6,14 +6,33 @@
 // The first time (and at every start after, harmlessly) the companion's notes.json on this machine is brought in, read
 // only, every field kept, with a report in Settings › Notes. A quick note that was being typed when Samara or the
 // computer went down comes back at the next start as a note, and he is told.
-import { app, globalShortcut, ipcMain, Menu, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, shell } from 'electron';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { NotesStore, findCompanionNotes, type ImportReport, type StoreStatus } from './notestore.ts';
 import { NoteWindows, freshOut } from './notewin.ts';
-import { newId, plainOf, titleFrom, toMarkdown, type Dev, type Note, type NoteView } from './notes.ts';
+import { newId, plainOf, searchNotes, titleFrom, toMarkdown, type Dev, type Note, type NoteView } from './notes.ts';
+import { lockNotes, unlockNotes, MIN_PASS } from './notelock.ts';
+import { writeFileAtomic } from './atomic.ts';
 import { writeHyruleNotes, type NotePlaceMsg } from './hyrulenotes.ts';
 import { sched } from './sched.ts';
 import type { SamaraBrowser } from './browser.ts';
+
+/** One note on the board (Your things › Notes): what the page draws, nothing more. */
+export interface BoardCard { id: string; title: string; html: string; cat?: string; site?: string; url?: string; updated: number; created: number; out: boolean; copyOf?: string; deleted?: number; versions: number }
+export interface Board { view: 'notes' | 'trash'; cards: BoardCard[]; cats: { builtin: string[]; own: string[] }; counts: { all: number; trash: number; cats: Record<string, number> }; total: number }
+
+/** What the browser asks of the notes (browser.ts notesHub): the sync, Settings › Notes, the board. */
+export interface NotesLink {
+  forSync(): unknown[]; own(): string[]; take(list: unknown[], own: string[]): number;
+  status(): Record<string, unknown>; act(a: string): void;
+  board(q: string, cat: string, view: string): Board;
+  /** A board action on one note; versions answer with the list. */
+  boardAct(act: string, id: string, extra?: string): unknown;
+  /** A copy locked with his passphrase (Documents › Samara notes), or one brought back. A sentence for him either way. */
+  lockedExport(pass: string, win: BrowserWindow | null): string;
+  lockedImport(pass: string, win: BrowserWindow | null): Promise<string>;
+}
 
 /** The quick-note key the companion used (Ctrl + number pad *), kept so his hands need not learn a new one. */
 export const QUICK_KEY = 'Control+nummult';
@@ -54,8 +73,59 @@ export function startNotes(o: NotesOpts): NotesHub {
   let quickKey: string | null = null;
   let companion: ImportReport | null = null;
   if (store.locked) o.log('notes: this computer\'s key will not open the notes kept here; they are left as they are, and new notes are still kept');
+  const card = (n: Note & { out?: unknown }): BoardCard => ({ id: n.id, title: n.title, html: n.html, ...(n.cat ? { cat: n.cat } : {}), ...(n.src ? { site: n.src.site, url: n.src.url } : {}),
+    updated: n.updated, created: n.created, out: !!n.out, ...(n.conflictOf ? { copyOf: n.conflictOf } : {}), ...(n.deleted ? { deleted: n.deleted } : {}), versions: store.history(n.id).length });
   b.notesHub = {
     forSync: () => store.forSync(), own: () => store.cats().own, take: (list, own) => store.take(list, own),
+    board: (q, cat, view) => {
+      const all = store.list(), trash = store.trash();
+      const counts = { all: all.length, trash: trash.length, cats: {} as Record<string, number> };
+      for (const n of all) counts.cats[n.cat ?? ''] = (counts.cats[n.cat ?? ''] ?? 0) + 1;
+      const v = view === 'trash' ? 'trash' : 'notes';
+      let list: (Note & { out?: unknown })[] = v === 'trash' ? trash : all;
+      if (v === 'notes' && cat !== '*') list = list.filter((n) => (n.cat ?? '') === cat);
+      const found = searchNotes(list, q);
+      return { view: v, cards: found.slice(0, 600).map(card), cats: store.cats(), counts, total: found.length };
+    },
+    boardAct: (act, id, extra) => {
+      if (act === 'new') { const n = store.save({ title: '', html: '', ...(extra ? { cat: extra } : {}) }); if (n) open(n.id); return n?.id ?? null; }
+      if (!/^n[a-z0-9]{1,24}$/.test(id)) return null;
+      if (act === 'open') return open(id);
+      if (act === 'back') { store.setOut(id, null); return true; }
+      if (act === 'trash') return store.remove(id);
+      if (act === 'restore') { const n = store.restore(id); return !!n; }
+      if (act === 'versions') return store.history(id).map((x) => ({ stamp: x.stamp, updated: x.updated, title: x.title, html: x.html }));
+      if (act === 'restorever' && typeof extra === 'string') return !!store.restoreVersion(id, extra);
+      if (act === 'copymd') { const n = store.get(id); if (n) clipboard.writeText(toMarkdown(n)); return !!n; }
+      if (act === 'cat' && typeof extra === 'string') return !!store.save({ id, cat: extra });
+      return null;
+    },
+    lockedExport: (pass, win) => {
+      void win;
+      if (typeof pass !== 'string' || pass.length < MIN_PASS) return `The passphrase needs at least ${MIN_PASS} characters.`;
+      const dir = path.join(app.getPath('documents'), 'Samara notes');
+      const file = path.join(dir, `Samara notes ${new Date().toISOString().slice(0, 10)}.samaranotes`);
+      try {
+        const notes = store.forSync().filter((n) => !n.deleted);
+        writeFileAtomic(file, lockNotes({ v: 1, own: store.cats().own, notes }, pass));
+        void shell.showItemInFolder(file);
+        return `${notes.length} notes locked into Documents › Samara notes. Keep the passphrase: without it, nobody can open the copy, you included.`;
+      } catch (e) { return 'Not saved: ' + (e as Error).message; }
+    },
+    lockedImport: async (pass, win) => {
+      const pick = await (win ? dialog.showOpenDialog(win, { title: 'Bring back a locked copy', defaultPath: path.join(app.getPath('documents'), 'Samara notes'), filters: [{ name: 'Samara notes', extensions: ['samaranotes'] }], properties: ['openFile'] })
+        : dialog.showOpenDialog({ title: 'Bring back a locked copy', filters: [{ name: 'Samara notes', extensions: ['samaranotes'] }], properties: ['openFile'] }));
+      const f = pick.filePaths[0];
+      if (pick.canceled || !f) return '';
+      let payload: { notes?: unknown; own?: unknown };
+      try { payload = unlockNotes(readFileSync(f, 'utf8'), pass) as typeof payload; }
+      catch (e) { return (e as Error).message === 'wrong' ? 'That passphrase does not open this copy.' : 'That is not a locked copy of Samara notes.'; }
+      const before = store.list().length;
+      // Brought back the way the other machine's notes come: nothing here is lost; an edit made since is kept beside it.
+      const changed = store.take(Array.isArray(payload.notes) ? payload.notes : [], Array.isArray(payload.own) ? payload.own : []);
+      const added = store.list().length - before;
+      return changed ? `Brought back: ${added} new, ${changed - added > 0 ? changed - added : 0} updated. Nothing here was removed.` : 'Everything in that copy is already here.';
+    },
     status: () => ({ ...store.status(), quickKey, companion }),
     act: (a) => {
       if (a === 'notesbackup') { const ok = store.backup(true); b.say('Notes', ok ? 'Backed up' : 'Not backed up: see the log', ok ? 'done' : 'bad'); }
@@ -79,6 +149,7 @@ export function startNotes(o: NotesOpts): NotesHub {
       try { wins?.sync(list); } catch (e) { o.log('notes: windows: ' + (e as Error).message); }
       try { b.notesNews(list, own); } catch (e) { o.log('notes: rail: ' + (e as Error).message); }
       try { writeHyruleNotes(list, own, plainOf); } catch (e) { o.log('notes: map: ' + (e as Error).message); }
+      try { b.pushThings('notes'); } catch { /* no Your things open */ }
     }, 30);
   }
 

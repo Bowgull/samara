@@ -11,6 +11,10 @@ contextBridge.exposeInMainWorld('things', {
   drag: id => ipcRenderer.send('things:dldrag', id),
   open: url => ipcRenderer.send('things:open', url),
   go: where => ipcRenderer.send('things:go', where),
+  // N1 (2026-11-25): his notes. The board for what he typed, one note's actions, and a copy locked with his passphrase.
+  notes: (q, cat, view) => ipcRenderer.invoke('things:notes', { q, cat, view }),
+  note: (act, id, extra) => ipcRenderer.invoke('things:note', { act, id, extra }),
+  notesLock: (act, pass) => ipcRenderer.invoke('things:noteslock', { act, pass }),
   onChanged(fn) { const h = (_e, w) => fn(w); ipcRenderer.on('things:changed', h); return () => ipcRenderer.removeListener('things:changed', h); },
   onSection(fn) { const h = (_e, s) => fn(s); ipcRenderer.on('things:section', h); return () => ipcRenderer.removeListener('things:section', h); },
 });

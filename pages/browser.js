@@ -387,6 +387,7 @@ el('m-history').addEventListener('click', () => { closeMenu(); window.samara?.br
 el('mqkey').addEventListener('click', () => window.samara?.browserMockup?.({ act: 'log' }));
 el('hykey').addEventListener('click', () => window.samara?.browserGo?.('samara:hyrule'));
 el('m-downloads').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('downloads'); });
+el('m-notes').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('notes'); });
 // The tab count at the foot of the drawer (Phase R: trail clean up is retired; the overnight tidy does it).
 function paintTidy() {
   const live = state.tabs.filter((t) => !String(t.url).startsWith('samara:')).length;

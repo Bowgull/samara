@@ -35,7 +35,8 @@ export const ClaudePart = {
 
   /** His notes changed (Samara's own store since N0): the ones that came from a page (src) go to every window with its rail open. */
   notesNews(this: SamaraBrowser, notes: unknown, cats: unknown): void {
-    this.railNotes = (Array.isArray(notes) ? notes : []).filter((n): n is RailNote => !!n && typeof n === 'object' && typeof (n as RailNote).id === 'string' && !!(n as RailNote).src)
+    // N1: every note goes (the rail's tabs: This page, Site, All); the rail filters by the page in front.
+    this.railNotes = (Array.isArray(notes) ? notes : []).filter((n): n is RailNote => !!n && typeof n === 'object' && typeof (n as RailNote).id === 'string')
       .slice(0, 500).map((n) => ({ id: n.id, title: String(n.title ?? ''), html: String(n.html ?? ''), cat: typeof n.cat === 'string' ? n.cat : undefined, src: n.src, updated: Number(n.updated) || 0 }));
     this.railCats = Array.isArray(cats) ? cats.map(String).slice(0, 12) : [];
     for (const p of this.panes) if (p.railOpen) this.sendNotes(p);

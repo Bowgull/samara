@@ -154,6 +154,15 @@ export function wireBrowser(get: () => SamaraBrowser | null): void {
   ipcMain.on('things:dl', (e, a) => { if ((top(e) && b(e)?.isThings(e.sender)) && a && typeof a.act === 'string') b(e).dlAct(a.act.slice(0, 10), Number(a.id) || 0); });
   ipcMain.on('things:dldrag', (e, id) => { if ((top(e) && b(e)?.isThings(e.sender)) && Number.isInteger(id)) b(e).dlDrag(e.sender, id); });
   ipcMain.on('things:open', (e, url) => { if ((top(e) && b(e)?.isThings(e.sender)) && typeof url === 'string') b(e).openFromThings(url.slice(0, 2000)); });
+  // N1 (2026-11-25): Your things › Notes. The board, one note's actions, and the locked copy (his passphrase never leaves main).
+  ipcMain.handle('things:notes', (e, a) => (top(e) && b(e)?.isThings(e.sender) && a && typeof a === 'object') ? b(e).notesHub?.board(String(a.q ?? '').slice(0, 200), String(a.cat ?? '*').slice(0, 24), String(a.view ?? 'notes')) ?? null : null);
+  ipcMain.handle('things:note', (e, a) => (top(e) && b(e)?.isThings(e.sender) && a && typeof a.act === 'string') ? b(e).notesHub?.boardAct(a.act.slice(0, 12), String(a.id ?? '').slice(0, 30), typeof a.extra === 'string' ? a.extra.slice(0, 60) : undefined) ?? null : null);
+  ipcMain.handle('things:noteslock', (e, a) => {
+    if (!(top(e) && b(e)?.isThings(e.sender)) || !a || typeof a.pass !== 'string' || a.pass.length > 500) return '';
+    const hub = b(e).notesHub;
+    if (!hub) return 'Your notes have not started yet.';
+    return a.act === 'import' ? hub.lockedImport(a.pass, b(e).win ?? null) : hub.lockedExport(a.pass, b(e).win ?? null);
+  });
   ipcMain.on('things:go', (e, where) => { if ((top(e) && b(e)?.isThings(e.sender)) && where === 'bookmarks') b(e).act('bookmarks'); });
   ipcMain.handle('settings:lookup', (e, q) => (top(e) && b(e)?.isSettings(e.sender)) && typeof q === 'string' ? b(e).addressLookup(q.slice(0, 200)) : []);
   ipcMain.on('settings:act', (e, a) => { if ((top(e) && b(e)?.isSettings(e.sender)) && typeof a === 'string') b(e).settingsAct(a.slice(0, 20)); });

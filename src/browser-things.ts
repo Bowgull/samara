@@ -28,7 +28,7 @@ export const ThingsPart = {
   isThings(this: SamaraBrowser, sender: Electron.WebContents): boolean { const t = this.tabs.find((x) => x.internal === 'things' && x.view?.webContents === sender); if (t) this.inTab(t); return Boolean(t); },
 
   /** Open Your things (or bring its tab forward), at History or Downloads. */
-  openThings(this: SamaraBrowser, section: 'history' | 'downloads' = 'history'): void {
+  openThings(this: SamaraBrowser, section: 'history' | 'downloads' | 'notes' = 'history'): void {
     if (!this.win || this.win.isDestroyed()) return;
     let t = this.tabs.find((x) => x.internal === 'things');
     if (!t) {
@@ -92,7 +92,7 @@ export const ThingsPart = {
   /** The Downloads page: every download kept (200), newest first. */
   downloadsPage(this: SamaraBrowser): Record<string, unknown>[] { return [...this.dls.list].reverse().map((d) => this.dlView(d)); },
 
-  pushThings(this: SamaraBrowser, what: 'history' | 'downloads'): void {
+  pushThings(this: SamaraBrowser, what: 'history' | 'downloads' | 'notes'): void {
     const wc = this.tabs.find((x) => x.internal === 'things')?.view?.webContents;
     if (wc && !wc.isDestroyed()) wc.send('things:changed', what);
   },
