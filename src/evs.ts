@@ -42,19 +42,25 @@ export function readVerify(code: number | null, text: string): boolean {
   return code === 0 && /signature is valid/i.test(text) && !/development only/i.test(text);
 }
 
+/** Signing in, or (2026-11-25, his "I can't remember my password") castLabs' own password reset: castLabs emails a
+ *  code, he types a new password and the code, and castLabs signs him in with it. Both in his own Terminal. */
+export type SigninKind = 'signin' | 'reset';
 /** The sign-in command, exactly as he will see it typed in Terminal. */
-export const signinCommand = (py: string): string[] => [py, '-m', 'castlabs_evs.account', 'reauth'];
+export const signinCommand = (py: string, kind: SigninKind = 'signin'): string[] => [py, '-m', 'castlabs_evs.account', kind === 'reset' ? 'reset' : 'reauth'];
+const signinWords = (kind: SigninKind): string => kind === 'reset'
+  ? 'Reset your castLabs password: castLabs emails you a code, then you type a new password and the code here.'
+  : 'Sign in to castLabs (your castLabs account), then come back to Samara.';
 
 const shq = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
 /** The Mac's Terminal file: opened with `open`, so no Automation permission is needed. It types nothing secret. */
-export function macSigninScript(py: string): string {
+export function macSigninScript(py: string, kind: SigninKind = 'signin'): string {
   return `#!/bin/bash
 # Sign in to castLabs, so Samara can sign its new engine for video. Written by Samara (src/Shell/src/evs.ts).
 # Your password goes to castLabs only. Samara notices when you are in and carries on by itself.
 clear
-echo "Sign in to castLabs (your castLabs account), then come back to Samara."
+echo "${signinWords(kind)}"
 echo
-${signinCommand(py).map(shq).join(' ')}
+${signinCommand(py, kind).map(shq).join(' ')}
 echo
 echo "Done. You can close this window."
 `;
@@ -62,9 +68,9 @@ echo "Done. You can close this window."
 /** PowerShell's words for the same thing on the PC (Windows Terminal, or PowerShell's own window). */
 /** A command for Windows Terminal's command line, where a bare ";" starts a new tab: each one passed through as "\;". */
 export const wtEscape = (s: string): string => s.replace(/;/g, '\\;');
-export function pcSigninCommand(py: string): string {
+export function pcSigninCommand(py: string, kind: SigninKind = 'signin'): string {
   const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
-  return `Write-Host 'Sign in to castLabs (your castLabs account), then come back to Samara.'; & ${q(py)} -m castlabs_evs.account reauth; Write-Host 'Done. You can close this window.'`;
+  return `Write-Host ${q(signinWords(kind))}; & ${q(py)} -m castlabs_evs.account ${kind === 'reset' ? 'reset' : 'reauth'}; Write-Host 'Done. You can close this window.'`;
 }
 
 const tail = (t: string) => t.split(/\r?\n/).filter(Boolean).slice(-3).join(' | ').slice(0, 400);
@@ -141,16 +147,16 @@ export class Evs {
   loginStamp(): number { try { return statSync(this.loginFile).mtimeMs; } catch { return 0; } }
 
   /** His click on "Sign in to castLabs": the computer's own Terminal, the command typed. True when it opened. */
-  async openSignin(): Promise<boolean> {
+  async openSignin(kind: SigninKind = 'signin'): Promise<boolean> {
     if (!(await this.ensure())) return false;
     if (this.platform === 'darwin') {
       const f = path.join(path.dirname(this.dir), 'castlabs-signin.command');
-      writeFileSync(f, macSigninScript(this.python)); chmodSync(f, 0o700);
+      writeFileSync(f, macSigninScript(this.python, kind)); chmodSync(f, 0o700);
       return (await this.run('/usr/bin/open', [f], { timeoutMs: 30_000 })).code === 0;
     }
     if (this.platform === 'win32') {
       // Windows Terminal when he has it, else PowerShell's own window: a window of its own, never hidden.
-      const ps = pcSigninCommand(this.python);
+      const ps = pcSigninCommand(this.python, kind);
       // Windows Terminal reads every ";" on its command line as "open another tab" (2026-11-18: the sign-in was cut in
       // three and Terminal said "cannot find the file specified"). "\;" is its way to pass one through to PowerShell.
       return (await this.open('wt.exe', ['powershell', '-NoExit', '-Command', wtEscape(ps)])) || this.open('powershell.exe', ['-NoExit', '-Command', ps]);

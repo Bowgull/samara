@@ -108,13 +108,18 @@ app.whenReady().then(async () => {
   check('versions behind: the count in bold, and every skipped version with its lines', /3 versions behind \(you have 1\.60\.0\)/.test(vb.note) && vb.bold.join('|') === '3 versions' && vb.groups.length === 3 && /The rail is smoother/.test(vb.lines) && /Tabs tidy themselves/.test(vb.lines), JSON.stringify(vb));
   b.setUpdate({ ...base, signin: 'ask' } as any); await wait(300);
   const e2 = await js(`({ kicker: document.getElementById('upkicker').textContent, note: document.getElementById('upnote').textContent, go: document.getElementById('upgo').textContent, dis: document.getElementById('upgo').disabled })`);
-  check('108: castLabs wants a sign-in: one key, the password line', e2.kicker === 'ONE STEP FROM YOU' && e2.go === 'Sign in to castLabs' && !e2.dis && /Your password goes to castLabs only, never to Samara or anyone else\./.test(e2.note), JSON.stringify(e2));
+  check('108: castLabs wants a sign-in: one key, the password line', e2.kicker === 'ONE STEP FROM YOU' && e2.go === 'Sign in to castLabs' && !e2.dis && /Your password goes to castLabs only, never to Samara or the companion\./.test(e2.note) && /Forgot your castLabs password\?/.test(e2.note), JSON.stringify(e2));
   const before = gone.length;
   await js(`document.getElementById('upgo').click()`); await wait(150);
   check('108: the key asks for Terminal, never starts the update', acts.at(-1)?.act === 'castlabs' && gone.length === before, JSON.stringify(acts.at(-1)));
   b.setUpdate({ ...base, signin: 'waiting' } as any); await wait(300);
   const e3 = await js(`({ kicker: document.getElementById('upkicker').textContent, go: document.getElementById('upgo').textContent, dis: document.getElementById('upgo').disabled, note: document.getElementById('upnote').textContent })`);
-  check('108: Samara waits while he signs in', e3.kicker === 'WAITING FOR CASTLABS' && e3.go === 'Signing in...' && e3.dis && /Finish in Terminal/.test(e3.note), JSON.stringify(e3));
+  // 2026-11-25 (his "it's bugged": stuck on a greyed "Signing in..." with Terminal closed and the password forgotten).
+  check('108: while it waits, the key opens Terminal again', e3.kicker === 'WAITING FOR CASTLABS' && e3.go === 'Open Terminal again' && !e3.dis && /Finish in Terminal/.test(e3.note) && /Closed it\?/.test(e3.note), JSON.stringify(e3));
+  await js(`document.getElementById('upgo').click()`); await wait(150);
+  check('...and asks for Terminal again, never the update', acts.at(-1)?.act === 'castlabs' && gone.length === before, JSON.stringify(acts.at(-1)));
+  await js(`document.getElementById('upforgot').click()`); await wait(150);
+  check('"Forgot your castLabs password?" opens castLabs\' own reset', acts.at(-1)?.act === 'castlabsreset' && gone.length === before, JSON.stringify(acts.at(-1)));
   b.setUpdate({ ...base } as any); await wait(300);
   check('108: signed in, the key is Restart now again', await js(`document.getElementById('upgo').textContent === 'Restart now' && !document.getElementById('upgo').disabled && document.getElementById('upkicker').textContent === 'UPDATE READY'`));
   (b as any).closeAll?.(); pages.close();

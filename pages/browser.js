@@ -2403,8 +2403,11 @@ function paintWho() {
     el('upkicker').textContent = si === 'ask' ? 'ONE STEP FROM YOU' : si === 'waiting' ? 'WAITING FOR CASTLABS' : sec ? 'SECURITY FIXES READY' : 'UPDATE READY';
     const note = el('upnote');
     note.replaceChildren();
-    if (si === 'ask') note.append('castLabs wants you to sign in before it signs this engine for video. Terminal opens with the sign-in typed. ', T2('b', '', 'Your password goes to castLabs only'), ', never to Samara or the companion.');
-    else if (si === 'waiting') note.append("Finish in Terminal. Samara signs the engine by itself the moment you're in.");
+    // 2026-11-25 (his "it's bugged": stuck on "Signing in..." with Terminal closed and the password forgotten): the key
+    // opens Terminal again while it waits, and "Forgot your password?" opens castLabs' own reset in Terminal instead.
+    const forgot = () => { const b = T2('button', 'uplink', 'Forgot your castLabs password?'); b.type = 'button'; b.id = 'upforgot'; b.addEventListener('click', (e) => { e.stopPropagation(); b.disabled = true; window.samara?.browserUpdateAct?.({ act: 'castlabsreset' }); }); return b; };
+    if (si === 'ask') note.append('castLabs wants you to sign in before it signs this engine for video. Terminal opens with the sign-in typed. ', T2('b', '', 'Your password goes to castLabs only'), ', never to Samara or the companion. ', forgot());
+    else if (si === 'waiting') note.append("Finish in Terminal. Samara signs the engine by itself the moment you're in. Closed it? Open it again below. ", forgot());
     else {
       if (typeof u.behind === 'string' && u.behind) for (const part of u.behind.slice(0, 200).split(/(\d+ weeks?|\d+ days?|less than a day|\d+ versions)/)) if (part) note.append(/^(\d+ (weeks?|days?|versions)|less than a day)$/.test(part) ? T2('b', '', part) : part);
       if (sec && u.tonight === true) note.append(note.childNodes.length ? ' ' : '', 'It goes in by itself ', T2('b', '', 'tonight'), ' while you sleep, unless you restart first.');
@@ -2421,8 +2424,8 @@ function paintWho() {
       if (kc.innerHTML !== kcWords) kc.innerHTML = kcWords;
       kc.hidden = window.samara?.platform !== 'darwin' || !note.hidden;
     }
-    el('upgo').textContent = si === 'ask' ? 'Sign in to castLabs' : si === 'waiting' ? 'Signing in...' : 'Restart now';
-    el('upgo').disabled = call || si === 'waiting';
+    el('upgo').textContent = si === 'ask' ? 'Sign in to castLabs' : si === 'waiting' ? 'Open Terminal again' : 'Restart now';
+    el('upgo').disabled = call && !si;
     // Sheet 115 (2026-10-31): it waits while Claude works or a form has typing; after 2 hours it asks.
     const wt = !call && u.wait && typeof u.wait.b === 'string' ? u.wait : null;
     el('upwhy').hidden = !call && !wt;
@@ -2442,7 +2445,7 @@ function paintWho() {
   el('uplater').addEventListener('click', close);
   const go = () => {
     el('upgo').disabled = true;
-    if (cur?.signin === 'ask') { window.samara?.browserUpdateAct?.({ act: 'castlabs' }); return; }
+    if (cur?.signin === 'ask' || cur?.signin === 'waiting') { window.samara?.browserUpdateAct?.({ act: 'castlabs' }); return; }
     window.samara?.browserUpdateGo?.({ ...choices });
   };
   el('upgo').addEventListener('click', go);

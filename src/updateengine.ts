@@ -5,6 +5,7 @@
 // going back. Before today the overnight rule was written three times (main.ts twice, mac.ts once).
 // Its own file, with no Electron, so the rules are tested on their own (test/updateengine.test.ts).
 import { readFileSync } from 'node:fs';
+import type { SigninKind } from './evs.ts';
 import { saveText } from './store.ts';
 import { openLog } from './log.ts';
 import { sched } from './sched.ts';
@@ -119,7 +120,7 @@ export interface Source {
   /** "Check for updates": what was put away comes back, and a look right now. */
   checkNow(): void;
   /** Sheet 108, the engine only: his click on "Sign in to castLabs". */
-  signin?(): Promise<boolean>;
+  signin?(kind?: SigninKind): Promise<boolean>;
   /** Sheet 122, Samara only: "Check for updates" with each step said as it happens; how it ended. */
   watch?(report: (p: Omit<CheckProgress, 'at'>) => void): Promise<CheckOutcome>;
   /** Sheet 122: the version running now ("1.62.1"). */
@@ -257,10 +258,11 @@ export class UpdateEngine {
     return true;
   }
 
-  /** Sheet 108: his click on "Sign in to castLabs" (Terminal opens with castLabs' sign-in typed). */
-  async signin(): Promise<boolean> {
-    const s = this.o.sources.find((x) => x.signin && x.ready()?.signin === 'ask');
-    const ok = s ? await s.signin!() : false;
+  /** Sheet 108: his click on "Sign in to castLabs" (Terminal opens with castLabs' sign-in typed). Also while it waits
+   *  (2026-11-25): Terminal again, or castLabs' password reset. */
+  async signin(kind: SigninKind = 'signin'): Promise<boolean> {
+    const s = this.o.sources.find((x) => x.signin && (x.ready()?.signin === 'ask' || x.ready()?.signin === 'waiting'));
+    const ok = s ? await s.signin!(kind) : false;
     this.show();
     return ok;
   }
