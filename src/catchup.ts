@@ -54,7 +54,7 @@ export function catchUp(newest: { version: string; notes: string[] }, history: S
   const groups = [{ name: label(newest.version, ''), items: own.items }, ...missed.map((s) => ({ name: label(s.version, s.name), items: s.items.map((i) => ({ text: i.text })) }))]
     .filter((g) => g.items.length);
   const n = missed.length + 1;
-  // A history only reaches back so far: an older Samara is at least this far behind.
+  // A history only reaches back so far: an older Samara is at least this far behind (exactly, at the boundary).
   const older = (history ?? []).length >= HISTORY_MAX && missed.length === (history ?? []).filter((s) => s.version !== newest.version).length;
-  return { groups, behind: `You are ${older ? 'more than ' : ''}${n} versions behind (you have ${installed}). This one update brings all of them.` };
+  return { groups, behind: `You are ${older ? 'at least ' : ''}${n} versions behind (you have ${installed}). This one update brings all of them.` };
 }

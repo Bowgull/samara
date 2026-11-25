@@ -48,10 +48,10 @@ test('a release without a history (before this change) shows only its own lines'
   assert.equal(catchUp(newest, undefined, '1.50.0').behind, undefined);
 });
 
-test('further behind than the history reaches: "more than"', () => {
+test('further behind than the history reaches: "at least"', () => {
   const many = Array.from({ length: 25 }, (_, i) => ({ semver: `2.${i}.0`, name: 'Edward', at: new Date(Date.UTC(2026, 0, 1 + i)).toISOString() }));
   const c = catchUp({ version: '2.24.0', notes: ['x'] }, historyOf(many, [], '2.24.0'), '1.0.0');
-  assert.match(c.behind!, /^You are more than 21 versions behind/);
+  assert.match(c.behind!, /^You are at least 21 versions behind/);
 });
 
 test('readHistory drops anything a release would not write', () => {
