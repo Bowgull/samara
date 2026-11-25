@@ -534,6 +534,9 @@ window.samara?.onBrowserAf?.((a) => {
 window.samara?.onBrowserAfSave?.((m) => {
   if (!m) return;
   el('afsite').value = m.site || ''; el('afuser').value = m.user || ''; el('afpass').value = m.pass || '';
+  // QA fix F3: a changed password updates the login he already has.
+  el('afsaveq').textContent = m.update ? 'Update this password in Bitwarden?' : 'Keep this login in Bitwarden?';
+  el('afsavego').firstChild.textContent = m.update ? 'Update' : 'Save';
   el('afsavechip').hidden = false;
 });
 el('afsaveform').addEventListener('submit', (e) => {

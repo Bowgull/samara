@@ -1,19 +1,29 @@
 // Security check 2026-10-24, group 1: a page trying each autofill trick, against the real code.
 //  1 the PIN's key releases never reach the page   2 hidden boxes are never filled; Tab fills one box
 //  3 a login only for its exact site               4 a page's fake "login sent" is ignored
-// Run: SAMARA_TEST_BW=<fake bw> npx electron test/electron/autofill-attacks-check.ts
+// Run: npx electron test/electron/autofill-attacks-check.ts (its own test certificate and stand-in Bitwarden)
 import { app, BrowserWindow, ipcMain } from 'electron';
 import https from 'node:https';
 import { readFileSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { testCert } from './testcert.ts';
 process.on('uncaughtException', (e) => console.log('HARNESS NOTE ' + (e as Error).message));
 process.on('unhandledRejection', (e) => { console.log('HARNESS REJECTION ' + String((e as Error)?.stack ?? e).split('\n').slice(0, 3).join(' | ')); app.exit(2); });
 setTimeout(() => { console.log('HARNESS TIMEOUT'); app.exit(3); }, 120_000).unref();
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 app.setPath('userData', mkdtempSync(path.join(os.tmpdir(), 'afatk-ud-')));
+// QA fix F9 (2026-11-25): the stand-in Bitwarden is set up here (before vault.ts is read), open, with a login for
+// example.com and one for forum.example.com, so part 3 runs anywhere without setup by hand.
+const BW_DIR = mkdtempSync(path.join(os.tmpdir(), 'afatk-bw-'));
+writeFileSync(path.join(BW_DIR, 'state.json'), JSON.stringify({ unlocked: true, session: 'x'.repeat(30) }));
+writeFileSync(path.join(BW_DIR, 'items.json'), JSON.stringify([
+  { id: '22222222-2222-2222-2222-222222222222', type: 1, name: 'main', login: { username: 'me', password: 'a', uris: [{ uri: 'https://example.com' }] } },
+  { id: '33333333-3333-3333-3333-333333333333', type: 1, name: 'forum', login: { username: 'me', password: 'b', uris: [{ uri: 'forum.example.com' }] } }]));
+process.env.SAMARA_TEST_BW = path.join(HERE, '..', 'fixtures', 'fake-bw.mjs');
+process.env.FAKE_BW_DIR = BW_DIR;
 app.on('window-all-closed', () => {});
 BrowserWindow.prototype.show = function (this: BrowserWindow) { this.setPosition(-6000, 100); this.showInactive(); };
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
@@ -32,7 +42,7 @@ const PAGE = `<!doctype html><body>
 <script>window.ups=[];window.downs=[];addEventListener('keyup',e=>ups.push(e.key),true);addEventListener('keydown',e=>downs.push(e.key),true);</script></body>`;
 app.whenReady().then(async () => {
   // A secure page on this computer (Samara's autofill only runs on https), with a test certificate this test alone accepts.
-  const CERT = process.env.TEST_CERT_DIR!;
+  const CERT = process.env.TEST_CERT_DIR || testCert();
   const srv = https.createServer({ key: readFileSync(path.join(CERT, 'test-key.pem')), cert: readFileSync(path.join(CERT, 'test-cert.pem')) }, (_q, r) => { r.writeHead(200, { 'Content-Type': 'text/html' }); r.end(PAGE); });
   await new Promise<void>((r) => srv.listen(0, '127.0.0.1', () => r()));
   const base = `https://localhost:${(srv.address() as any).port}`;

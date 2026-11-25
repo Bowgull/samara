@@ -1,6 +1,6 @@
 // Phase 4 (2026-11-24): SamaraBrowser's things methods, moved out of browser.ts unchanged. They run as the browser's own
 // methods (browser.ts puts them on SamaraBrowser.prototype), so `this` is the browser.
-import { BrowserWindow, WebContentsView, app, nativeImage, screen, shell } from 'electron';
+import { BrowserWindow, WebContentsView, app, nativeImage, screen, shell, webFrameMain } from 'electron';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { SAFE_WEB_PREFERENCES, lockDown } from './safety.ts';
@@ -10,7 +10,7 @@ import { writeFileAtomic } from './atomic.ts';
 import { goesInward } from './driverrules.ts';
 import { softEdge } from './winedge.ts';
 import type { Mark } from './bookmarks.ts';
-import { BW_LOGIN, fillScript } from './vault.ts';
+import { BW_LOGIN, STILL_ASKING_JS, fillScript } from './vault.ts';
 import type { Login } from './vault.ts';
 import { randomBytes } from 'node:crypto';
 import { search as searchVisits } from './visits.ts';
@@ -468,14 +468,18 @@ export const ThingsPart = {
     if (lp) this.pane = lp;
     const t = this.cur();
     const wc = t?.view?.webContents;
-    let has = false;
+    let has = false, host = '';
     if (wc && !t!.crashed && !t!.blocked && !t!.failed && !t!.lent && t!.url.startsWith('https:')) {
       has = await run<boolean>(wc, "!!document.querySelector('input[type=password]')", { ms: 800, fallback: false }) === true;
+      if (has) { try { host = new URL(t!.url).hostname; } catch { /* none */ } }
+      // QA fix F4 (2026-11-25): a login box inside a frame (a sign-in embedded from the site's own login page) counts
+      // too; the key is then for that frame's site.
+      else { const lf = await loginFrame(wc, true); if (lf) { has = true; host = lf.host; } }
     }
     // His pick: the key shows only where Bitwarden has a login for this site. Until the vault has been opened once
     // there is no list yet, so it shows on any login page, plain, so he can open it the first time.
     let known = false;
-    if (has && this.sites) { let host = ''; try { host = new URL(t!.url).hostname; } catch { /* none */ } known = this.siteKnown(host); has = known; }
+    if (has && this.sites) { known = this.siteKnown(host); has = known; }
     if (has !== this.hasLogin || known !== this.loginKnown) { this.hasLogin = has; this.loginKnown = known; this.sendTabs(); }
   },
 
@@ -516,7 +520,10 @@ export const ThingsPart = {
     if (!t || !t.view || !t.url.startsWith('https:')) { this.note('', { kind: 'bad', from: 'shield', small: true, icon: 'key', kick: 'Not filled', title: 'Not a secure page' }); return; }
     let host = '';
     try { host = new URL(t.url).hostname; } catch { return; }
-    this.vaultFor = { tab: t.id, host };
+    // QA fix F4: no login box on the page itself but one in a secure frame: the key is for that frame's site.
+    const top = await run<boolean>(t.view.webContents, "!!document.querySelector('input[type=password]')", { ms: 800, fallback: false });
+    const lf = top ? null : await loginFrame(t.view.webContents);
+    this.vaultFor = lf ? { tab: t.id, host: lf.host, url: lf.url, frame: lf.id } : { tab: t.id, host };
     const P = this.pane;
     const s = await this.vault.state();
     this.pane = P;
@@ -542,7 +549,7 @@ export const ThingsPart = {
     const f = this.vaultFor;
     const t = f ? this.tabs.find((x) => x.id === f.tab) : undefined;
     if (!f || !t) return;
-    const logins: Login[] | null = await this.vault.loginsFor(t.url);
+    const logins: Login[] | null = await this.vault.loginsFor(f.url ?? t.url);
     if (!this.inTab(t)) return;
     if (logins === null) { this.note('', { kind: 'bad', from: 'shield', icon: 'key', kick: 'Bitwarden', title: 'Did not answer', rows: [{ g: 'Try', v: 'Press the key again.' }], keys: [{ label: 'Try again', act: 'retry' }, { label: 'Close', act: 'ok', plain: true }] }, (act) => { if (act === 'retry') void this.vaultKey(); }); return; }
     if (!logins.length) { this.win?.webContents.send('browser:vault', null); this.note('', { kind: 'bad', from: 'shield', small: true, icon: 'key', kick: 'No saved login', title: f.host }); return; }
@@ -559,12 +566,19 @@ export const ThingsPart = {
     this.win?.webContents.send('browser:vault', null);
     const wc = t?.view?.webContents;
     if (!f || !t || !wc || wc.isDestroyed() || t.blocked || t.failed) return;
+    // The page (or, QA fix F4, the frame) he clicked the key on must still be on the very site the login is for.
+    const frame = f.frame ? frameOf(f.frame) : null;
+    const at = f.frame ? frame?.url ?? '' : wc.getURL();
     let host = '';
-    try { host = new URL(wc.getURL()).hostname; } catch { /* none */ }
-    if (host !== f.host || !wc.getURL().startsWith('https:')) { this.note('', { kind: 'bad', from: 'shield', small: true, icon: 'key', kick: 'Nothing filled', title: 'The page changed' }); return; }
+    try { host = new URL(at).hostname; } catch { /* none */ }
+    if (host !== f.host || !at.startsWith('https:') || (f.frame && (!frame || !(await frameShown(frame))))) { this.note('', { kind: 'bad', from: 'shield', small: true, icon: 'key', kick: 'Nothing filled', title: 'The page changed' }); return; }
     const s = await this.vault.secret(id);
     if (!s) { this.note('', { kind: 'bad', from: 'shield', icon: 'key', kick: 'Bitwarden', title: 'Did not give it back', rows: [{ g: 'Try', v: 'Press the key again.' }], keys: [{ label: 'Try again', act: 'retry' }, { label: 'Close', act: 'ok', plain: true }] }, (act) => { if (act === 'retry') void this.vaultKey(); }); return; }
-    const did = await run<number>(wc, fillScript(s.username, s.password), { world: FILL_WORLD, ms: 2000, fallback: 0 });
+    // A frame is filled from its own page's world: Electron runs frame scripts only there. What it could see is only the
+    // login for its own site, which that site receives anyway when he signs in.
+    const did = frame
+      ? await within(frame.executeJavaScript(fillScript(s.username, s.password)).then((n) => Number(n) || 0).catch(() => 0), 2000, 0)
+      : await run<number>(wc, fillScript(s.username, s.password), { world: FILL_WORLD, ms: 2000, fallback: 0 });
     if (!did) this.note('', { kind: 'bad', from: 'shield', small: true, icon: 'key', kick: 'Nothing filled', title: 'No login box here' });
   },
 
@@ -590,3 +604,58 @@ export const ThingsPart = {
     return Boolean(p);
   }
 };
+
+/** QA fix F4: a frame, as Electron names it (its process and its place in it). */
+export interface FrameId { pid: number; rid: number }
+export function frameOf(id: FrameId): Electron.WebFrameMain | null {
+  try { const f = webFrameMain.fromId(id.pid, id.rid); return f && !f.isDestroyed() && !f.detached ? f : null; } catch { return null; }
+}
+
+/**
+ * QA fix F4 (2026-11-25): the first secure frame inside the page with a password box he can see, or null. Frames only
+ * (the page itself is asked by its callers), at most 12, each with a short deadline, so a page full of ads stays cheap.
+ */
+const frameLooks = new WeakMap<Electron.WebContents, { at: number; url: string; found: Awaited<ReturnType<typeof loginFrame>> }>();
+export async function loginFrame(wc: Electron.WebContents, often = false): Promise<{ id: FrameId; host: string; url: string } | null> {
+  if (wc.isDestroyed()) return null;
+  // The key's own look (every 1.5 s) asks the frames at most every 6 s on the same page (perf sweep item 10).
+  if (often) {
+    const was = frameLooks.get(wc);
+    if (was && was.url === wc.getURL() && Date.now() - was.at < 6000) return was.found;
+    const found = await loginFrame(wc);
+    frameLooks.set(wc, { at: Date.now(), url: wc.getURL(), found });
+    return found;
+  }
+  let frames: Electron.WebFrameMain[] = [];
+  try { frames = wc.mainFrame.framesInSubtree.filter((f) => f !== wc.mainFrame && !f.isDestroyed() && f.url.startsWith('https:')).slice(0, 12); } catch { return null; }
+  for (const f of frames) {
+    const seen = await within(f.executeJavaScript(STILL_ASKING_JS).then((v) => v === true).catch(() => false), 600, false);
+    if (!seen || f.isDestroyed() || !(await frameShown(f))) continue;
+    try { return { id: { pid: f.processId, rid: f.routingId }, host: new URL(f.url).hostname, url: f.url }; } catch { /* not an address */ }
+  }
+  return null;
+}
+
+/**
+ * Codex on PR #14: a frame counts only when he can see it, all the way up. In each parent, the frame's box must be
+ * shown (not hidden, not see-through), of a usable size and inside the page's view; a page cannot then have the key
+ * fill a login into a frame it keeps out of sight. A frame that left the address its box named does not count either.
+ */
+const SHOWN_FRAMES_JS = `[...document.querySelectorAll('iframe, frame')].filter((e) => {
+  const r = e.getBoundingClientRect();
+  const shown = typeof e.checkVisibility === 'function' ? e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) : true;
+  return shown && r.width >= 60 && r.height >= 30 && r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight && Number(getComputedStyle(e).opacity) > 0.05;
+}).map((e) => { try { return new URL(e.src, location.href).origin; } catch { return ''; } })`;
+export async function frameShown(f: Electron.WebFrameMain): Promise<boolean> {
+  let child: Electron.WebFrameMain | null = f;
+  for (let depth = 0; child && depth < 6; depth++) {
+    const parent: Electron.WebFrameMain | null = child.parent;
+    if (!parent) return true;
+    let origin = '';
+    try { origin = new URL(child.url).origin; } catch { return false; }
+    const shown = await within(parent.executeJavaScript(SHOWN_FRAMES_JS).then((v) => (Array.isArray(v) ? v.map(String) : [])).catch(() => [] as string[]), 600, [] as string[]);
+    if (!shown.includes(origin)) return false;
+    child = parent;
+  }
+  return false;
+}

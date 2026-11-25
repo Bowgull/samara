@@ -30,10 +30,18 @@ export const LOCK_AFTER: Record<string, number | null> = { '5m': 5 * 60_000, '30
 export interface Login { id: string; name: string; username: string }
 export type VaultState = 'missing' | 'signed-out' | 'locked' | 'unlocked';
 
+/**
+ * The program to start and its first arguments. Tests only (SAMARA_TEST_BW): a stand-in written as a script runs under
+ * this same Electron as plain Node, so it works on Windows (which cannot start a .mjs) and needs no file mode on the Mac.
+ */
+const tool = (args: string[]): [string, string[], Record<string, string>] =>
+  process.env.SAMARA_TEST_BW && /\.m?js$/.test(BW) ? [process.execPath, [BW, ...args], { ELECTRON_RUN_AS_NODE: '1' }] : [BW, args, {}];
+
 /** Run bw with extra environment only. Never with a secret on the command line. */
 function bw(args: string[], env: Record<string, string> = {}, timeout = 30_000): Promise<{ ok: boolean; out: string }> {
+  const [cmd, argv, extra] = tool(args);
   return new Promise((resolve) => {
-    execFile(BW, args, { env: { ...process.env, ...env, BW_NOINTERACTION: 'true' }, timeout, windowsHide: true, maxBuffer: 32 * 1024 * 1024 },
+    execFile(cmd, argv, { env: { ...process.env, ...extra, ...env, BW_NOINTERACTION: 'true' }, timeout, windowsHide: true, maxBuffer: 32 * 1024 * 1024 },
       (err, stdout) => resolve({ ok: !err, out: String(stdout ?? '') }));
   });
 }
@@ -62,16 +70,41 @@ export class Vault {
     if (!this.session || !site || !password) return false;
     const item = { type: 1, name: site.slice(0, 120), notes: null, favorite: false, fields: [], secureNote: null, card: null, identity: null, reprompt: 0,
       login: { username: username.slice(0, 200), password: password.slice(0, 500), totp: null, uris: [{ match: null, uri: 'https://' + site }] } };
+    const ok = await this.piped(['create', 'item'], item);
+    if (ok) this.touch();
+    return ok;
+  }
+
+  /**
+   * QA fix F3 (2026-11-25): a changed password replaces the one in the login he already has, instead of keeping a second
+   * login beside it. Only the password moves; the item's name, other addresses, notes and two-step code are kept as
+   * Bitwarden has them (the item is read whole and written back whole, as the tool needs).
+   */
+  async updatePassword(id: string, password: string): Promise<boolean> {
+    if (!this.session || !/^[0-9a-f-]{36}$/i.test(id) || !password) return false;
+    const r = await bw(['get', 'item', id], { BW_SESSION: this.session });
+    if (!r.ok) return false;
+    let item: { type?: number; login?: Record<string, unknown> };
+    try { item = JSON.parse(r.out); } catch { return false; }
+    if (item.type !== 1 || !item.login || typeof item.login !== 'object') return false;
+    item.login.password = password.slice(0, 500);
+    const ok = await this.piped(['edit', 'item', id], item);
+    if (ok) this.touch();
+    return ok;
+  }
+
+  /** Bitwarden's tool with an item on its stdin (encoded as it wants it), never on its command line. */
+  private piped(args: string[], item: unknown): Promise<boolean> {
     const encoded = Buffer.from(JSON.stringify(item)).toString('base64');
-    const ok = await new Promise<boolean>((resolve) => {
-      const c = spawn(BW, ['create', 'item'], { env: { ...process.env, BW_SESSION: this.session!, BW_NOINTERACTION: 'true' }, windowsHide: true });
+    return new Promise<boolean>((resolve) => {
+      const [cmd, argv, extra] = tool(args);
+      const c = spawn(cmd, argv, { env: { ...process.env, ...extra, BW_SESSION: this.session!, BW_NOINTERACTION: 'true' }, windowsHide: true });
       const t = setTimeout(() => { try { c.kill(); } catch { /* gone */ } resolve(false); }, 30_000);
       c.on('error', () => { clearTimeout(t); resolve(false); });
       c.on('exit', (code) => { clearTimeout(t); resolve(code === 0); });
+      c.stdin.on('error', () => { /* the tool went away first: its exit code answers */ });
       c.stdin.end(encoded);
     });
-    if (ok) this.touch();
-    return ok;
   }
 
   /** The last answer state() gave, for drawing a page without waiting on Bitwarden (2 seconds or more). */
@@ -200,3 +233,9 @@ export function fillScript(username: string, password: string): string {
   return did;
 })()`;
 }
+
+/** Is a password box still in front of him? Only one he can see counts: shown, with a size, not see-through. */
+export const STILL_ASKING_JS = `[...document.querySelectorAll('input[type=password]')].some((i) => {
+  const r = i.getBoundingClientRect(), cs = getComputedStyle(i);
+  return r.width > 2 && r.height > 2 && cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.05 && i.getClientRects().length > 0;
+})`;

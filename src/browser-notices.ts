@@ -5,7 +5,7 @@ import path from 'node:path';
 import { SAFE_WEB_PREFERENCES, lockDown } from './safety.ts';
 import { run } from './page.ts';
 import { remote } from './tvremote.ts';
-import { fillScript } from './vault.ts';
+import { STILL_ASKING_JS, fillScript } from './vault.ts';
 import { DETAIL_KINDS, PIN_MAX, PIN_MIN, pinOk, detailFor, fillDetailsScript, samePin } from './autofill.ts';
 import type { FieldKind } from './autofill.ts';
 import { bankSite } from './visits.ts';
@@ -338,12 +338,19 @@ export const NoticesPart = {
     if (this.afSave !== s) return;
     const t = this.tabs.find((x) => x.id === s.tab), wc = t?.view?.webContents;
     if (!wc || wc.isDestroyed()) { this.afSave = null; return; }
-    // Still a password box on the page: it did not work (a wrong password is never offered).
-    const still = await run<boolean>(wc, "!!document.querySelector('input[type=password]')", { ms: 800, fallback: false });
+    // Still a password box he can see on the page: it did not work (a wrong password is never offered). QA fix F6
+    // (2026-11-25): a box the page only hid after signing in (kept in the page, not shown) no longer counts, or such
+    // sites would never offer to keep the login.
+    const still = await run<boolean>(wc, STILL_ASKING_JS, { ms: 800, fallback: false });
     if (still) { this.afSave = null; return; }
     if (this.vault.current()) {
       const logins = await this.vault.loginsFor('https://' + s.host);
-      for (const l of logins ?? []) if (l.username === s.user) { const sec = await this.vault.secret(l.id, false); if (sec?.password === s.pass) { this.afSave = null; return; } }
+      for (const l of logins ?? []) if (l.username === s.user) {
+        const sec = await this.vault.secret(l.id, false);
+        if (sec?.password === s.pass) { this.afSave = null; return; }
+        // QA fix F3: the same username with another password is a changed password: the card offers to update it.
+        if (sec) { s.update = l.id; break; }
+      }
     }
     if (this.afSave === s) this.afBand();
   },
@@ -357,7 +364,7 @@ export const NoticesPart = {
       else void this.vaultKey();
       return;
     }
-    this.win?.webContents.send('browser:afsave', { site: s.host, user: s.user, pass: s.pass });
+    this.win?.webContents.send('browser:afsave', { site: s.host, user: s.user, pass: s.pass, update: Boolean(s.update) });
   },
 
   /** The card's Save: what he saw, perhaps edited. */
@@ -365,10 +372,13 @@ export const NoticesPart = {
     const o = (m && typeof m === 'object' ? m : {}) as { site?: unknown; user?: unknown; pass?: unknown };
     const site = String(o.site ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
     if (!/^[a-z0-9.-]{3,253}$/.test(site) || typeof o.pass !== 'string' || !o.pass) return;
-    const ok = await this.vault.create(site, String(o.user ?? ''), o.pass);
+    const user = String(o.user ?? '');
+    // QA fix F3: a changed password goes into the login he has, as long as he left the site and username as offered.
+    const s = this.afSave, update = s?.update && s.host === site && s.user === user ? s.update : null;
+    const ok = update ? await this.vault.updatePassword(update, o.pass) : await this.vault.create(site, user, o.pass);
     this.afSave = null;
     this.afBand(ok ? 'open' : undefined);
-    this.note('', ok ? { from: 'shield', small: true, icon: 'key', kick: 'Kept in Bitwarden', title: site } : { kind: 'bad', from: 'shield', icon: 'key', kick: 'Bitwarden', title: 'Did not keep it', rows: [{ g: 'Try', v: 'Again from the key.' }] });
+    this.note('', ok ? { from: 'shield', small: true, icon: 'key', kick: update ? 'Password updated in Bitwarden' : 'Kept in Bitwarden', title: site } : { kind: 'bad', from: 'shield', icon: 'key', kick: 'Bitwarden', title: 'Did not keep it', rows: [{ g: 'Try', v: 'Again from the key.' }] });
     if (ok) void this.learnSites();
   },
 
