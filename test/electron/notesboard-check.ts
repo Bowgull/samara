@@ -3,7 +3,7 @@
 // locked copy is written and brought back, and the rail has This page / Site / All. Saves a picture of the board.
 //
 // Run: npx electron test/electron/notesboard-check.ts <folder for the pictures>
-import { app, BrowserWindow, dialog, screen } from 'electron';
+import { app, BrowserWindow, dialog, screen, shell } from 'electron';
 import http from 'node:http';
 import { mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
@@ -27,6 +27,12 @@ let bad = 0;
 const check = (what: string, ok: boolean, d = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}${d ? '  -- ' + d.slice(0, 200) : ''}`); if (!ok) bad++; };
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Nothing leaves the test for the system (CI, 2026-11-25): "Show in folder" ran xdg-open on the Linux runner, which
+// started a real browser that held the check's output open until the job timed out. Each call is recorded instead.
+const shown: string[] = [];
+(shell as any).showItemInFolder = (p: string) => { shown.push('folder:' + p); };
+(shell as any).openPath = async (p: string) => { shown.push('path:' + p); return ''; };
+(shell as any).openExternal = async (u: string) => { shown.push('link:' + u); };
 app.whenReady().then(async () => {
   (screen as any).getCursorScreenPoint = () => ({ x: 400, y: 300 });
   const tmp = mkdtempSync(path.join(os.tmpdir(), 'nboard-'));
@@ -89,6 +95,7 @@ app.whenReady().then(async () => {
   const dir = path.join(tmp, 'docs', 'Samara notes');
   const files = readdirSync(dir).filter((f) => f.endsWith('.samaranotes'));
   check('a locked copy is written', files.length === 1 && /6 notes/.test(msg), msg);
+  check('...and shown in its folder (recorded, nothing opened on the test machine)', shown.some((x) => x.startsWith('folder:') && x.endsWith('.samaranotes')), JSON.stringify(shown));
   s.remove('nf'); s.gc();
   (dialog as any).showOpenDialog = async () => ({ canceled: false, filePaths: [path.join(dir, files[0]!)] });
   const wrong = await wc.executeJavaScript("window.things.notesLock('import', 'not the passphrase')");

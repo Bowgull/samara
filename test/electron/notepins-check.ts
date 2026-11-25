@@ -3,7 +3,7 @@
 // the note, a page's own script cannot; "Jump to it" opens the page at the words; a reminder rings once, on this machine.
 //
 // Run: npx electron test/electron/notepins-check.ts <folder for the pictures>
-import { app, BrowserWindow, screen } from 'electron';
+import { app, BrowserWindow, screen, shell } from 'electron';
 import http from 'node:http';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
@@ -37,6 +37,13 @@ const PAGE = `<!doctype html><title>Raid guide</title><body style="margin:40px 1
 const SPA = `<!doctype html><title>Map</title><body style="margin:40px 120px;font:18px sans-serif;background:#fff"><p id="v">Home</p>
 <script>window.go = (to) => { history.pushState({}, '', to); setTimeout(() => { document.getElementById('v').textContent = to.endsWith('/b') ? 'At the bridge, turn left at the old mill.' : 'Home'; }, 100); return 1; };</script></body>`;
 
+// Nothing leaves the test for the system (CI, 2026-11-25): "Show in folder" ran xdg-open on the Linux runner, which
+// started a real browser that held the check's output open until the job timed out. Each call is recorded instead.
+const shown: string[] = [];
+void shown;
+(shell as any).showItemInFolder = (p: string) => { shown.push('folder:' + p); };
+(shell as any).openPath = async (p: string) => { shown.push('path:' + p); return ''; };
+(shell as any).openExternal = async (u: string) => { shown.push('link:' + u); };
 app.whenReady().then(async () => {
   (screen as any).getCursorScreenPoint = () => ({ x: 400, y: 300 });
   const tmp = mkdtempSync(path.join(os.tmpdir(), 'npins-'));
