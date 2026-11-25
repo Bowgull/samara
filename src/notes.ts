@@ -372,15 +372,16 @@ export function askClaudeText(q: string, hits: AskHit[], tag: string): string {
 
 // ------------------------------------------------------------------ the quick-note key (Q1, 2026-11-25)
 // The companion's key was Control + number pad *, and a MacBook has no number pad, so on the Mac it could never be
-// pressed. Now: Control + Option + N on the Mac; on the PC Ctrl + Num * as before, and Ctrl + Alt + N too, for a laptop
-// with no number pad. N for note; Control + Option is a pair no Mac app uses for N out of the box.
+// pressed. Now: Control + Option + N on the Mac (N for note; Control + Option is a pair no Mac app uses for N out of the
+// box, and typing a character on the Mac takes Option alone). The PC keeps Ctrl + Num * only: on many Windows keyboards
+// Ctrl + Alt is AltGr, so Ctrl + Alt + a letter types a character there (AltGr + N is ń in Polish) and must not be taken.
 
 /** The quick-note keys for a machine, in the order they are tried. */
 export function quickKeysFor(platform: NodeJS.Platform): string[] {
-  return platform === 'darwin' ? ['Control+Alt+N'] : ['Control+nummult', 'Control+Alt+N'];
+  return platform === 'darwin' ? ['Control+Alt+N'] : ['Control+nummult'];
 }
 
-/** A key as he reads it on that machine's keyboard: "Control + Option + N" on the Mac, "Ctrl + Alt + N" on the PC. */
+/** A key as he reads it on that machine's keyboard: "Control + Option + N" on the Mac, "Ctrl + Num *" on the PC. */
 export function sayKey(key: string, mac: boolean): string {
   const words: Record<string, string> = mac
     ? { Control: 'Control', Alt: 'Option', Shift: 'Shift', Command: 'Command', nummult: 'Num *' }

@@ -371,7 +371,7 @@ export function startNotes(o: NotesOpts): NotesHub {
   }
 
   // ---- the quick-note key
-  // Q1 (2026-11-25): Control + Option + N on the Mac (a MacBook has no number pad); Ctrl + Num * and Ctrl + Alt + N on the PC.
+  // Q1 (2026-11-25): Control + Option + N on the Mac (a MacBook has no number pad); Ctrl + Num * on the PC (Ctrl + Alt + a letter is AltGr on many Windows keyboards).
   for (const k of quickKeysFor(process.platform)) {
     try { if (globalShortcut.register(k, quick)) held.push(k); else o.log(`notes: the quick-note key ${sayKey(k, mac)} is taken by another program`); }
     catch (e) { o.log(`notes: no quick-note key ${k}: ` + (e as Error).message); }
