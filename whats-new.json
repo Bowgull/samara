@@ -1525,6 +1525,51 @@
       "at": "2026-11-22T16:21:00-05:00",
       "text": "Check for updates shows what it's doing.",
       "kind": "feature"
+    },
+    {
+      "at": "2026-11-25T10:46:49-05:00",
+      "text": "Your notes live in Samara, synced PC and Mac.",
+      "kind": "feature"
+    },
+    {
+      "at": "2026-11-25T10:47:49-05:00",
+      "text": "Timer in Samara, from ☰ › Tools.",
+      "kind": "feature"
+    },
+    {
+      "at": "2026-11-25T10:48:49-05:00",
+      "text": "Music player in Samara, with its own Spotify sign-in.",
+      "kind": "feature"
+    },
+    {
+      "at": "2026-11-25T10:49:49-05:00",
+      "text": "Snip part of the screen, then Ask Claude or pin it.",
+      "kind": "feature"
+    },
+    {
+      "at": "2026-11-25T10:50:49-05:00",
+      "text": "New note on a MacBook: Control + Option + N.",
+      "kind": "feature"
+    },
+    {
+      "at": "2026-11-25T10:51:49-05:00",
+      "text": "Tools anywhere: Control + Option + T, or Ctrl + Num /.",
+      "kind": "feature"
+    },
+    {
+      "at": "2026-11-25T10:52:49-05:00",
+      "text": "Sites ask once before sending notifications.",
+      "kind": "feature"
+    },
+    {
+      "at": "2026-11-25T10:53:49-05:00",
+      "text": "castLabs sign-in can be tried again.",
+      "kind": "fix"
+    },
+    {
+      "at": "2026-11-25T10:54:49-05:00",
+      "text": "Samara keeps using your existing data folders.",
+      "kind": "fix"
     }
   ]
 }
