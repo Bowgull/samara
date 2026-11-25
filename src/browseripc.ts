@@ -163,6 +163,13 @@ export function wireBrowser(get: () => SamaraBrowser | null): void {
   // N1 (2026-11-25): Your things › Notes. The board, one note's actions, and the locked copy (his passphrase never leaves main).
   ipcMain.handle('things:notes', (e, a) => (top(e) && b(e)?.isThings(e.sender) && a && typeof a === 'object') ? b(e).notesHub?.board(String(a.q ?? '').slice(0, 200), String(a.cat ?? '*').slice(0, 24), String(a.view ?? 'notes'), Number(a.limit) || 0) ?? null : null);
   ipcMain.handle('things:note', (e, a) => (top(e) && b(e)?.isThings(e.sender) && a && typeof a.act === 'string') ? b(e).notesHub?.boardAct(a.act.slice(0, 12), String(a.id ?? '').slice(0, 30), typeof a.extra === 'string' ? a.extra.slice(0, 60) : undefined) ?? null : null);
+  // N4: Ask your notes. The answer is found here, from his notes; "Ask Claude about these" opens a new chat for him to send.
+  ipcMain.handle('things:notesask', (e, a) => {
+    if (!(top(e) && b(e)?.isThings(e.sender)) || !a || typeof a.q !== 'string') return null;
+    const hub = b(e).notesHub, q = a.q.slice(0, 400);
+    if (!hub) return null;
+    return a.claude === true ? hub.askClaude(q) : hub.ask(q);
+  });
   ipcMain.handle('things:noteslock', (e, a) => {
     if (!(top(e) && b(e)?.isThings(e.sender)) || !a || typeof a.pass !== 'string' || a.pass.length > 500) return '';
     const hub = b(e).notesHub;

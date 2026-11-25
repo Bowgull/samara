@@ -50,3 +50,4 @@ sy-check.ts
 notes-check.ts
 notesboard-check.ts
 notepins-check.ts
+asknotes-check.ts

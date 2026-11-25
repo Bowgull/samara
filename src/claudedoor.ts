@@ -166,6 +166,8 @@ export function startClaudeDoor(getBrowser: () => SamaraBrowser | null, stateDir
   catch (e) { console.error('shell: claude door: could not write its key: ' + (e as Error).message); }
   // Only the jobs this door started, and only their pages: a Claude session never touches the companion's own tabs.
   const mine = new Set<number>();
+  // N4: the chats he let into his notes (one OK a chat, asked in Samara the first time), by the chat's own token.
+  const notesOk = new Set<string>();
   // Sheet 37: plans the user allowed, and plans just shown in Claude's own form, waiting for the answer from it.
   const plans = hooks.plans ?? new PlanMemory(stateDir), shownInClaude = new Map<string, number>();
   // 2026-10-22: the jobs of show-only plans (pages on this computer, only looked at), by job: the plan's task. What they
@@ -249,6 +251,18 @@ export function startClaudeDoor(getBrowser: () => SamaraBrowser | null, stateDir
           else if (op === 'updatenow') out = hooks.updates && b ? await updateNow(b, hooks.updates) : { ok: true, none: true };
           else if (op === 'companies') out = await checkCompanies(stateDir, Array.isArray(a.only) ? (a.only as unknown[]).map(String) : []);
           else if (!b) out = { ok: false, error: "Samara is not running." };
+          // N4: his notes, for a chat: found, read whole, or a new one added. His notes are his: one OK from him a chat,
+          // asked in Samara's band the first time; a chat with no token of its own is asked every time.
+          else if (op === 'notes' || op === 'noteread' || op === 'noteadd') {
+            const hub = b.notesHub;
+            if (!hub) out = { ok: false, error: 'Samara\'s notes have not started yet.' };
+            else {
+              let yes: boolean | null = tok && notesOk.has(tok) ? true : null;
+              if (yes !== true) { yes = await b.askForClaude('read and add to your notes'); if (yes === true && tok) notesOk.add(tok); }
+              out = yes === true ? hub.forClaude(op === 'notes' ? 'search' : op === 'noteread' ? 'read' : 'add', a)
+                : { ok: false, error: yes === null ? "Reading the notes needs the user's OK in Samara, and Samara is not open." : 'The user did not allow this chat into their notes.' };
+            }
+          }
           else if (!OPS.has(op)) out = { ok: false, error: 'not a step this door allows' };
           // Indeed (and its Glassdoor) checks browsers it does not know; their official connector is the way in (2026-10-14).
           else if (op === 'open' && /^https?:\/\/([^/]*\.)?(indeed|glassdoor)\.[a-z.]+(\/|$)/i.test(String(a.url ?? ''))) out = { ok: false, error: "Indeed and Glassdoor are not opened in Samara: they put up security checks. Use the official Indeed connector (search_jobs) instead." };
