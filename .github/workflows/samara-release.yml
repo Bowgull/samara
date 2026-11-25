@@ -10,7 +10,7 @@ on:
   push:
     tags: ['samara-v*']
     branches: [main]
-    paths: ['releases.json', '.github/workflows/samara-release.yml']
+    paths: ['releases.json', '.github/workflows/samara-release.yml', 'tools/release/**']
 permissions:
   contents: write
 jobs:
