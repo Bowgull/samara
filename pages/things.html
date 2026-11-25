@@ -9,6 +9,9 @@
 <title>Your things</title>
 <link rel="stylesheet" href="cockpit.css">
 <link rel="stylesheet" href="settings.css">
+<link rel="stylesheet" href="notefonts.css">
+<link rel="stylesheet" href="notepaper.css">
+<link rel="stylesheet" href="notecats.css">
 <link rel="stylesheet" href="things.css">
 <link rel="stylesheet" href="samaralook.css">
 </head>
@@ -17,6 +20,7 @@
   <nav class="side" aria-label="Your things">
     <h1>Your things</h1>
     <a href="#history" data-sec="history"><i><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges"><path d="M2 0h3v1H2zM1 1h1v1H1zM5 1h1v1H5zM0 2h1v3H0zM6 2h1v3H6zM3 2h1v2H3zM4 3h1v1H4zM1 5h1v1H1zM5 5h1v1H5zM2 6h3v1H2z"/></svg></i>History</a>
+    <a href="#notes" data-sec="notes"><i><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges"><path d="M0 0h5v1h1v1h1v5H0zM1 3v1h5V3zM1 5v1h4V5z"/></svg></i>Notes</a>
     <a href="#downloads" data-sec="downloads"><i><svg viewBox="0 0 7 8" width="14" height="16" shape-rendering="crispEdges"><path d="M2 0h3v2H2zM0 2h7v1H0zM1 3h5v1H1zM2 4h3v1H2zM3 5h1v1H3zM0 7h7v1H0z"/></svg></i>Downloads</a>
     <a href="#bookmarks" data-go="bookmarks"><i><svg viewBox="0 0 9 8" width="16" height="14" shape-rendering="crispEdges"><path d="M1 0h2v1H1zM6 0h2v1H6zM0 1h4v4H0zM5 1h4v4H5zM0 5h1v1H0zM8 5h1v1H8zM0 6h4v1H0zM5 6h4v1H5zM3 7h3v1H3z"/></svg></i>Bookmarks</a>
   </nav>
@@ -35,6 +39,22 @@
       </div>
     </section>
 
+    <section data-sec="notes" hidden>
+      <h2>Notes <span class="ncount" id="ncount"></span></h2>
+      <p class="lead">Every note you keep, on your PC and your Mac. Click one to put it on your screen.</p>
+      <div class="search"><svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges" aria-hidden="true"><path d="M1 0h3v1H1zM0 1h1v3H0zM4 1h1v3H4zM1 4h3v1H1zM4 4h1v1H4zM5 5h1v1H5zM6 6h1v1H6z"/></svg>
+        <input id="nq" type="search" spellcheck="false" autocomplete="off" placeholder="Search your notes" aria-label="Search your notes"></div>
+      <div class="nchips" id="nchips" role="tablist" aria-label="Categories"></div>
+      <div class="nboard" id="nboard"></div>
+      <p class="empty" id="nempty" hidden></p>
+      <div class="foot">
+        <button class="pick" type="button" id="nnew">+ New note</button>
+        <button class="pick" type="button" id="nmore" hidden>Show more</button>
+        <span class="grow"></span>
+        <span class="nlock" id="nlock"></span>
+      </div>
+    </section>
+
     <section data-sec="downloads" hidden>
       <h2>Downloads</h2>
       <p class="lead">Click a file to open it. Drag it into Claude, a folder or the desktop.</p>
@@ -48,5 +68,6 @@
   </main>
 </div>
 <script src="things.js"></script>
+<script src="thingsnotes.js" type="module"></script>
 </body>
 </html>

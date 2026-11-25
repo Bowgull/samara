@@ -2151,7 +2151,7 @@ export class SamaraBrowser {
   // ------------------------------------------------------------------ sheet 60: the notes rail ("Notes for this site")
   railNotes: RailNote[] = [];
   /** N0: Samara's own notes store, for the sync (noteswire.ts). */
-  notesHub: { forSync(): unknown[]; own(): string[]; take(list: unknown[], own: string[]): number; status(): Record<string, unknown>; act(a: string): void } | null = null;
+  notesHub: import('./noteswire.ts').NotesLink | null = null;
   railCats: string[] = [];
   /** A new note for this site, from the rail (main.ts sends it to the companion). */
   onNoteSave: ((n: RailNote) => void) | null = null;
@@ -2420,14 +2420,14 @@ export interface SamaraBrowser {
   place(): void;
   // things (browser-things.ts)
   isThings(sender: Electron.WebContents): boolean;
-  openThings(section?: "history" | "downloads"): void;
+  openThings(section?: "history" | "downloads" | "notes"): void;
   historyPage(q: string, offset: number): { items: { url: string; title: string; at: number; favicon: string; }[]; more: boolean; };
   historyAct(act: string, url?: string, at?: number): void;
   openFromThings(url: string): void;
   dlView(d: Dl): Record<string, unknown>;
   dlNotice(d: Dl): void;
   downloadsPage(): Record<string, unknown>[];
-  pushThings(what: "history" | "downloads"): void;
+  pushThings(what: "history" | "downloads" | "notes"): void;
   sendDownloads(pop?: boolean | "pop"): void;
   resendDownloads(): void;
   dlAct(act: string, id: number): void;

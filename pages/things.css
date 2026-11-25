@@ -67,3 +67,48 @@
 .foot .grow{max-width:none}
 .search:focus-within{box-shadow:0 0 0 2px #FFC43C,inset 0 3px 0 rgba(0,0,0,.6),0 2px 0 rgba(255,224,150,.12)}
 html:not(.solo) body .search input:focus-visible{outline:none}
+
+/* ---- Notes (N1, 2026-11-25): the board. Cards are the notes' own paper (notecats.css .npaper), in a masonry of columns. */
+h2 .ncount{font:700 14px var(--body);color:var(--wood-dim);margin-left:8px;vertical-align:middle}
+.nchips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 20px}
+.nchips .grow{flex:1 0 0}
+.nchip{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 13px;border:0;border-radius:16px;cursor:pointer;font:700 13.5px var(--body);color:var(--wood-text);
+  background:var(--slot);box-shadow:0 0 0 2px var(--outline),inset 0 2px 0 rgba(0,0,0,.5)}
+.nchip b{font:800 11.5px var(--body);color:var(--wood-dim)}
+.nchip.cat::before{content:"";width:12px;height:12px;border-radius:3px;background:var(--paper);box-shadow:0 0 0 2px var(--deep)}
+.nchip:hover{color:#FFE28C}
+.nchip.on{background:linear-gradient(180deg,#FFE596,#E0A83A);color:#2a1c10;box-shadow:0 0 0 2px var(--outline),0 2px 0 rgba(0,0,0,.5)}
+.nchip.on b{color:#5a3d1a}
+.nchip.trash.on{background:linear-gradient(180deg,#FFB9A8,#D8553F)}
+.nchip:focus-visible{outline:3px solid var(--ring);outline-offset:2px}
+.nboard{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:22px;align-items:start;margin:0 0 18px;padding-top:8px}
+.ncard{cursor:pointer;image-rendering:auto;transition:transform .14s}
+.ncard:hover{transform:translateY(-2px)}
+.ncard:focus-visible{outline:3px solid var(--ring);outline-offset:4px}
+.ncard .np-in{padding:28px 16px 12px;gap:0}
+.ncard .nc-t{font:400 22px/1.15 'Patrick Hand','Figtree',sans-serif;margin:0 0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ncard .nc-l{font:500 14.5px/1.45 'Figtree',sans-serif;max-height:8.7em;overflow:hidden}
+.ncard .nc-l .done{text-decoration:line-through;color:color-mix(in srgb,var(--ink) 50%,var(--paper))}
+.ncard .nc-l .dim{color:color-mix(in srgb,var(--ink) 45%,var(--paper))}
+.ncard .nc-m{margin-top:8px;font:800 11px 'Figtree',sans-serif;letter-spacing:1.1px;color:color-mix(in srgb,var(--ink) 55%,var(--paper))}
+.ncard.out .nc-m::before{content:"";display:inline-block;width:7px;height:7px;margin-right:6px;border-radius:50%;background:var(--deep);vertical-align:1px}
+.ncard .nc-act{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;opacity:0;transition:opacity .1s}
+.ncard:hover .nc-act,.ncard:focus-within .nc-act,.ncard.gone .nc-act{opacity:1}
+.nb{height:26px;padding:0 10px;border:2px solid color-mix(in srgb,var(--deep) 60%,var(--paper));border-radius:13px;cursor:pointer;font:700 12px 'Figtree',sans-serif;color:var(--ink);
+  background:color-mix(in srgb,var(--paper) 55%,#fff)}
+.nb:hover{background:#fff}
+.nb.danger{color:#9c3a26}
+.ncard.gone{cursor:default;opacity:.85}
+.ncard.gone:hover{transform:none}
+.nflash{position:absolute;right:12px;top:10px;font:800 11px 'Figtree',sans-serif;letter-spacing:1px;color:var(--ink);background:#fff;border-radius:8px;padding:3px 8px}
+.nver{margin-top:10px;padding-top:8px;border-top:2px dashed color-mix(in srgb,var(--deep) 50%,var(--paper))}
+.nv-h{font:800 11px 'Figtree',sans-serif;letter-spacing:1.1px;color:color-mix(in srgb,var(--ink) 55%,var(--paper));margin-bottom:6px}
+.nv-r{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;padding:4px 0;font:500 13px/1.3 'Figtree',sans-serif}
+.nv-r time{font:700 11px 'Figtree',sans-serif;color:color-mix(in srgb,var(--ink) 60%,var(--paper));white-space:nowrap}
+.nv-r span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nlock{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.nlock .nmsg{font:600 13px var(--body);color:var(--wood-text);max-width:420px}
+.npass{height:32px;width:220px;padding:0 12px;border:0;border-radius:9px;background:var(--slot);color:#FFF6E0;font:600 14px var(--body);
+  box-shadow:0 0 0 2px var(--outline),inset 0 3px 0 rgba(0,0,0,.6);outline:none}
+.npass:focus{box-shadow:0 0 0 2px #FFC43C,inset 0 3px 0 rgba(0,0,0,.6)}
+.npass.bad{box-shadow:0 0 0 2px #FF8A78,inset 0 3px 0 rgba(0,0,0,.6)}

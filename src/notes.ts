@@ -250,3 +250,33 @@ export function toMarkdown(n: Note): string {
   if (!body.length) body.push(...plainOf(n.html));
   return `---\n${fm.join('\n')}\n---\n\n# ${n.title}\n\n${body.join('\n')}\n`;
 }
+
+// ------------------------------------------------------------------ N1: finding a note
+
+const fold = (s: string) => s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const words = (s: string) => fold(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+
+/**
+ * His notes for what he typed (the board's search): every word he typed must start a word in the note (its title, its
+ * words, its category or the site it came from), so "oat mi" finds "buy oat milk". A title hit counts more than one in
+ * the words. Best first, then newest. With nothing typed: newest first. Small and local on purpose: a few thousand notes
+ * at most, searched in a millisecond, and nothing new to install.
+ */
+export function searchNotes<T extends Pick<Note, 'title' | 'html' | 'cat' | 'src' | 'updated'>>(notes: T[], q: string): T[] {
+  const want = words(String(q ?? '').slice(0, 200)).slice(0, 12);
+  if (!want.length) return [...notes].sort((a, b) => b.updated - a.updated);
+  const scored: { n: T; s: number }[] = [];
+  for (const n of notes) {
+    const title = words(n.title === 'Note' ? '' : n.title), body = words(plainOf(n.html).join(' ')), more = words(`${n.cat ?? ''} ${n.src?.site ?? ''}`);
+    let s = 0;
+    for (const w of want) {
+      const t = title.some((x) => x.startsWith(w)) ? 3 : 0;
+      const b = body.some((x) => x.startsWith(w)) ? 1 : 0;
+      const m = more.some((x) => x.startsWith(w)) ? 1 : 0;
+      if (!t && !b && !m) { s = -1; break; }
+      s += t + b + m + (title.includes(w) || body.includes(w) ? 0.5 : 0);
+    }
+    if (s > 0) scored.push({ n, s });
+  }
+  return scored.sort((a, b) => b.s - a.s || b.n.updated - a.n.updated).map((x) => x.n);
+}
