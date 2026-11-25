@@ -87,7 +87,7 @@ export interface UpdateCard {
   canBack?: boolean; overnight?: boolean;
   notes?: string[]; checks?: string[]; kind?: string;
   /** Sheet 108: castLabs wants him to sign in ('ask': the key says "Sign in to castLabs"), or Terminal is open. */
-  signin?: 'ask' | 'waiting';
+  signin?: 'ask' | 'waiting' | 'signing';
   /** Sheet 108: how far behind Chrome's security fixes the engine is, one line. */
   behind?: string;
   /** Sheet 114: a newer one getting ready behind this one; Restart now still puts this one in. */

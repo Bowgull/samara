@@ -4,9 +4,10 @@
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pcLocal } from './dirs.ts';
 
 /** The map's folder when it is there (with its page), else undefined: no folder, no Hyrule tab. */
 export function hyruleHomeDir(): string | undefined {
-  const dir = process.env.SAMARA_HYRULE_DIR || path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'Samara', 'Hyrule');
+  const dir = process.env.SAMARA_HYRULE_DIR || path.join(pcLocal(), 'Hyrule');
   return existsSync(path.join(dir, 'index.html')) ? dir : undefined;
 }

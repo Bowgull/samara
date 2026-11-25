@@ -17,13 +17,15 @@ import type { Step } from './catchup.ts';
 import { LATEST_API, RELEASES, RELEASE_KEY, download, isVersion, latest, newer, titleOf, withSection, type Manifest } from './ghrelease.ts';
 import type { CheckOutcome, CheckProgress } from './updateengine.ts';
 import { swallowed } from './swallow.ts';
+import { pcInstall } from './dirs.ts';
 
 export interface SamaraVersion { version: string; dir: string }
 export interface Pointer extends SamaraVersion { status: 'trial' | 'good'; previous: SamaraVersion | null; at: string }
 export interface SamaraReady { version: string; name: string; commit: string; notes: string[]; since: number; history?: Step[] }
 type Fetch = Parameters<typeof latest>[0];
 
-export const samaraRoot = (env: NodeJS.ProcessEnv = process.env): string | null => (env.LOCALAPPDATA ? path.join(env.LOCALAPPDATA, 'Samara') : null);
+// The launcher reads current.json here: the old %LOCALAPPDATA% folder on a PC that had the old Samara (dirs.ts).
+export const samaraRoot = (env: NodeJS.ProcessEnv = process.env): string | null => (env.LOCALAPPDATA ? pcInstall(env) : null);
 
 export interface SamaraUpdatesOpts {
   root: string; codeDir: string; fetch: Fetch; changed: () => void;
