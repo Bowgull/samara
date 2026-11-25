@@ -43,6 +43,7 @@ const PAGES: Record<string, string> = {
   '/hidden': `<!doctype html><title>Join</title><form action="/account2" method="get" style="margin:40px"><input id="u" autocomplete="username"><input id="p" type="password"><button id="go" style="width:120px;height:40px">Join</button></form>`,
   // F4: the sign-in lives in a frame from auth.example.
   '/framed': `<!doctype html><title>Framed</title><p>Sign in below</p><iframe id="f" src="https://auth.example:${PORT}/inner" style="width:500px;height:240px"></iframe>`,
+  '/framedhidden': `<!doctype html><title>Hidden</title><p>Nothing to see</p><iframe src="https://auth.example:${PORT}/inner" style="width:500px;height:240px;opacity:0"></iframe><iframe src="https://auth.example:${PORT}/inner" style="position:absolute;left:-3000px;width:500px;height:240px"></iframe>`,
   '/inner': `<!doctype html><title>Inner</title><form style="margin:10px"><input id="email" type="email" autocomplete="username"><input id="pw" type="password"></form>`,
   '/ship': `<!doctype html><title>Shipping</title><form style="margin:40px"><input id="name" autocomplete="name"><input id="mail" type="email"><input id="tel" type="tel">
     <input id="street" autocomplete="address-line1"><input id="city" autocomplete="address-level2"><input id="postal" autocomplete="postal-code"></form>`,
@@ -190,6 +191,13 @@ app.whenReady().then(async () => {
   const fv = (await frame()?.executeJavaScript(`[document.querySelector('#email').value, document.querySelector('#pw').value]`).catch(() => null)) as string[] | null | undefined;
   ok('the key fills the login inside a frame, for that frame\'s site', fv?.[0] === 'framed@example.com' && fv?.[1] === 'inframe', JSON.stringify(fv));
   ok('...and nothing of it lands in the page around it', await tab().executeJavaScript(`document.querySelectorAll('input').length`) === 0);
+
+  // Codex on PR #14: a frame kept out of sight (see-through, or off the page) is never filled by the key.
+  await go('/framedhidden'); await wait(800);
+  await b.vaultKey(); await wait(1200);
+  const hv = await Promise.all(tab().mainFrame.framesInSubtree.filter((f) => f.url.includes('auth.example'))
+    .map((f) => f.executeJavaScript(`document.querySelector('#pw').value`).catch(() => '?'))) as string[];
+  ok('a frame kept out of sight is never filled', hv.length === 2 && hv.every((v) => v === ''), JSON.stringify(hv));
 
   console.log(all ? 'ALL PASS' : 'FAILED'); app.exit(all ? 0 : 1);
 });

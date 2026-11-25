@@ -571,7 +571,7 @@ export const ThingsPart = {
     const at = f.frame ? frame?.url ?? '' : wc.getURL();
     let host = '';
     try { host = new URL(at).hostname; } catch { /* none */ }
-    if (host !== f.host || !at.startsWith('https:') || (f.frame && !frame)) { this.note('', { kind: 'bad', from: 'shield', small: true, icon: 'key', kick: 'Nothing filled', title: 'The page changed' }); return; }
+    if (host !== f.host || !at.startsWith('https:') || (f.frame && (!frame || !(await frameShown(frame))))) { this.note('', { kind: 'bad', from: 'shield', small: true, icon: 'key', kick: 'Nothing filled', title: 'The page changed' }); return; }
     const s = await this.vault.secret(id);
     if (!s) { this.note('', { kind: 'bad', from: 'shield', icon: 'key', kick: 'Bitwarden', title: 'Did not give it back', rows: [{ g: 'Try', v: 'Press the key again.' }], keys: [{ label: 'Try again', act: 'retry' }, { label: 'Close', act: 'ok', plain: true }] }, (act) => { if (act === 'retry') void this.vaultKey(); }); return; }
     // A frame is filled from its own page's world: Electron runs frame scripts only there. What it could see is only the
@@ -630,8 +630,32 @@ export async function loginFrame(wc: Electron.WebContents, often = false): Promi
   try { frames = wc.mainFrame.framesInSubtree.filter((f) => f !== wc.mainFrame && !f.isDestroyed() && f.url.startsWith('https:')).slice(0, 12); } catch { return null; }
   for (const f of frames) {
     const seen = await within(f.executeJavaScript(STILL_ASKING_JS).then((v) => v === true).catch(() => false), 600, false);
-    if (!seen || f.isDestroyed()) continue;
+    if (!seen || f.isDestroyed() || !(await frameShown(f))) continue;
     try { return { id: { pid: f.processId, rid: f.routingId }, host: new URL(f.url).hostname, url: f.url }; } catch { /* not an address */ }
   }
   return null;
+}
+
+/**
+ * Codex on PR #14: a frame counts only when he can see it, all the way up. In each parent, the frame's box must be
+ * shown (not hidden, not see-through), of a usable size and inside the page's view; a page cannot then have the key
+ * fill a login into a frame it keeps out of sight. A frame that left the address its box named does not count either.
+ */
+const SHOWN_FRAMES_JS = `[...document.querySelectorAll('iframe, frame')].filter((e) => {
+  const r = e.getBoundingClientRect();
+  const shown = typeof e.checkVisibility === 'function' ? e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) : true;
+  return shown && r.width >= 60 && r.height >= 30 && r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight && Number(getComputedStyle(e).opacity) > 0.05;
+}).map((e) => { try { return new URL(e.src, location.href).origin; } catch { return ''; } })`;
+export async function frameShown(f: Electron.WebFrameMain): Promise<boolean> {
+  let child: Electron.WebFrameMain | null = f;
+  for (let depth = 0; child && depth < 6; depth++) {
+    const parent: Electron.WebFrameMain | null = child.parent;
+    if (!parent) return true;
+    let origin = '';
+    try { origin = new URL(child.url).origin; } catch { return false; }
+    const shown = await within(parent.executeJavaScript(SHOWN_FRAMES_JS).then((v) => (Array.isArray(v) ? v.map(String) : [])).catch(() => [] as string[]), 600, [] as string[]);
+    if (!shown.includes(origin)) return false;
+    child = parent;
+  }
+  return false;
 }
