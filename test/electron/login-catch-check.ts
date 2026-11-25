@@ -45,9 +45,14 @@ app.whenReady().then(async () => {
     for (let i = 0; i < 40 && !(await wc.executeJavaScript(`!!document.getElementById('go')`).catch(() => false)); i++) await wait(200);
     await wc.executeJavaScript(`document.getElementById('u').value = 'me@example.com'; document.getElementById('p').value = ${JSON.stringify(pw)}; 1`);
     b.win.focus(); wc.focus(); await wait(200);
-    const c = (x: number, y: number) => { wc.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 }); wc.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 }); };
+    // A move first: Windows' Chromium places a click by the last mouse position it saw.
+    const c = (x: number, y: number) => { wc.sendInputEvent({ type: 'mouseMove', x, y }); wc.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 }); wc.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 }); };
     c(500, 400); await wait(400);           // the first click into a fresh window only focuses it
-    c(60, 120); await wait(4000);
+    const go = await wc.executeJavaScript(`(() => { const r = document.getElementById('go').getBoundingClientRect(); return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) }; })()`);
+    c(go.x, go.y);
+    // Offered 2.5 s after the click once the page has moved on; a slow runner gets up to 10 s.
+    for (let i = 0; i < 40 && !(pw === 'right' && offered > 0); i++) await wait(250);
+    await wait(pw === 'right' ? 200 : 3500);
   };
   await tryLogin('wrong');
   check('a wrong password is never offered', offered === 0 && !b.afSave, `offered ${offered}`);

@@ -140,9 +140,13 @@ app.whenReady().then(async () => {
   ok('a password box on a site with a login: the bar asks for the PIN', b.afPin !== null);
   await key('1'); await key('2'); await key('3');
   ok('the page never sees the PIN', (await val('#pw')) === '' && (await val('#email')) === '', `"${await val('#pw')}"`);
-  await key('4'); await until(() => b.vault.current() !== null); await until(async () => (await val('#pw')) !== '');
+  await key('4'); await until(() => b.vault.current() !== null);
   ok('the fourth digit opens Bitwarden', b.vault.current() !== null);
-  ok('...and the light brings the login', (await val('#email')) === 'alex@example.com' && (await val('#pw')) === 'opensesame', `${await val('#email')} / ${(await val('#pw')).length} chars`);
+  // Security check finding 3: the PIN alone never fills; the light offers the login and his click on it fills.
+  ok('...the PIN alone fills nothing', (await val('#pw')) === '');
+  await until(() => b.af?.offer === 'login' && lightOn(), 5000);
+  await b.afPick(); await until(async () => (await val('#pw')) !== '', 3000);
+  ok('...and his click on the light brings the login', (await val('#email')) === 'alex@example.com' && (await val('#pw')) === 'opensesame', `${await val('#email')} / ${(await val('#pw')).length} chars`);
 
   // 4 · five wrong PINs: the seal is gone, the master password again
   b.vault.lock();
@@ -151,7 +155,7 @@ app.whenReady().then(async () => {
   for (let i = 0; i < 5; i++) { for (const d of '9999') await key(d); await until(() => !b.afPin?.checking, 4000); await wait(200); }
   ok('five wrong PINs wipe the seal', !b.pinSeal.has() && !existsSync(path.join(stateDir, 'autofill-pin.json')));
   ok('...and lock the tool itself', JSON.parse(readFileSync(path.join(tmp, 'state.json'), 'utf8')).unlocked === false);
-  } else for (const n of ['the PIN is sealed', 'the PIN opens Bitwarden and the light brings the login', 'five wrong PINs wipe the seal']) skip(n);
+  } else for (const n of ['the PIN is sealed', 'the PIN opens Bitwarden and his click on the light brings the login', 'five wrong PINs wipe the seal']) skip(n);
 
   // 5 · a new login: offered after the page moves on; Save keeps exactly what he saw
   await b.vault.unlock('correct horse');
