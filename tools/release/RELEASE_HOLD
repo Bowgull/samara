@@ -1,0 +1,9 @@
+Releases of Samara are on hold (2026-11-25).
+
+The installed Samaras (1.63.0, built before this repo) keep his data under the companion's old names: their own
+folders on the Mac and the PC, the Mac's Keychain item that unlocks his logins, and the PC install spot the launcher
+reads. This repo's code looked under "Samara" instead, so its first update would have started him empty: logins,
+cookies, Bitwarden, notes, castLabs.
+
+The release workflow (samara-release.yml) and ship.mjs refuse to run while this file exists. It is deleted by the
+change that makes the new code use his existing folders (src/dirs.ts).
