@@ -49,3 +49,4 @@ effect-check.ts
 sy-check.ts
 notes-check.ts
 notesboard-check.ts
+notepins-check.ts

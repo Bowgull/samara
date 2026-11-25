@@ -37,6 +37,12 @@ export function wireBrowser(get: () => SamaraBrowser | null): void {
   // Phase 3: a tab's top page asked for a passkey (tabpreload.cjs). It carries nothing; the browser reads the address.
   ipcMain.on('tab:passkey', (e) => { if (top(e)) b(e)?.passkeyWanted(e.sender); });
   // Sheet 87: the link he clicked in a tab's top page (the click trick), an address only.
+  // N3: a ribbon beside his note's words, clicked. Only a note this tab was given opens.
+  ipcMain.on('tab:noteopen', (e, id) => {
+    if (!top(e) || typeof id !== 'string') return;
+    const br = b(e); const t = br?.tabs.find((x) => x.view?.webContents === e.sender);
+    if (t && br.pinIds.get(t.id)?.has(id)) br.onNoteOpen?.(id);
+  });
   ipcMain.on('tab:link', (e, href) => { if (top(e) && typeof href === 'string') b(e)?.linkClicked(e.sender, href.slice(0, 4000)); });
   // Autofill (sheet 77): the box he is in, and a login he sent, from a tab's top page only; the light's two doors; the
   // save card's Save, from the frame only.

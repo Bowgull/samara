@@ -14,12 +14,18 @@ import { NoteWindows, freshOut } from './notewin.ts';
 import { newId, plainOf, searchNotes, titleFrom, toMarkdown, type Dev, type Note, type NoteView } from './notes.ts';
 import { lockNotes, unlockNotes, MIN_PASS } from './notelock.ts';
 import { writeFileAtomic } from './atomic.ts';
+import { PIN_CSS, deepOf, pageKey, paintCode, quoteAround, type PagePin } from './anchorpaint.ts';
+import { run } from './page.ts';
+import { remindAt, type RemindPick } from './notes.ts';
+import { Notification } from 'electron';
 import { writeHyruleNotes, type NotePlaceMsg } from './hyrulenotes.ts';
 import { sched } from './sched.ts';
 import type { SamaraBrowser } from './browser.ts';
 
 /** One note on the board (Your things › Notes): what the page draws, nothing more. */
-export interface BoardCard { id: string; title: string; html: string; cat?: string; site?: string; url?: string; updated: number; created: number; out: boolean; copyOf?: string; deleted?: number; versions: number }
+export interface BoardCard { id: string; title: string; html: string; cat?: string; site?: string; url?: string; updated: number; created: number; out: boolean; copyOf?: string; deleted?: number; versions: number;
+  /** N3: pinned to words on a page (Jump to it), and a reminder not yet gone off. */
+  quote?: string; remind?: number }
 export interface Board { view: 'notes' | 'trash'; cards: BoardCard[]; cats: { builtin: string[]; own: string[] }; counts: { all: number; trash: number; cats: Record<string, number> }; total: number }
 
 /** What the browser asks of the notes (browser.ts notesHub): the sync, Settings › Notes, the board. */
@@ -77,7 +83,8 @@ export function startNotes(o: NotesOpts): NotesHub {
   let companion: ImportReport | null = null;
   if (store.locked) o.log('notes: this computer\'s key will not open the notes kept here; they are left as they are, and new notes are still kept');
   const card = (n: Note & { out?: unknown }): BoardCard => ({ id: n.id, title: n.title, html: n.html, ...(n.cat ? { cat: n.cat } : {}), ...(n.src ? { site: n.src.site, url: n.src.url } : {}),
-    updated: n.updated, created: n.created, out: !!n.out, ...(n.conflictOf ? { copyOf: n.conflictOf } : {}), ...(n.deleted ? { deleted: n.deleted } : {}), versions: store.history(n.id).length });
+    updated: n.updated, created: n.created, out: !!n.out, ...(n.conflictOf ? { copyOf: n.conflictOf } : {}), ...(n.deleted ? { deleted: n.deleted } : {}), versions: store.history(n.id).length,
+    ...(n.anchor ? { quote: n.anchor.exact.slice(0, 200), url: n.anchor.url } : {}), ...(n.remind && !n.remind.done ? { remind: n.remind.at } : {}) });
   b.notesHub = {
     forSync: () => store.forSync(), own: () => store.cats().own, take: (list, own) => store.take(list, own),
     board: (q, cat, view, limit = BOARD_PAGE) => {
@@ -101,6 +108,12 @@ export function startNotes(o: NotesOpts): NotesHub {
       if (act === 'restorever' && typeof extra === 'string') return !!store.restoreVersion(id, extra);
       if (act === 'copymd') { const n = store.get(id); if (n) clipboard.writeText(toMarkdown(n)); return !!n; }
       if (act === 'cat' && typeof extra === 'string') return !!store.save({ id, cat: extra });
+      if (act === 'jump') return jump(id);
+      if (act === 'remind' && typeof extra === 'string') {
+        if (extra === 'clear') return !!store.save({ id, remind: null });
+        const at = remindAt(extra as RemindPick, Date.now());
+        return at ? !!store.save({ id, remind: { at, dev: o.dev } }) : false;
+      }
       return null;
     },
     lockedExport: (pass, win) => {
@@ -153,6 +166,7 @@ export function startNotes(o: NotesOpts): NotesHub {
       try { b.notesNews(list, own); } catch (e) { o.log('notes: rail: ' + (e as Error).message); }
       try { writeHyruleNotes(list, own, plainOf); } catch (e) { o.log('notes: map: ' + (e as Error).message); }
       try { b.pushThings('notes'); } catch { /* no Your things open */ }
+      repaintPins();
     }, 30);
   }
 
@@ -228,6 +242,65 @@ export function startNotes(o: NotesOpts): NotesHub {
     else n = store.pin({ ...(m.id ? { id: m.id } : {}), title: m.title, text: m.text, x: m.x, z: m.z });
     if (n && m.open) open(n.id);
   };
+
+  // ---- N3: notes pinned to words on a page
+  b.onNoteThis = (q) => {
+    const quote = quoteAround(q.before, q.exact, q.after);
+    let site = '';
+    try { site = new URL(q.url).hostname.replace(/^www\./, ''); } catch { return; }
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const n = store.save({ title: titleFrom(`<div>${esc(quote.exact)}</div>`, 5), html: `<div>“${esc(quote.exact.slice(0, 600))}”</div><div><br></div>`,
+      src: { url: q.url, site }, anchor: { url: q.url, ...quote } }, { trusted: true });
+    if (n) open(n.id);
+  };
+  const pinsFor = (url: string): PagePin[] => {
+    const k = pageKey(url);
+    return store.list().filter((n) => n.anchor && pageKey(n.anchor.url) === k)
+      .map((n) => ({ id: n.id, title: n.title === 'Note' ? '' : n.title, exact: n.anchor!.exact, prefix: n.anchor!.prefix, suffix: n.anchor!.suffix, deep: deepOf(n.cat) }));
+  };
+  const cssDone = new WeakSet<Electron.WebContents>();
+  async function paintPins(tab: { id: number; url: string; view: { webContents: Electron.WebContents } | null }, jumpTo: string | null = null): Promise<void> {
+    const wc = tab.view?.webContents;
+    if (!wc || wc.isDestroyed()) return;
+    const pins = pinsFor(wc.getURL());
+    const had = b.pinIds.get(tab.id);
+    if (!pins.length && !had?.size) return;
+    if (pins.length && !cssDone.has(wc)) { cssDone.add(wc); wc.once('did-navigate', () => cssDone.delete(wc)); await wc.insertCSS(PIN_CSS).catch(() => {}); }
+    const found = await run<string[]>(wc, paintCode(pins, jumpTo), { world: 999, ms: 4000, fallback: [] });
+    b.pinIds.set(tab.id, new Set(Array.isArray(found) ? found : []));
+  }
+  b.onTabLoaded = (tab) => { const j = jumps.get(tab.id) ?? null; jumps.delete(tab.id); void paintPins(tab as never, j); };
+  function repaintPins(): void { for (const t of b.tabs) if (!t.internal && t.view && (b.pinIds.get(t.id)?.size || pinsFor(t.url).length)) void paintPins(t as never); }
+  /** "Jump to it": the page the words are on, in front, scrolled to them (opened if it is not). */
+  const jumps = new Map<number, string>();
+  function jump(id: string): boolean {
+    const n = store.get(id);
+    const url = n?.anchor?.url ?? n?.src?.url;
+    if (!n || !url) return false;
+    const k = pageKey(url);
+    const there = b.tabs.find((t) => !t.internal && t.view && pageKey(t.url) === k);
+    if (there) { b.activate(there.id); void paintPins(there as never, n.anchor ? id : null); return true; }
+    const tid = b.newTab(url, null, true);
+    if (tid != null && n.anchor) jumps.set(tid, id);
+    return tid != null;
+  }
+
+  // ---- N3: reminders. Rung on the machine that set them, once; Open, Snooze an hour, or Done.
+  const ring = () => {
+    const now = Date.now();
+    for (const n of store.list()) {
+      const r = n.remind;
+      if (!r || r.done || r.at > now || (r.dev && r.dev !== o.dev)) continue;
+      store.save({ id: n.id, remind: { ...r, done: true } });
+      const title = n.title === 'Note' ? titleFrom(n.html, 6) : n.title;
+      if (b.hasWindow()) {
+        b.note('', { kind: 'done', from: 'menu', kick: 'Reminder', title: title.slice(0, 60), keys: [{ label: 'Open', act: 'open' }, { label: 'In an hour', act: 'snooze' }, { label: 'Done', act: 'ok', plain: true }] },
+          (act) => { if (act === 'open') open(n.id); else if (act === 'snooze') store.save({ id: n.id, remind: { at: Date.now() + 3_600_000, dev: o.dev } }); });
+      }
+      try { if (Notification.isSupported()) { const x = new Notification({ title: 'Reminder', body: title.slice(0, 120), silent: false }); x.on('click', () => open(n.id)); x.show(); } } catch { /* no system notices */ }
+    }
+  };
+  sched.every('notes.remind', 30_000, ring, { first: 10_000 });
 
   function open(id: string): boolean {
     const n = store.get(id);

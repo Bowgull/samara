@@ -679,6 +679,8 @@ export const PanesPart = {
       try { if (WATCH_HOSTS.test(new URL(wc.getURL()).hostname)) void wc.insertCSS(WATCH_CSS).catch(() => {}); } catch { /* not a page */ }
       if (tab.phase !== 'idle') { tab.prog = Math.max(tab.prog ?? 0, 0.55); this.sendTabs(); }
     });
+    // N3: his notes pinned to words on this page, marked once it has loaded (noteswire.ts).
+    on('did-stop-loading', () => { if (isWeb(wc.getURL())) this.onTabLoaded?.(tab); });
     on('did-navigate', (_e, u, status) => {
       if (/^https:\/\/(www\.)?netflix\.com(:\d+)?\/watch\//i.test(u)) this.watchPlays(tab, u);
       if (STREMIO_WEB.test(u)) { void startStremio(); this.stremioMoved(tab, u); }
@@ -1065,7 +1067,7 @@ export const PanesPart = {
     if (!w || w.isDestroyed() || !wc || tab.lent) return;
     // Sheet 62 (2026-10-22): the items are built in pagemenu.ts, with "Send to companion" first in every menu.
     const items = pageMenuItems(p, {
-      ask: Boolean(this.onAskClaude) && !tab.internal && isWeb(tab.url), send: Boolean(this.onSendToCompanion) && !tab.internal, other: this.onOpenOther ? OTHER_OPEN : null, popout: Boolean(this.onPlayInPopout),
+      ask: Boolean(this.onAskClaude) && !tab.internal && isWeb(tab.url), note: Boolean(this.onNoteThis) && !tab.internal && isWeb(tab.url), send: Boolean(this.onSendToCompanion) && !tab.internal, other: this.onOpenOther ? OTHER_OPEN : null, popout: Boolean(this.onPlayInPopout),
       popVideo: Boolean(this.popTab) && !tab.internal, canBack: wc.navigationHistory.canGoBack(), pageIsWeb: isWeb(tab.url),
     });
     this.menuFor = { tab: tab.id, p };
@@ -1159,6 +1161,7 @@ export const PanesPart = {
       case 'linkpop': if (isWeb(p.linkURL)) this.onPlayInPopout?.(p.linkURL); break;
       case 'vidpop': this.popTab?.(t.id); break;
       case 'tocompanion': void this.sendToCompanion(t, p); break;
+      case 'notethis': void this.noteThis(t); break;
       case 'ask0': case 'ask1': case 'ask2': case 'ask3': case 'asknew': void this.askClaude(t, p, id === 'asknew' ? null : this.menuChats[Number(id.slice(3))] ?? null, id === 'asknew'); break;
       case 'linkother': if (isWeb(p.linkURL)) this.onOpenOther?.(p.linkURL); break;
       case 'openother': if (isWeb(t.url)) { this.onOpenOther?.(t.url); this.pauseMedia(t.id); } break;

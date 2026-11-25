@@ -30,6 +30,7 @@ import path from 'node:path';
 import { SAFE_WEB_PREFERENCES, denyPermissions, lockDown } from './safety.ts';
 import { servePages, type PageServer } from './pageserver.ts';
 import { askText, hyruleNotesFile, notePlaceMsg, writeGuide, type NotePlaceMsg } from './hyrulenotes.ts';
+import { SELECTION_CODE } from './anchorpaint.ts';
 import { RouteQueue, routeAsk, routeReport } from './hyruleroute.ts';
 import { run, within } from './page.ts';
 import { SIZES, capture, captureWindow, type CaptureOpts, type Shot, type WindowShot } from './capture.ts';
@@ -2152,6 +2153,19 @@ export class SamaraBrowser {
   railNotes: RailNote[] = [];
   /** N0: Samara's own notes store, for the sync (noteswire.ts). */
   notesHub: import('./noteswire.ts').NotesLink | null = null;
+  /** N3: "Note this" on a selection (noteswire.ts keeps it). */
+  onNoteThis: ((q: { url: string; title: string; before: string; exact: string; after: string }) => void) | null = null;
+  /** N3: a web page finished loading (its pins are marked). */
+  onTabLoaded: ((tab: Tab) => void) | null = null;
+  /** N3: the notes marked on each tab, so a ribbon's click is only ever for a note that tab was given. */
+  pinIds = new Map<number, Set<string>>();
+  /** N3: the selection in a tab, as a quote, then to onNoteThis. */
+  async noteThis(t: Tab): Promise<void> {
+    const wc = t.view?.webContents;
+    if (!wc || wc.isDestroyed() || !isWeb(t.url) || !this.onNoteThis) return;
+    const q = await run<{ before: string; exact: string; after: string; title: string } | null>(wc, SELECTION_CODE, { world: 999, ms: 3000, fallback: null });
+    if (q && typeof q.exact === 'string' && q.exact.trim()) this.onNoteThis({ url: t.url, title: String(q.title ?? t.title), before: String(q.before ?? ''), exact: q.exact, after: String(q.after ?? '') });
+  }
   railCats: string[] = [];
   /** A new note for this site, from the rail (main.ts sends it to the companion). */
   onNoteSave: ((n: RailNote) => void) | null = null;
