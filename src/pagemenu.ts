@@ -21,7 +21,7 @@ export interface MenuParams {
   editFlags: { canCut: boolean; canCopy: boolean; canPaste: boolean; canSelectAll: boolean };
 }
 export type MenuItem = { id: string; label: string; key?: string; off?: boolean; sub?: boolean } | { sep: true };
-export interface MenuHas { /** Sheet 109: Ask Claude on a selection */ ask?: boolean; send: boolean; other: string | null; popout: boolean; popVideo: boolean; canBack: boolean; pageIsWeb: boolean; /** the Mac's keys (⌘, ⌥); default: this machine's */ mac?: boolean }
+export interface MenuHas { /** Sheet 109: Ask Claude on a selection */ ask?: boolean; /** N3: keep the selection as a note pinned to it */ note?: boolean; send: boolean; other: string | null; popout: boolean; popVideo: boolean; canBack: boolean; pageIsWeb: boolean; /** the Mac's keys (⌘, ⌥); default: this machine's */ mac?: boolean }
 
 /** What "Send to Companion" would send for this right-click: the words, the picture, the link, or the page (empty space). */
 export function sendKindFor(p: MenuParams, pageIsWeb: boolean): SendKind | null {
@@ -48,6 +48,8 @@ export function pageMenuItems(p: MenuParams, has: MenuHas): MenuItem[] {
   // to Companion right under it, the two together at the top.
   const picked = sendKindFor(p, has.pageIsWeb) === 'words';
   if (has.ask && picked) items.push({ id: 'askclaude', label: 'Ask Claude', sub: true });
+  // N3 (2026-11-25): the words become a note pinned to them; they are marked when he comes back to the page.
+  if (has.note && picked) items.push({ id: 'notethis', label: 'Note this' });
   if (has.send && sendKindFor(p, has.pageIsWeb)) items.push({ id: 'tocompanion', label: 'Send to companion' });
   sep();
   // (2026-10-20): save the link, save the picture, play in the pop-out.

@@ -22,7 +22,8 @@ export interface NotePlace { game: 'botw'; x: number; z: number }
 export interface NoteSrc { url: string; site: string }
 /** Words on a page a note is pinned to: the W3C text-quote selector (exact words, a little before and after). */
 export interface NoteAnchor { url: string; exact: string; prefix: string; suffix: string }
-export interface NoteRemind { at: number; done?: true }
+/** A reminder: when, whether it has gone off, and the machine that rings it (so it rings once, not on both). */
+export interface NoteRemind { at: number; done?: true; dev?: Dev }
 
 /** A note as it is kept and as it travels between his machines. Where it sits on his screen (`out`) never travels. */
 export interface Note {
@@ -91,7 +92,7 @@ export function cleanRemind(raw: unknown): NoteRemind | undefined {
   const r = raw as Record<string, unknown>;
   const at = Number(r.at);
   if (!Number.isFinite(at) || at < 946_684_800_000 || at > 4_102_444_800_000) return undefined;   // 2000..2100
-  return { at: Math.round(at), ...(r.done === true ? { done: true as const } : {}) };
+  return { at: Math.round(at), ...(r.done === true ? { done: true as const } : {}), ...(r.dev === 'pc' || r.dev === 'mac' ? { dev: r.dev } : {}) };
 }
 
 export function cleanOut(raw: unknown): NoteOut | undefined {
@@ -279,4 +280,17 @@ export function searchNotes<T extends Pick<Note, 'title' | 'html' | 'cat' | 'src
     if (s > 0) scored.push({ n, s });
   }
   return scored.sort((a, b) => b.s - a.s || b.n.updated - a.n.updated).map((x) => x.n);
+}
+
+// ------------------------------------------------------------------ N3: reminders
+
+export type RemindPick = 'hour' | 'tonight' | 'tomorrow' | 'week';
+/** When a reminder picked from the board rings (his local time): in an hour, tonight at 8, tomorrow at 9, a week from tomorrow at 9. */
+export function remindAt(pick: RemindPick, now: number): number | null {
+  const d = new Date(now);
+  if (pick === 'hour') return now + 3_600_000;
+  if (pick === 'tonight') { d.setHours(20, 0, 0, 0); return d.getTime() > now + 60_000 ? d.getTime() : null; }
+  if (pick === 'tomorrow') { d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); return d.getTime(); }
+  if (pick === 'week') { d.setDate(d.getDate() + 8); d.setHours(9, 0, 0, 0); return d.getTime(); }
+  return null;
 }

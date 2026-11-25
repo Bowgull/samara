@@ -66,16 +66,21 @@ function card(n) {
   paintCat(c, n.cat);
   const inner = mk('div', 'np-in');
   if (n.title && n.title !== 'Note') inner.append(mk('div', 'nc-t', n.title));
+  // N3: the words on a page it is pinned to
+  if (n.quote) inner.append(mk('div', 'nc-q', n.quote));
   const lines = previewLines(n.html);
   const l = mk('div', 'nc-l');
   for (const x of lines.slice(0, 6)) { const r = mk('div', x.done ? 'done' : '', x.t); l.append(r); }
   if (!lines.length) l.append(mk('div', 'dim', '(empty)'));
   inner.append(l);
-  const meta = [view === 'trash' ? `DELETED ${day(n.deleted)}` : day(n.updated), n.site ? n.site.toUpperCase() : '', n.out ? 'ON SCREEN' : '', n.copyOf ? 'A COPY' : ''].filter(Boolean).join(' · ');
+  const meta = [view === 'trash' ? `DELETED ${day(n.deleted)}` : day(n.updated), n.site ? n.site.toUpperCase() : '', n.out ? 'ON SCREEN' : '', n.copyOf ? 'A COPY' : '',
+    n.remind ? `REMIND ${day(n.remind)} ${new Date(n.remind).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }).toUpperCase()}` : ''].filter(Boolean).join(' · ');
   inner.append(mk('div', 'nc-m', meta));
   const act = mk('div', 'nc-act');
   if (view === 'trash') act.append(btn('Restore', 'Bring it back', () => T.note('restore', n.id)));
   else {
+    if (n.url) act.append(btn(n.quote ? 'Jump to it' : 'Open page', n.quote ? 'Open the page, at these words' : 'Open the page it came from', () => T.note('jump', n.id)));
+    act.append(btn(n.remind ? 'Reminder…' : 'Remind me', 'Ring a reminder on this computer', () => remindPick(n, c)));
     if (n.versions) act.append(btn('Versions', `${n.versions} earlier version${n.versions === 1 ? '' : 's'}`, () => versions(n, c)));
     if (n.out) act.append(btn('Off screen', 'Take it off your screen (it stays here)', () => T.note('back', n.id)));
     act.append(btn('Copy', 'Copy it as Markdown', async () => { if (await T.note('copymd', n.id)) flash(c, 'Copied'); }));
@@ -92,6 +97,17 @@ function card(n) {
 }
 function btn(label, title, fn, cls = '') { const b = mk('button', 'nb' + (cls ? ' ' + cls : ''), label); b.type = 'button'; b.title = title; b.addEventListener('click', (e) => { e.stopPropagation(); fn(); }); return b; }
 function flash(c, text) { const f = mk('span', 'nflash', text); c.append(f); setTimeout(() => f.remove(), 1200); }
+
+/** Remind me: in an hour, tonight, tomorrow morning, next week (or clear it). Rings on this computer, once. */
+function remindPick(n, c) {
+  const was = c.querySelector('.nrem');
+  if (was) { was.remove(); return; }
+  const box = mk('div', 'nrem');
+  const now = new Date();
+  const picks = [['hour', 'In an hour'], ...(now.getHours() < 19 ? [['tonight', 'Tonight 8 PM']] : []), ['tomorrow', 'Tomorrow 9 AM'], ['week', 'Next week'], ...(n.remind ? [['clear', 'No reminder']] : [])];
+  for (const [k, label] of picks) box.append(btn(label, '', async () => { await T.note('remind', n.id, k); box.remove(); }));
+  c.querySelector('.np-in').append(box);
+}
 
 /** A note's earlier versions, newest first, each with Restore (the one it replaces becomes a version itself). */
 async function versions(n, c) {

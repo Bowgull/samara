@@ -112,3 +112,7 @@ h2 .ncount{font:700 14px var(--body);color:var(--wood-dim);margin-left:8px;verti
   box-shadow:0 0 0 2px var(--outline),inset 0 3px 0 rgba(0,0,0,.6);outline:none}
 .npass:focus{box-shadow:0 0 0 2px #FFC43C,inset 0 3px 0 rgba(0,0,0,.6)}
 .npass.bad{box-shadow:0 0 0 2px #FF8A78,inset 0 3px 0 rgba(0,0,0,.6)}
+/* N3: the words a note is pinned to, and the reminder picks */
+.ncard .nc-q{font:italic 500 13.5px/1.4 'Figtree',sans-serif;margin:0 0 6px;padding-left:9px;border-left:3px solid var(--deep);color:color-mix(in srgb,var(--ink) 80%,var(--paper));
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.nrem{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}

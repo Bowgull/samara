@@ -8,6 +8,10 @@
 // well-built site fall back to a password and a code instead. Plain CommonJS, like preload.cjs.
 const { contextBridge, ipcRenderer } = require('electron');
 
+// N3 (2026-11-25): his notes pinned to words on this page are marked by code Samara runs in THIS world (anchorpaint.ts).
+// A ribbon's click calls this; the page's own scripts live in another world and can neither see nor call it.
+globalThis.__samaraNoteOpen = (id) => { if (typeof id === 'string' && id.length < 40) ipcRenderer.send('tab:noteopen', id); };
+
 // Dark mode's own world (2026-10-14): given its own rules, the way a browser extension's is, so a site whose rules
 // forbid added styles cannot block Dark Reader's. Nothing the PAGE runs gains anything: the page's rules still bind it.
 try {
