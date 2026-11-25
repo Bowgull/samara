@@ -366,3 +366,23 @@ try {
     },
   });
 } catch { /* an older runtime: the page keeps its own credentials API */ }
+
+// Notifications (2026-11-25, his ask: Gmail and Discord should notify): a click on one of this page's desktop
+// notifications brings Samara and this tab to the front, as in Chrome. Only a real click on the notification counts
+// (the system's, isTrusted): a page that fires its own "click" gets nothing, and Samara also checks that the site is
+// allowed to notify.
+const notifyClick = () => { try { ipcRenderer.send('tab:notifyclick'); } catch { /* gone */ } };
+try {
+  contextBridge.executeInMainWorld({
+    args: [notifyClick],
+    func: (notifyClick) => {
+      const N = window.Notification;
+      if (typeof N !== 'function') return;
+      class SamaraNotification extends N {
+        constructor(...a) { super(...a); this.addEventListener('click', (e) => { if (e.isTrusted) notifyClick(); }); }
+      }
+      Object.defineProperty(SamaraNotification, 'name', { value: 'Notification' });
+      try { Object.defineProperty(window, 'Notification', { value: SamaraNotification, configurable: true, writable: true, enumerable: false }); } catch { /* kept as it was */ }
+    },
+  });
+} catch { /* an older runtime: notifications still show, a click just does not bring the tab */ }

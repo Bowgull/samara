@@ -51,7 +51,7 @@ import { SavePaths, programAsk, quarantineMark, safeName, sameSite, siteOfUrl, z
 import { readJson } from './store.ts';
 import { carriesData, goesInward, grantKey, grantTop, keyWeigh, needsLookup, ownPopup, personal, privateHost, reachesIn, siteOf, JOB_SITES, jobTask } from './driverrules.ts';
 import { resolvesInward } from './netlookup.ts';
-import { SiteRules, siteKey, type Tri } from './siterules.ts';
+import { SiteRules, notifyOrigin, siteKey, type Tri } from './siterules.ts';
 import { DeviceOk, deviceName, type KnownDevice } from './devices.ts';
 import { svgToPng } from './svgicon.ts';
 import { lookalike } from './lookalike.ts';
@@ -1103,6 +1103,10 @@ export class SamaraBrowser {
       this.inWc(wc);
       // Sharing the screen: the picker below is the real ask, every time, so Chromium's own gate just lets it reach it.
       if (permission === 'display-capture') { done(!this.driver?.owns(wc)); return; }
+      // Notifications (2026-11-25, his ask): asked once per site and his answer kept, as in Chrome (Allow / Block, changed
+      // later from the shield or Settings > Your sites). Only a secure page asking for itself (never a frame from another
+      // site inside it, as in Chrome), never Claude's tabs.
+      if (permission === 'notifications') { this.notifyAsk(wc, (details as { requestingUrl?: string }).requestingUrl || wc.getURL(), done); return; }
       if (permission === 'speaker-selection') { const top = hostOf(wc.getURL()); done(!this.driver?.owns(wc) && Boolean(this.mediaOk.get(grantKey(hostOf((details as { requestingUrl?: string }).requestingUrl || wc.getURL()), top))?.has('audio'))); return; }
       if (permission !== 'media' || !this.win || this.win.isDestroyed() || this.driver?.owns(wc)) { done(false); return; }
       const asked = (details as { mediaTypes?: string[] }).mediaTypes ?? [];
@@ -1138,6 +1142,7 @@ export class SamaraBrowser {
       if (permission === 'fullscreen') return true;
       // Sheet 69: a site may ask for a keyboard or mouse (the ask below is the real gate); never Claude's tabs, never http.
       if (permission === 'hid') return Boolean(wc && !this.driver?.owns(wc) && /^https:\/\//.test(origin));
+      if (permission === 'notifications') return Boolean(wc && !this.driver?.owns(wc) && notifyOrigin(origin, wc.getURL()) && this.rules.notify(hostOf(origin)) === 'allow');
       if ((permission !== 'media' && permission !== 'speaker-selection') || (wc && this.driver?.owns(wc))) return false;
       const t0 = (details as { mediaType?: string }).mediaType;
       if (permission === 'media' && (t0 === 'audio' || t0 === 'video')) { const r = this.rules.media(hostOf(origin), t0 === 'video' ? 'camera' : 'mic'); if (r === 'block') return false; if (r === 'allow') return true; }
@@ -1152,6 +1157,40 @@ export class SamaraBrowser {
     });
   }
 
+  /** Sites with a notifications ask on screen now: one ask per site, however often it asks. */
+  private notifyAsking = new Map<string, ((allow: boolean) => void)[]>();
+  /** A site asked to show desktop notifications: his kept answer, else one ask (kept once he answers). */
+  notifyAsk(wc: Electron.WebContents, requestingUrl: string, done: (allow: boolean) => void): void {
+    if (this.driver?.owns(wc) || !notifyOrigin(requestingUrl, wc.getURL())) { done(false); return; }
+    const host = hostOf(requestingUrl);
+    const said = this.rules.notify(host);
+    if (said !== 'ask') { done(said === 'allow'); return; }
+    const waiting = this.notifyAsking.get(host);
+    if (waiting) { waiting.push(done); return; }
+    this.notifyAsking.set(host, [done]);
+    this.inWc(wc);
+    this.ask({ host, what: 'Show notifications?', icon: 'bell', yes: 'Allow', no: 'Block',
+      text: `${host} wants to show desktop notifications (new messages, reminders). Your answer is kept; change it any time from the shield.` }, (allow, timedOut) => {
+      const all = this.notifyAsking.get(host) ?? [];
+      this.notifyAsking.delete(host);
+      // The ask closing by itself (two minutes, no answer) keeps nothing: the site may ask again another time.
+      if (!timedOut) this.rules.set(host, { notify: allow ? 'allow' : 'block' });
+      for (const d of all) d(allow);
+      this.sendTabs();
+    });
+  }
+  /** A click on one of a page's desktop notifications: Samara and that tab come to the front, at most once a second. */
+  private notifyClickAt = 0;
+  notifyClick(sender: Electron.WebContents): void {
+    const t = this.tabs.find((x) => x.view?.webContents === sender);
+    if (!t || Date.now() - this.notifyClickAt < 1000 || this.rules.notify(hostOf(sender.getURL())) !== 'allow') return;
+    this.notifyClickAt = Date.now();
+    const w = this.paneOfTab(t)?.win;
+    if (!w || w.isDestroyed()) return;
+    bringFront(w);
+    this.inTab(t);
+    this.activate(t.id);
+  }
   /**
    * Sheet 69 (2026-10-22): a site that asks for a keyboard or mouse (WebHID: Epomaker's lighting page) gets a
    * parchment ask hanging from the band, listing only the devices the site asked for; he picks one and it is remembered
@@ -1309,7 +1348,7 @@ export class SamaraBrowser {
    * Ask him, as a "needs you" notice dropping from what it is about (sheet 106 v7: the shield, the download key,
    * Claude's rune), with its one sound, and wait for his answer. Unanswered in 2 minutes means no.
    */
-  ask(a: { host: string; what: string; text?: string; yes?: string; no?: string; from?: NoticeFrom; kick?: string; icon?: string; claude?: boolean }, done: (allow: boolean) => void): void {
+  ask(a: { host: string; what: string; text?: string; yes?: string; no?: string; from?: NoticeFrom; kick?: string; icon?: string; claude?: boolean }, done: (allow: boolean, timedOut?: boolean) => void): void {
     if (!this.win || this.win.isDestroyed()) { done(false); return; }
     let timer: NodeJS.Timeout | null = null;
     const id = this.notices.push(cleanNotice({
@@ -1318,7 +1357,7 @@ export class SamaraBrowser {
       rows: [{ g: '', v: a.text || `${a.host || 'This site'} wants it for what you are doing now. You are asked again next time.` }],
       keys: [{ label: a.yes || 'Allow', act: 'yes' }, { label: a.no || 'No', act: 'no', plain: true }],
     }), (act) => { if (timer) clearTimeout(timer); done(act === 'yes'); });
-    timer = setTimeout(() => { this.notices.drop(id); done(false); }, 120_000);
+    timer = setTimeout(() => { this.notices.drop(id); done(false, true); }, 120_000);
   }
   /**
    * A small window's place: centred over Samara's window (the one in front), kept fully inside that screen's work area.
@@ -1637,11 +1676,11 @@ export class SamaraBrowser {
 
   /** 6.22: "Block ads on this site" off or on, for the site he is on. Kept between runs. */
   /** Sheet 37: one site's rules as the shield shows them. Login shows on for the job sites unless he turned it off. */
-  siteState(u: string): { host: string; ai: boolean; login: boolean; camera: Tri; mic: Tri; popupBlock: boolean; devices: KnownDevice[] } | null {
+  siteState(u: string): { host: string; ai: boolean; login: boolean; camera: Tri; mic: Tri; notify: Tri; popupBlock: boolean; devices: KnownDevice[] } | null {
     const host = siteKey(u);
     if (!host || !isWeb(u)) return null;
     const lr = this.rules.login(host);
-    return { host, ai: this.rules.ai(host), login: lr ?? JOB_SITES.includes(siteOf(host)), camera: this.rules.media(host, 'camera'), mic: this.rules.media(host, 'mic'),
+    return { host, ai: this.rules.ai(host), login: lr ?? JOB_SITES.includes(siteOf(host)), camera: this.rules.media(host, 'camera'), mic: this.rules.media(host, 'mic'), notify: this.rules.notify(host),
       popupBlock: this.prefs.popups && !this.popOk(host), devices: this.devices.list(hostOf(u)) };
   }
   /** A rule changed from the shield (the site he is on) or from Settings (any site in the list). */
@@ -1652,7 +1691,7 @@ export class SamaraBrowser {
     if (!site && key === 'ads') { this.pauseAds(value !== true); return; }
     if (!site && key === 'dark') { this.setDarkHere(value === true); return; }
     if (key === 'ai' || key === 'login') this.rules.set(host, { [key]: value === true });
-    else if ((key === 'camera' || key === 'mic') && (value === 'allow' || value === 'ask' || value === 'block')) this.rules.set(host, { [key]: value });
+    else if ((key === 'camera' || key === 'mic' || key === 'notify') && (value === 'allow' || value === 'ask' || value === 'block')) this.rules.set(host, { [key]: value });
     else if (key === 'popups') {
       if (value === true) this.popupOk.delete(host); else this.popupOk.add(host);
       try { writeFileAtomic(this.popupOkFile, JSON.stringify([...this.popupOk])); } catch { /* best effort */ }
@@ -1710,11 +1749,11 @@ export class SamaraBrowser {
     this.savePrefs(); this.sync?.changed('prefs'); this.sendTabs(); this.pushSettings();
   }
   /** Every site he set anything for, with all its rules, for Settings > Your sites. */
-  yourSites(): { host: string; favicon: string; ai: boolean; login: boolean; ads: boolean; popups: boolean; dark: boolean; camera: Tri; mic: Tri; bank: boolean }[] {
+  yourSites(): { host: string; favicon: string; ai: boolean; login: boolean; ads: boolean; popups: boolean; dark: boolean; camera: Tri; mic: Tri; notify: Tri; bank: boolean }[] {
     const hosts = new Set<string>([...Object.keys(this.rules.all()), ...this.paused, ...this.popupOk, ...this.prefs.darkOff].map((h) => siteKey(h)).filter(Boolean));
     return [...hosts].sort().slice(0, 500).map((host) => {
       const u = 'https://' + host + '/', st = this.siteState(u)!;
-      return { host, favicon: this.iconOf(u), ai: st.ai, login: st.login, ads: !this.paused.has(host), popups: st.popupBlock, dark: this.darkWanted(u), camera: st.camera, mic: st.mic, bank: bankSite(u) };
+      return { host, favicon: this.iconOf(u), ai: st.ai, login: st.login, ads: !this.paused.has(host), popups: st.popupBlock, dark: this.darkWanted(u), camera: st.camera, mic: st.mic, notify: st.notify, bank: bankSite(u) };
     });
   }
   pauseAds(on: boolean): void {

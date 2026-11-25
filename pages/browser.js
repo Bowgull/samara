@@ -1395,7 +1395,7 @@ function paintSite() {
   if (!st) return;
   setSw('popsw', st.popupBlock, state.prefs?.popups === false);
   setSw('aisw', st.ai); setSw('loginsw', st.login && st.ai, !st.ai);
-  setTri('camk', st.camera); setTri('mick', st.mic);
+  setTri('camk', st.camera); setTri('mick', st.mic); setTri('notk', st.notify);
   // Sheet 69: each keyboard or mouse this site may use, with Forget.
   const rows = el('devrows');
   rows.replaceChildren();
@@ -1418,6 +1418,7 @@ el('aisw').addEventListener('click', (e) => { e.preventDefault(); if (state.site
 el('loginsw').addEventListener('click', (e) => { e.preventDefault(); if (state.site?.ai) rule('login', !state.site.login); });
 segRow(el('camk'), (v) => { setTri('camk', v); rule('camera', v); });
 segRow(el('mick'), (v) => { setTri('mick', v); rule('mic', v); });
+segRow(el('notk'), (v) => { setTri('notk', v); rule('notify', v); });
 document.addEventListener('click', (e) => { if (!el('sitepanel').contains(e.target) && !lock.contains(e.target)) { el('sitepanel').hidden = true; lock.classList.remove('open'); } });
 // The shield's panel sits OVER the page, like the ... menu, on a still picture of it (2026-10-14: pushing the live
 // page down to make room left a big white bar above it). However it closes, the live page comes back.

@@ -58,3 +58,5 @@ autofill-check.ts
 autofill-attacks-check.ts
 login-catch-check.ts
 vaultkey-check.ts
+# Notifications per site (2026-11-25).
+notify-check.ts

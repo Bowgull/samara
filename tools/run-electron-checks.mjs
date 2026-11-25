@@ -83,5 +83,10 @@ for (const r of broken) {
   const lines = [...all.filter((l) => /FAIL|HARNESS|RUNNER/.test(l)), ...all.filter((l) => /Error/.test(l) && !/No handler registered/.test(l))].slice(0, 15);
   console.log(`\n---- ${r.name} (exit ${r.code})\n${lines.join('\n')}`);
 }
+// A check that passed only on its second go: what failed the first time, so a flaky step can be traced, not guessed.
+for (const r of first.filter((x) => flaky.includes(x.name))) {
+  const lines = r.out.split('\n').filter((l) => /FAIL|HARNESS|RUNNER/.test(l)).slice(0, 8);
+  console.log(`\n---- ${r.name} (flaky; its first go)\n${lines.join('\n')}`);
+}
 console.log(`\n${checks.length - failed.length} passed, ${flaky.length} flaky, ${broken.length} failed, of ${checks.length}`);
 process.exit(broken.length ? 1 : 0);
