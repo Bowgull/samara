@@ -15,14 +15,15 @@ import { execFile, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { macHome } from './dirs.ts';
 
 // M6: on the Mac, the same official tool, put by the Mac setup in Samara's own folder.
 export const BW = process.env.SAMARA_TEST_BW ? process.env.SAMARA_TEST_BW : process.platform === 'darwin'
-  ? path.join(os.homedir(), 'Library', 'Application Support', 'Samara', 'bw', 'bw')
+  ? path.join(macHome(), 'bw', 'bw')
   : path.join(process.env.LOCALAPPDATA ?? '', 'Programs', 'BitwardenCLI', 'bw.exe');
 /** How he signs in to it once, himself, on this machine. */
 export const BW_LOGIN = process.platform === 'darwin'
-  ? 'in Terminal run  "$HOME/Library/Application Support/Samara/bw/bw" login'
+  ? `in Terminal run  "${path.join(macHome(), 'bw', 'bw')}" login`
   : 'in PowerShell run  & "$env:LOCALAPPDATA\\Programs\\BitwardenCLI\\bw.exe" login';
 // Locks itself after this long with no fills; he picks it in Settings (sheet 83: 5 min, 30 min, 2 hours, until he quits).
 export const LOCK_AFTER: Record<string, number | null> = { '5m': 5 * 60_000, '30m': 30 * 60_000, '2h': 2 * 3600_000, quit: null };
