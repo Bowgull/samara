@@ -16,6 +16,7 @@ import { lockNotes, unlockNotes, MIN_PASS } from './notelock.ts';
 import { writeFileAtomic } from './atomic.ts';
 import { PIN_CSS, deepOf, pageKey, paintCode, quoteAround, type PagePin } from './anchorpaint.ts';
 import { run } from './page.ts';
+import { MAX_HTML } from './notes.ts';
 import { remindAt, askNotes, askClaudeText, htmlFromText, type AskHit, type RemindPick } from './notes.ts';
 import { newChatLink } from './claudehand.ts';
 import { randomBytes } from 'node:crypto';
@@ -189,6 +190,8 @@ export function startNotes(o: NotesOpts): NotesHub {
         const known = new Set([...store.cats().builtin, ...store.cats().own]);
         const cat = typeof a.cat === 'string' && known.has(a.cat) ? a.cat : undefined;
         const html = htmlFromText(text);
+        // Never kept cut short without a word: a note is at most MAX_HTML once it is markup (each line a row, & < > spelled out).
+        if (html.length > MAX_HTML) return { ok: false, error: `that is too long for one note (${html.length} of ${MAX_HTML} characters once laid out); split it into several notes` };
         const title = String(a.title ?? '').replace(/\s+/g, ' ').trim().slice(0, 120) || titleFrom(html, 5);
         const n = store.save({ title, html, ...(cat ? { cat } : {}) });
         if (!n) return { ok: false, error: 'the note was not kept' };

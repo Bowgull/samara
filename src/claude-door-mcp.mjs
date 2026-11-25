@@ -223,7 +223,7 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { query: { type: 'string' } } } },
   { name: 'notes_read', description: 'One of their notes whole, as Markdown (title, category, dates, the page it came from, the words it is pinned to). id: from notes_search.',
     inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
-  { name: 'notes_add', description: "Add a new note to their notes in Samara (it syncs to their other computer). ONLY when the user asks you to note something down. Never edits or deletes a note. title: a few words; text: plain text, one line a row; cat: one of their categories, if they named one.",
+  { name: 'notes_add', description: "Add a new note to their notes in Samara (it syncs to their other computer). ONLY when the user asks you to note something down. Never edits or deletes a note. title: a few words; text: plain text, one line a row (a long note: split it; one note holds about 15,000 characters); cat: one of their categories, if they named one.",
     inputSchema: { type: 'object', properties: { title: { type: 'string' }, text: { type: 'string' }, cat: { type: 'string' } }, required: ['text'] } },
   { name: 'browser_close', description: 'Close one of your pages when you are done with it.',
     inputSchema: { type: 'object', properties: { page: { type: 'integer' } }, required: ['page'] } },

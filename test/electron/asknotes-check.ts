@@ -83,6 +83,8 @@ app.whenReady().then(async () => {
   const add = hub.store && (b.notesHub.forClaude('add', { title: 'From the chat', text: 'Water the basil too\n<script>x</script>' }) as any);
   await wait(800);
   check('a note Claude adds is kept, its text never markup', add?.ok === true && s.get(add.id)?.html === '<div>Water the basil too</div><div>&lt;script&gt;x&lt;/script&gt;</div>', JSON.stringify(add));
+  const big = b.notesHub.forClaude('add', { title: 'Big', text: '<&>\n'.repeat(3000) }) as any;
+  check('a note too long once laid out is refused, never kept cut short', big.ok === false && /too long/.test(big.error) && !s.list().some((x) => x.title === 'Big'), JSON.stringify(big));
   const found = b.notesHub.forClaude('search', { q: 'basil?' }) as any;
   check('Claude finds it again with notes_search', found.hits?.[0]?.id === add?.id, JSON.stringify(found).slice(0, 200));
   check('Claude reads a note whole as Markdown', /# Garden/.test((b.notesHub.forClaude('read', { id: 'ne' }) as any).markdown ?? ''));

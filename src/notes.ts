@@ -348,7 +348,7 @@ export function askNotes<T extends Pick<Note, 'id' | 'title' | 'html' | 'cat' | 
 /** Plain text (from Claude, from a chat) as a note's html: one line a row, nothing in it read as markup. */
 export function htmlFromText(text: string): string {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  return String(text ?? '').replace(/\r\n?/g, '\n').slice(0, 20_000).split('\n').map((l) => (l.trim() ? `<div>${esc(l)}</div>` : '<div><br></div>')).join('');
+  return String(text ?? '').replace(/\r\n?/g, '\n').split('\n').map((l) => (l.trim() ? `<div>${esc(l)}</div>` : '<div><br></div>')).join('');
 }
 
 /**
