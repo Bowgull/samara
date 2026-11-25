@@ -4,9 +4,11 @@
 // the tag starts GitHub's release (tests on a Mac and on Windows first).
 // Run: node tools/release/ship.mjs [--dry] [--no-push]
 import { execFileSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { REPO, checkNewest, linesSince, next, read } from './version.mjs';
+// 2026-11-25: on hold until the new code uses his existing folders (RELEASE_HOLD says why).
+if (existsSync(new URL('./RELEASE_HOLD', import.meta.url))) { console.error(readFileSync(new URL('./RELEASE_HOLD', import.meta.url), 'utf8')); process.exit(1); }
 
 const dry = process.argv.includes('--dry');
 const git = (...a) => execFileSync('git', ['-C', REPO, ...a], { encoding: 'utf8' }).trim();

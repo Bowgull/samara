@@ -202,8 +202,9 @@ test('Mac engine: when castLabs wants a sign-in, the key asks; Terminal opens; o
   const st = new MacStage(p, { run: fakeRun(p, calls), log: () => {}, changed: () => {} });
   const m = seal(engineManifest());
   const fetch = async (url: string) => url.includes('api.github.com') ? res(JSON.stringify([{ tag_name: 'engine-v44.9.3' }])) : url.endsWith('engine.json') ? res(m.text) : url.endsWith('engine.sig') ? res(m.sig) : url.endsWith('.zip') ? res(ZIP) : res('', false);
-  let answer: 'signin' | 'ok' = 'signin', opened = 0, watcher: ((ok: boolean) => void) | null = null;
-  const evs = { verify: async () => false, sign: async () => answer, loginStamp: () => 0, openSignin: async () => { opened++; return true; }, watchSignin: (_s: number, done: (ok: boolean) => void) => { watcher = done; return () => {}; } } as unknown as Evs;
+  let answer: 'signin' | 'ok' = 'signin', opened = 0, stopped = 0, watcher: ((ok: boolean) => void) | null = null;
+  const kinds: string[] = [];
+  const evs = { verify: async () => false, sign: async () => answer, loginStamp: () => 0, openSignin: async (k = 'signin') => { opened++; kinds.push(k); return true; }, watchSignin: (_s: number, done: (ok: boolean) => void) => { watcher = done; return () => { stopped++; }; } } as unknown as Evs;
   const unzip = async (_z: string, into: string) => { mkdirSync(path.join(into, 'Electron.app'), { recursive: true }); return true; };
   const e = new MacEngine(p, st, { plat: () => 'darwin-x64', fetch: fetch as never, log: () => {}, changed: () => {}, evs, unzip, have: () => '44.5.1', pub: PUB, checkEngine: async () => true });
   await e.check('test');
@@ -211,7 +212,14 @@ test('Mac engine: when castLabs wants a sign-in, the key asks; Terminal opens; o
   const ue = new UpdateEngine({ sources: [e], moment: () => ({ now: new Date(), idleSeconds: 0, inCall: false, inGame: false }), overnight: () => true, changed: () => {}, restart: () => {} });
   assert.deepEqual(await ue.go(), { ok: false, why: 'Sign in to castLabs first, so the new engine plays video.' });
   assert.ok(await ue.signin()); assert.equal(opened, 1); assert.equal(e.ready()?.signin, 'waiting');
+  // 2026-11-25 (stuck on "Signing in..." with Terminal closed, password forgotten): while it waits, Terminal opens
+  // again, or castLabs' own password reset; each replaces the wait before it.
+  assert.ok(await ue.signin()); assert.equal(opened, 2); assert.equal(stopped, 1, 'the first wait is stopped');
+  assert.ok(await ue.signin('reset')); assert.deepEqual(kinds, ['signin', 'signin', 'reset']); assert.equal(stopped, 2);
+  assert.equal(e.ready()?.signin, 'waiting');
   answer = 'ok'; watcher!(true);
+  // 2026-11-25 ("I signed in but nothing happens"): the card says castLabs is signing until the engine is ready.
+  assert.equal(e.ready()?.signin, 'signing');
   for (let i = 0; i < 150 && !(e.ready()?.signin === undefined && st.ready()); i++) await new Promise((r) => setTimeout(r, 20));
   assert.equal(e.ready()?.signin, undefined); assert.ok(st.ready(), 'signed and staged');
 });
@@ -349,6 +357,13 @@ test('castLabs sign-in: the Terminal file types only the command, the password i
   assert.ok(s.includes(`'${py}' '-m' 'castlabs_evs.account' 'reauth'`));
   bashOk(s);
   assert.equal(pcSigninCommand("C:\\Users\\o'b\\evs\\python.exe").includes("& 'C:\\Users\\o''b\\evs\\python.exe' -m castlabs_evs.account reauth"), true);
+  // A forgotten password (2026-11-25): castLabs' own reset, typed the same way; still no password in it.
+  const r = macSigninScript(py, 'reset');
+  assert.ok(r.includes(`'${py}' '-m' 'castlabs_evs.account' 'reset'`) && !r.includes('reauth'));
+  assert.match(r, /emails you a code/);
+  bashOk(r);
+  const pr = pcSigninCommand('C:\\evs\\python.exe', 'reset');
+  assert.ok(pr.includes("-m castlabs_evs.account reset;") && !pr.includes('reauth'), pr);
 });
 
 test('castLabs\' tool is installed once, then signs; on the PC Terminal falls back to PowerShell', async () => {

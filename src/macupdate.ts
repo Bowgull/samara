@@ -6,17 +6,23 @@
 //            or, for a new engine, castLabs' engine already signed for video, with this Samara's own insides put in)
 //   swap     Restart now (or overnight): Samara closes, the insides change places, the old ones kept in rollback/,
 //            Samara opens again; if the new one does not start, the old one goes back by itself.
+import { macAppName, macBundleId, macHome } from './dirs.ts';
 
 /** bundle: Samara's new code (a sealed release), or '' when only the engine changes. engine: castLabs' Electron.app,
  *  already checked against its seal and signed for video (evs.ts), when the engine changes. One script either way. */
 export interface MacUpdate { bundle: string; version: string; commit: string; engine?: { app: string; version: string };
   /** The folder it is made in: 'staged' (the one Restart now puts in), or 'staged-next' (sheet 114: a newer one made
    *  behind the ready one, which keeps its key; it moves to 'staged' once it is ready). */
-  stage?: 'staged' | 'staged-next' }
+  stage?: 'staged' | 'staged-next';
+  /** Where and as what (2026-11-25, dirs.ts): his existing folder and the app's old name and id on a Mac that had the
+   *  old Samara, so the Keychain still opens his logins. Tests pass their own. */
+  where?: { dir: string; name: string; id: string } }
 const q = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
 
 export function macUpdateScript(o: MacUpdate): string {
   const e = o.engine;
+  const w = o.where ?? { dir: macHome(), name: macAppName(), id: macBundleId() };
+  if (!/^[A-Za-z]+$/.test(w.name) || !/^[a-z.]+$/.test(w.id)) throw new Error('not a name');
   if (!/^\d{1,4}\.\d{1,4}\.\d{1,4}$/.test(o.version) || !/^[0-9a-f]{12,40}$/.test(o.commit)) throw new Error('not a release');
   if (o.bundle ? !o.bundle.endsWith('.tgz') : !e) throw new Error('not a release');
   if (e && (!/^\d{1,4}\.\d{1,4}\.\d{1,4}$/.test(e.version) || !e.app.endsWith('/Electron.app'))) throw new Error('not an engine');
@@ -28,7 +34,7 @@ export function macUpdateScript(o: MacUpdate): string {
 # Samara ${o.version} from GitHub, sealed with his release key. Written by Samara itself (src/Shell/src/macupdate.ts).
 set -e
 PHASE="$1"; VERSION=${q(stage)}; BUNDLE=${q(o.bundle)}; ENGINE=${q(e?.app ?? '')}; EV=${q(e?.version ?? '')}
-DIR="$HOME/Library/Application Support/Samara"; BR="$DIR/browser"; APP="$HOME/Applications/Samara.app"
+DIR=${q(w.dir)}; BR="$DIR/browser"; APP="$HOME/Applications/Samara.app"
 RB="$BR/rollback"; STAGE="$BR/${slot}"; NODE_DIR="$DIR/node"
 LSR=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 case "$PHASE" in prepare|swap) ;; *) echo "prepare or swap"; exit 2 ;; esac
@@ -77,7 +83,7 @@ if [ "$PHASE" = "prepare" ]; then
     ditto "$ENGINE" "$NEWAPP"; RES="$NEWAPP/Contents/Resources"; mkdir -p "$RES/app"
     ditto "$APP/Contents/Resources/app" "$RES/app"; printf '%s' "castlabs-$EV" > "$RES/samara-engine"
     PL="$NEWAPP/Contents/Info.plist"; PB=/usr/libexec/PlistBuddy
-    $PB -c "Set :CFBundleName Samara" -c "Set :CFBundleIdentifier com.bowgull.samara" "$PL"
+    $PB -c "Set :CFBundleName ${w.name}" -c "Set :CFBundleIdentifier ${w.id}" "$PL"
     $PB -c "Set :CFBundleDisplayName Samara" "$PL" >/dev/null 2>&1 || $PB -c "Add :CFBundleDisplayName string Samara" "$PL"
     $PB -c "Delete :CFBundleURLTypes" "$PL" >/dev/null 2>&1 || true
     $PB -c "Add :CFBundleURLTypes array" -c "Add :CFBundleURLTypes:0 dict" -c "Add :CFBundleURLTypes:0:CFBundleURLName string Web site URL" -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string http" -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:1 string https" "$PL"
@@ -121,7 +127,7 @@ fi
 
 # swap
 [ -d "$STAGE/Samara.app/Contents" ] && [ "$(cat "$STAGE/version" 2>/dev/null)" = "$VERSION" ] || { echo "Nothing ready to put in."; exit 1; }
-osascript -e 'quit app id "com.bowgull.samara"' >/dev/null 2>&1 || true
+osascript -e 'quit app id "${w.id}"' >/dev/null 2>&1 || true
 # A busy Mac can take more than 20 s to close it. Its insides are never moved while it still runs: asked, then told.
 for i in $(seq 1 120); do running || break; sleep 0.5; done
 if running; then pkill -TERM -f "Applications/Samara.app/Contents/MacOS/" 2>/dev/null || true; for i in $(seq 1 20); do running || break; sleep 0.5; done; fi
