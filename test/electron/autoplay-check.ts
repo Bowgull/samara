@@ -74,7 +74,10 @@ app.whenReady().then(async () => {
   b.lastGesture.set(a.id, Date.now());
   b.newTab(url('c'), a.id, false); await wait(2500);
   const c = tab('c');
-  check('a link he opened behind stays quiet while he cannot see it', !(await playing(c)));
+  // What the page and Samara saw, for a failure on a runner we cannot watch (2026-11-25: the Mac runner, now and then).
+  const cSaw = async () => JSON.stringify({ shown: c.shown, front: b.inFront(c), may: b.mayPlay(c.view.webContents), active: b.panes?.map((p: any) => p.active), c: c.id,
+    page: await c.view.webContents.executeJavaScript("(() => { const m = document.querySelector('audio'); const u = navigator.userActivation; return { paused: m.paused, t: m.currentTime, hidden: document.hidden, active: u && u.isActive, been: u && u.hasBeenActive }; })()").catch((e: Error) => e.message) });
+  check('a link he opened behind stays quiet while he cannot see it', !(await playing(c)), await playing(c) ? await cSaw() : '');
   b.activate(c.id); await wait(1500);
   check('...and plays when he goes to it', await playing(c));
   check('the tab he left is paused', !(await playing(a)));
