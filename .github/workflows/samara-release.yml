@@ -20,7 +20,11 @@ jobs:
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "A release is only made from a commit on main."; exit 1; }
       # 2026-11-25: on hold until the new code uses his existing folders (tools/release/RELEASE_HOLD says why).
       - name: Not while releases are on hold
-        run: if [ -f tools/release/RELEASE_HOLD ]; then cat tools/release/RELEASE_HOLD; echo "::error::Releases are on hold: tools/release/RELEASE_HOLD"; exit 1; fi
+        # On main as it is now, not only in the tagged tree: an older tag (from before the hold) must not slip through.
+        run: |
+          for at in "$GITHUB_SHA" origin/main; do
+            if git cat-file -e "$at:tools/release/RELEASE_HOLD" 2>/dev/null; then git show "$at:tools/release/RELEASE_HOLD"; echo "::error::Releases are on hold: tools/release/RELEASE_HOLD ($at)"; exit 1; fi
+          done
       - uses: actions/setup-node@v4
         with: { node-version: '24' }
       - name: Pack and seal
