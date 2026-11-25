@@ -79,7 +79,10 @@ test('links leave Samara for the system only from the reviewed places', () => {
   // Phase 4: the browser's four (unchanged) now sit in the parts that hold their methods.
   const reviewed: Record<string, number> = { 'src/browser.ts': 1, 'src/browser-address.ts': 1, 'src/browser-panes.ts': 1, 'src/browser-tv.ts': 1, 'src/pc.ts': 1, 'src/safety.ts': 2,
     // N4: Ask Claude about these: always claude://code/new built by newChatLink (his question and his notes, nothing a page chose).
-    'src/noteswire.ts': 1 };
+    'src/noteswire.ts': 1,
+    // M1: Sign in to Spotify: only ever Spotify's own authorize page or Samara's own 127.0.0.1:47835 sign-in page, both
+    // built in spotify.ts signIn (nothing a page chose).
+    'src/musicwire.ts': 1 };
   const seen: Record<string, number> = {};
   for (const f of mainCode()) {
     const n = [...readFileSync(f, 'utf8').matchAll(/shell\.openExternal\(/g)].length;

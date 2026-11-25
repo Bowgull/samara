@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Timers in Samara (T1, 2026-11-25; sheet 67 v2 + 67b): one timer. The brass-capped hourglass (sandglass.js) in a dark
+     slot on a wood plate, its name on a carved nameplate and its time beside it. Click the glass = pause, hold it = turn
+     it over, hover = +1 / +5 / hold X, scroll = a minute, right-click = its menu. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; media-src 'self';
+               font-src 'self'; style-src-attr 'unsafe-inline'; form-action 'none'; base-uri 'none'">
+<title>Timer</title>
+<link rel="stylesheet" href="cockpit.css">
+<link rel="stylesheet" href="timer.css">
+</head>
+<body>
+<div class="tw" id="tw">
+  <div class="gbox" id="gbox" title="Click: pause. Hold: turn it over"><canvas class="gl" id="gl"></canvas><canvas class="ring" id="ring"></canvas></div>
+  <div class="twr"><span class="np" id="np">Timer</span><span class="tmv" id="left">0:00</span><span class="pz">PAUSED</span></div>
+  <div class="chip2" id="chip"></div>
+  <div class="trow" id="keys"></div>
+</div>
+<script src="timer.js" type="module"></script>
+</body>
+</html>

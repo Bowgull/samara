@@ -388,6 +388,10 @@ el('mqkey').addEventListener('click', () => window.samara?.browserMockup?.({ act
 el('hykey').addEventListener('click', () => window.samara?.browserGo?.('samara:hyrule'));
 el('m-downloads').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('downloads'); });
 el('m-notes').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('notes'); });
+// T1 (2026-11-25): the timer is Samara's: Set a timer (the dial).
+el('m-timer').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('timer'); });
+// M1 (2026-11-25): the music player is Samara's.
+el('m-music').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('music'); });
 // The tab count at the foot of the drawer (Phase R: trail clean up is retired; the overnight tidy does it).
 function paintTidy() {
   const live = state.tabs.filter((t) => !String(t.url).startsWith('samara:')).length;

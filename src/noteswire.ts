@@ -6,7 +6,7 @@
 // The first time (and at every start after, harmlessly) the companion's notes.json on this machine is brought in, read
 // only, every field kept, with a report in Settings › Notes. A quick note that was being typed when Samara or the
 // computer went down comes back at the next start as a note, and he is told.
-import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, shell } from 'electron';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { NotesStore, findCompanionNotes, type ImportReport, type StoreStatus } from './notestore.ts';
@@ -369,12 +369,10 @@ export function startNotes(o: NotesOpts): NotesHub {
     wins?.quick({ id: newId() });
   }
 
-  // ---- the quick-note key, and the Dock's New note
+  // ---- the quick-note key
   try { if (globalShortcut.register(QUICK_KEY, quick)) quickKey = QUICK_KEY; else o.log(`notes: the quick-note key (${QUICK_KEY}) is taken by another program (the companion's Shell, if it still runs)`); }
   catch (e) { o.log('notes: no quick-note key: ' + (e as Error).message); }
-  if (process.platform === 'darwin') {
-    try { app.dock?.setMenu(Menu.buildFromTemplate([{ label: 'New note', click: quick }])); } catch { /* no Dock */ }
-  }
+  // The Dock's New note (the Mac) is set by boot.ts with the Dock's other rows (Set a timer).
 
   // ---- housekeeping: a backup a day (14 kept), the Trash emptied of what is over 30 days, everything on disk at quit
   sched.every('notes.backup', 6 * 3_600_000, () => { store.gc(); if (store.backup()) o.log('notes: backed up'); }, { first: 2 * 60_000 });

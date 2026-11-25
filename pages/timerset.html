@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Timers in Samara (T1, 2026-11-25; sheet 17): "Set a timer". The kitchen dial, presets, what it is for, Start. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:;
+               font-src 'self'; style-src-attr 'unsafe-inline'; form-action 'none'; base-uri 'none'">
+<title>Set a timer</title>
+<link rel="stylesheet" href="cockpit.css">
+<link rel="stylesheet" href="timerset.css">
+</head>
+<body>
+<main class="tset" id="tset" aria-label="Set a timer">
+  <div class="tplaque"><span>SET A TIMER</span><button type="button" class="x" id="x" title="Close (Esc)" aria-label="Close">✕</button></div>
+  <div class="dialwrap"><svg viewBox="0 0 200 200" class="dial" id="dial" role="slider" tabindex="0" aria-label="Minutes" aria-valuemin="1" aria-valuemax="60"></svg></div>
+  <div class="presets" id="presets"></div>
+  <label class="trow"><span>OR</span><input id="typed" maxlength="12" placeholder="1:30, 2h, 90s" spellcheck="false" aria-label="Type a time"></label>
+  <label class="trow"><span>FOR</span><input id="name" maxlength="40" placeholder="What for? (optional)" spellcheck="false" aria-label="What the timer is for"></label>
+  <div class="keys"><button type="button" class="go" id="go">Start</button></div>
+</main>
+<script src="timerset.js" type="module"></script>
+</body>
+</html>
