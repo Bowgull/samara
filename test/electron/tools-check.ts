@@ -38,7 +38,7 @@ app.whenReady().then(async () => {
   tools.open();
   check('its menu comes up', !!shown);
   const anchor = shown?.opts.window as BrowserWindow | undefined;
-  check('...hung from a tiny window at the pointer', !!anchor && !anchor.isDestroyed() && anchor.getBounds().x === 420 && anchor.getBounds().y === 310 && anchor.getBounds().width <= 2, JSON.stringify(anchor?.getBounds()));
+  check('...hung from a tiny window at the pointer (Windows keeps a window at least 32 px)', !!anchor && !anchor.isDestroyed() && anchor.getBounds().x === 420 && anchor.getBounds().y === 310 && anchor.getBounds().width <= 40 && anchor.getBounds().height <= 40, JSON.stringify(anchor?.getBounds()));
   check('...on top', !!anchor?.isAlwaysOnTop());
   check('...listing the tools in the ☰ order', JSON.stringify(shown?.menu.items.map((i) => i.label)) === JSON.stringify(['Timer', 'Music player', 'Snip', 'New note']));
   tools.open();
