@@ -41,4 +41,9 @@ test('only a secure page may ask, and only for its own site', () => {
   assert.equal(notifyOrigin('https://ads.example/', 'https://mail.google.com/'), false, 'a frame from another site');
   assert.equal(notifyOrigin('http://mail.google.com/', 'http://mail.google.com/'), false, 'not secure');
   assert.equal(notifyOrigin('nonsense', 'https://mail.google.com/'), false);
+  assert.equal(notifyOrigin('https://foo.or.jp/', 'https://bar.or.jp/'), false, 'two registrants under a public suffix');
+  assert.equal(notifyOrigin('https://a.github.io/', 'https://b.github.io/'), false, 'two sites on a shared host');
+  assert.equal(notifyOrigin('https://www.bbc.co.uk/', 'https://news.bbc.co.uk/'), true);
+  assert.equal(notifyOrigin('https://127.0.0.1:8443/', 'https://127.0.0.1:8443/x'), true);
+  assert.equal(notifyOrigin('https://127.0.0.2/', 'https://127.0.0.1/'), false);
 });

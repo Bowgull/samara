@@ -9,6 +9,7 @@
 import { writeFileAtomic } from './atomic.ts';
 import { readJson } from './store.ts';
 import { cleanHost, siteOf } from './driverrules.ts';
+import { getDomain } from 'tldts-experimental';
 
 export type Tri = 'allow' | 'ask' | 'block';
 export interface SiteRule { ai?: boolean; login?: boolean; camera?: Tri; mic?: Tri; notify?: Tri }
@@ -105,6 +106,9 @@ export class SiteRules {
 export function notifyOrigin(requesting: string, top: string): boolean {
   try {
     const a = new URL(requesting), b = new URL(top);
-    return a.protocol === 'https:' && b.protocol === 'https:' && siteOf(a.hostname) === siteOf(b.hostname);
+    // The registrable domain from the full public suffix list (2026-11-25, Codex on #17): the short list in siteOf
+    // would call foo.or.jp and bar.or.jp one site. An address with none (an IP, localhost) must match exactly.
+    const site = (h: string) => getDomain(h, { allowPrivateDomains: true }) ?? h;
+    return a.protocol === 'https:' && b.protocol === 'https:' && site(a.hostname) === site(b.hostname);
   } catch { return false; }
 }
