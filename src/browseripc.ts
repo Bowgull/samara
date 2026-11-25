@@ -34,6 +34,7 @@ export function wireBrowser(get: () => SamaraBrowser | null): void {
   ipcMain.on('browser:insets', (e, r) => { if (b(e)?.isMainFrame(e.sender) && r) b(e).setInsets(Number(r.left), Number(r.top), Number(r.right) || 0, Number(r.bottom) || 0); });
   // A tab's page has drawn (tabpreload.cjs): the only thing a website's tab ever sends, and it carries nothing.
   ipcMain.on('tab:painted', (e) => b(e)?.painted(e.sender));
+  ipcMain.on('tab:notifyclick', (e) => { if (top(e)) b(e)?.notifyClick(e.sender); });
   // Phase 3: a tab's top page asked for a passkey (tabpreload.cjs). It carries nothing; the browser reads the address.
   ipcMain.on('tab:passkey', (e) => { if (top(e)) b(e)?.passkeyWanted(e.sender); });
   // Sheet 87: the link he clicked in a tab's top page (the click trick), an address only.
@@ -88,7 +89,7 @@ export function wireBrowser(get: () => SamaraBrowser | null): void {
   // Sheet 37: his answer to a Claude session's plan, from the band's plan tray.
   ipcMain.on('browser:planreply', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && typeof a.id === 'string') b(e).planReply(a.id.slice(0, 40), a); });
   // Sheet 37: a rule for the site he is on, from the shield. Only these keys.
-  ipcMain.on('browser:siterule', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && ['ai', 'login', 'ads', 'popups', 'dark', 'camera', 'mic'].includes(a.key)) b(e).setSiteRule(a.key, a.value); });
+  ipcMain.on('browser:siterule', (e, a) => { if ((top(e) && b(e)?.isFrame(e.sender)) && a && ['ai', 'login', 'ads', 'popups', 'dark', 'camera', 'mic', 'notify'].includes(a.key)) b(e).setSiteRule(a.key, a.value); });
   // Phase R (2026-11-24): Earlier, from the rail: its list, open one, remove one. Keys are short strings only.
   ipcMain.handle('browser:earlier', (e, a) => {
     if (!(top(e) && b(e)?.isFrame(e.sender)) || !a || !['list', 'open', 'remove'].includes(a.act)) return null;
@@ -128,7 +129,7 @@ export function wireBrowser(get: () => SamaraBrowser | null): void {
   ipcMain.handle('settings:get', (e) => (top(e) && b(e)?.isSettings(e.sender)) ? b(e).settingsData() : null);
   ipcMain.on('settings:set', (e, a) => { if ((top(e) && b(e)?.isSettings(e.sender)) && a && typeof a.key === 'string') b(e).setSetting(a.key.slice(0, 20), a.value); });
   // Sheet 37: Settings > Your sites. A rule for any site in the list, or forget all of a site's rules.
-  ipcMain.on('settings:siterule', (e, a) => { if ((top(e) && b(e)?.isSettings(e.sender)) && a && typeof a.site === 'string' && ['ai', 'login', 'ads', 'popups', 'dark', 'camera', 'mic'].includes(a.key)) b(e).setSiteRule(a.key, a.value, a.site.slice(0, 300)); });
+  ipcMain.on('settings:siterule', (e, a) => { if ((top(e) && b(e)?.isSettings(e.sender)) && a && typeof a.site === 'string' && ['ai', 'login', 'ads', 'popups', 'dark', 'camera', 'mic', 'notify'].includes(a.key)) b(e).setSiteRule(a.key, a.value, a.site.slice(0, 300)); });
   ipcMain.on('settings:siteclear', (e, a) => { if ((top(e) && b(e)?.isSettings(e.sender)) && typeof a === 'string') b(e).clearSite(a.slice(0, 300)); });
   ipcMain.on('settings:remove', (e, a) => { if ((top(e) && b(e)?.isSettings(e.sender)) && a && typeof a.list === 'string' && typeof a.value === 'string') b(e).removeEntry(a.list, a.value); });
   // Downloads tray (frame) and Your things (its own tab): a download is named by its number, never by a path.

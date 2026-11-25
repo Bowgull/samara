@@ -3,6 +3,7 @@
 //   ai      Claude may open and read the site (default on; off = never, like a bank)
 //   login   they may use their login there (unset = the job's own sites only, as before; on = always; off = never)
 //   camera, mic   allow / ask / block (default ask, per call, as before)
+//   notify  desktop notifications: allow / ask / block (default ask: asked once, and his answer is kept, as in Chrome)
 // Keyed by address without www (the same keys as the ads, popup and dark-mode lists); an address with no rule of its
 // own uses its parent's, so a rule on reddit.com covers old.reddit.com.
 import { writeFileAtomic } from './atomic.ts';
@@ -10,7 +11,7 @@ import { readJson } from './store.ts';
 import { cleanHost, siteOf } from './driverrules.ts';
 
 export type Tri = 'allow' | 'ask' | 'block';
-export interface SiteRule { ai?: boolean; login?: boolean; camera?: Tri; mic?: Tri }
+export interface SiteRule { ai?: boolean; login?: boolean; camera?: Tri; mic?: Tri; notify?: Tri }
 const TRI = new Set<Tri>(['allow', 'ask', 'block']);
 
 /** The address a rule is kept under (no www), or '' for anything that is not a web address. */
@@ -29,6 +30,7 @@ function tidy(r: Record<string, unknown>): SiteRule {
   if (r.login === true || r.login === false) out.login = r.login;
   if (TRI.has(r.camera as Tri) && r.camera !== 'ask') out.camera = r.camera as Tri;
   if (TRI.has(r.mic as Tri) && r.mic !== 'ask') out.mic = r.mic as Tri;
+  if (TRI.has(r.notify as Tri) && r.notify !== 'ask') out.notify = r.notify as Tri;
   return out;
 }
 /** How strict a value is, for sync: a rule from the other computer may only make this one stricter (M3). */
@@ -63,6 +65,8 @@ export class SiteRules {
   /** true = always their login, false = never, undefined = the job decides (its own sites only). */
   login(urlOrHost: string): boolean | undefined { return this.find(urlOrHost).login; }
   media(urlOrHost: string, kind: 'camera' | 'mic'): Tri { return this.find(urlOrHost)[kind] ?? 'ask'; }
+  /** May it show desktop notifications? 'ask' until he answers once. */
+  notify(urlOrHost: string): Tri { return this.find(urlOrHost).notify ?? 'ask'; }
   set(urlOrHost: string, patch: Partial<Record<keyof SiteRule, unknown>>): boolean {
     const s = siteKey(urlOrHost);
     if (!s) return false;
@@ -84,7 +88,7 @@ export class SiteRules {
       const next: SiteRule = { ...mine };
       if (STRICT.ai(theirs.ai) > STRICT.ai(mine.ai)) next.ai = theirs.ai;
       if (STRICT.login(theirs.login) > STRICT.login(mine.login)) next.login = theirs.login;
-      for (const kind of ['camera', 'mic'] as const) if (STRICT.tri(theirs[kind]) > STRICT.tri(mine[kind])) next[kind] = theirs[kind];
+      for (const kind of ['camera', 'mic', 'notify'] as const) if (STRICT.tri(theirs[kind]) > STRICT.tri(mine[kind])) next[kind] = theirs[kind];
       const t = tidy(next as Record<string, unknown>);
       if (JSON.stringify(t) !== JSON.stringify(tidy(mine as Record<string, unknown>))) { this.map.set(s, t); any = true; }
     }
@@ -94,4 +98,13 @@ export class SiteRules {
     try { writeFileAtomic(this.file, JSON.stringify(this.all(), null, 1)); } catch { /* next change tries again */ }
     if (tell) this.changed();
   }
+}
+
+/** May this address ask for notifications inside this tab? A secure page, asking for its own site (not a frame from
+ *  another site inside it). */
+export function notifyOrigin(requesting: string, top: string): boolean {
+  try {
+    const a = new URL(requesting), b = new URL(top);
+    return a.protocol === 'https:' && b.protocol === 'https:' && siteOf(a.hostname) === siteOf(b.hostname);
+  } catch { return false; }
 }

@@ -259,8 +259,8 @@ function pinSet() { if (pin1.length !== pinLen) return; S?.set('afPin', { pin: p
 $('#pinset').addEventListener('click', pinSet);
 S?.onAfPin?.((r) => { $('#pinsay').textContent = r?.text ?? ''; if (!r?.ok) { pin1 = ''; pin2 = ''; pinDraw(); } });
 
-// ---- Your sites (sheet 37): one row per site, the same rules as the shield. Four are on/off, camera and mic allow / ask / block.
-const YS_COLS = [['ai', 'ai', 2, 'Claude'], ['login', 'key', 2, 'Use my login'], ['ads', 'ads', 2, 'Ad blocker'], ['popups', 'popup', 2, 'Popup blocker'], ['dark', 'moon', 2, 'Dark mode'], null, ['camera', 'camera', 3, 'Camera'], ['mic', 'mic', 3, 'Microphone']];
+// ---- Your sites (sheet 37): one row per site, the same rules as the shield. Four are on/off; camera, mic and notifications allow / ask / block.
+const YS_COLS = [['ai', 'ai', 2, 'Claude'], ['login', 'key', 2, 'Use my login'], ['ads', 'ads', 2, 'Ad blocker'], ['popups', 'popup', 2, 'Popup blocker'], ['dark', 'moon', 2, 'Dark mode'], null, ['camera', 'camera', 3, 'Camera'], ['mic', 'mic', 3, 'Microphone'], ['notify', 'bell', 3, 'Notifications']];
 const YS_WORD = { on: 'ON', off: 'OFF', allow: 'ALLOW', ask: 'ASK', block: 'BLOCK', never: 'NEVER' };
 function siteRows(list) {
   const box = $('#yoursites');
