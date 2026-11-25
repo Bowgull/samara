@@ -38,6 +38,8 @@ app.whenReady().then(async () => {
   wireBrowser(() => b);
   b.ses.setCertificateVerifyProc((_r: unknown, cb: (n: number) => void) => cb(0));
   let offered = 0; const band = b.afBand.bind(b); b.afBand = (...a: any[]) => { if (b.afSave) offered++; return band(...a); };
+  // What happened, for a failure on a machine we cannot watch: the clicks the page saw, and the logins Samara heard.
+  let heard = 0; const cred = b.afCred.bind(b); b.afCred = (...a: any[]) => { heard++; return cred(...a); };
   const tryLogin = async (pw: string) => {
     b.open(`https://shop.example:${port}/login`);
     for (let i = 0; i < 60 && !b.cur()?.view; i++) await wait(150);
@@ -49,6 +51,7 @@ app.whenReady().then(async () => {
     const c = (x: number, y: number) => { wc.sendInputEvent({ type: 'mouseMove', x, y }); wc.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 }); wc.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 }); };
     c(500, 400); await wait(400);           // the first click into a fresh window only focuses it
     const go = await wc.executeJavaScript(`(() => { const r = document.getElementById('go').getBoundingClientRect(); return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) }; })()`);
+    await wc.executeJavaScript(`window.__clicks = []; addEventListener('click', (e) => __clicks.push([e.isTrusted, e.target.id || e.target.tagName]), true); 1`);
     c(go.x, go.y);
     // Offered 2.5 s after the click once the page has moved on; a slow runner gets up to 10 s.
     for (let i = 0; i < 40 && !(pw === 'right' && offered > 0); i++) await wait(250);
@@ -57,6 +60,8 @@ app.whenReady().then(async () => {
   await tryLogin('wrong');
   check('a wrong password is never offered', offered === 0 && !b.afSave, `offered ${offered}`);
   await tryLogin('right');
+  const seen = await b.cur().view.webContents.executeJavaScript('JSON.stringify(window.__clicks ?? null)').catch(() => '?');
+  console.log(`HARNESS NOTE clicks the page saw ${seen}; logins heard ${heard}; focused ${b.cur().view.webContents.isFocused()}`);
   check('a login with no real button and no form is caught once it worked', offered > 0 && b.afSave?.user === 'me@example.com' && b.afSave?.pass === 'right', JSON.stringify(b.afSave && { user: b.afSave.user, host: b.afSave.host }));
   console.log(bad ? `${bad} FAILED` : 'ALL PASS');
   srv.close(); app.exit(bad ? 1 : 0);
