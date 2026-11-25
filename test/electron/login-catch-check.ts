@@ -1,12 +1,13 @@
 // 2026-10-25 (his report: logging in to Stremio did not offer to save the login): a login page whose button is not a real
 // button and has no form (as Stremio's) is still caught when his click sends it, and only once the login worked.
-// shop.example is mapped here. Run: TEST_CERT_DIR=<dir> npx electron test/electron/login-catch-check.ts
+// shop.example is mapped here. Run: npx electron test/electron/login-catch-check.ts
 import { app, BrowserWindow } from 'electron';
 import https from 'node:https';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { testCert } from './testcert.ts';
 process.on('unhandledRejection', (e) => { console.log('HARNESS REJECTION ' + String((e as Error)?.message ?? e)); app.exit(2); });
 setTimeout(() => { console.log('HARNESS TIMEOUT'); app.exit(3); }, 90_000).unref();
 app.commandLine.appendSwitch('host-resolver-rules', 'MAP shop.example 127.0.0.1');
@@ -24,7 +25,7 @@ const PAGE = `<!doctype html><body style="margin:0;font:16px sans-serif">
 <div id="go" style="margin-top:10px;width:120px;height:40px;background:#7b5bf5;color:#fff">Log in</div></div>
 <script>document.getElementById('go').onclick = () => { if (document.getElementById('p').value === 'right') document.getElementById('box').innerHTML = '<p>Welcome</p>'; };</script></body>`;
 app.whenReady().then(async () => {
-  const CERT = process.env.TEST_CERT_DIR!;
+  const CERT = process.env.TEST_CERT_DIR || testCert();
   const srv = https.createServer({ key: readFileSync(path.join(CERT, 'test-key.pem')), cert: readFileSync(path.join(CERT, 'test-cert.pem')) }, (q, r) => { r.writeHead(200, { 'Content-Type': 'text/html' }); r.end(PAGE); });
   await new Promise<void>((r) => srv.listen(0, '127.0.0.1', () => r()));
   const port = (srv.address() as any).port;

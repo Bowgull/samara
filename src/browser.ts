@@ -852,7 +852,7 @@ export class SamaraBrowser {
   readonly details: DetailsStore;
   readonly pinSeal: PinSeal;
   /** The tab and site a fill was started for: a fill never lands on a page that changed since. */
-  vaultFor: { tab: number; host: string } | null = null;
+  vaultFor: { tab: number; host: string; url?: string; frame?: { pid: number; rid: number } } | null = null;
   /** Does the page he is looking at have a password box? Then the key shows in the slot. */
   hasLogin = false;
   /** Each site's icon, kept as a small picture so bookmarks always carry their icons, as in any browser. */
@@ -2042,7 +2042,7 @@ export class SamaraBrowser {
   /** The address bar asking for his PIN: the digits so far (never shown, never kept), and what to do once it opens. */
   afPin: { digits: string; then: 'fill' | 'save'; checking?: boolean } | null = null;
   /** A login he just sent on a page, waiting for him to look at it (kept in memory only, five minutes at most). */
-  afSave: { tab: number; host: string; user: string; pass: string; at: number; asked: boolean } | null = null;
+  afSave: { tab: number; host: string; user: string; pass: string; at: number; asked: boolean; update?: string } | null = null;
   afBandMode: 'idle' | 'pin' | 'save' = 'idle';
 
   // ------------------------------------------------------------------ sheet 106 v7, notices

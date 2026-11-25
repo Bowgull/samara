@@ -645,7 +645,9 @@ export class Driver {
   reserve(job: number, page: number): void { this.jobSeq = Math.max(this.jobSeq, job | 0); this.pageSeq = Math.max(this.pageSeq, page | 0); }
   job(id: number): Job | undefined { return this.jobs.find((j) => j.id === id); }
   /** A job's group in the tab list is named for what it is doing ("JOB SCAN"), his ask 2026-10-14. */
-  rename(id: number, name: string): void { const j = this.job(id); if (j && name.trim()) { j.name = cleanName(name); if (j.sites && jobTask(name)) for (const s of JOB_SITES) j.sites.add(s); this.d.changed(); } }
+  // QA fix (Codex, PR #3): a planned job's login sites are the plan's, and only an updated plan he says yes to changes
+  // them; a new name never adds the job-hunt sites to them.
+  rename(id: number, name: string): void { const j = this.job(id); if (j && name.trim()) { j.name = cleanName(name); if (j.sites && !j.planned && jobTask(name)) for (const s of JOB_SITES) j.sites.add(s); this.d.changed(); } }
   /** Is this page outside its job's sites (logged out, or about to be)? */
   /** Why a session may never open or read this address, or ''. The fixed refusals, then his own per-site switch. */
   why(u: string): string {

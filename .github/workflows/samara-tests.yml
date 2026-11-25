@@ -66,10 +66,12 @@ jobs:
         run: node node_modules/electron/install.js
       - name: Virtual screen
         if: runner.os == 'Linux'
-        run: sudo apt-get update -q && sudo apt-get install -y -q xvfb
+        run: sudo apt-get update -q && sudo apt-get install -y -q xvfb fluxbox
       - name: Real-window checks
         run: |
-          if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a node tools/run-electron-checks.mjs --jobs 3
+          # Linux: a small window manager on the virtual screen, so a window that is focused gets the focus (the
+          # autofill checks need it, as on a desktop).
+          if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a bash -c 'fluxbox >/dev/null 2>&1 & sleep 2; node tools/run-electron-checks.mjs --jobs 3'
           else node tools/run-electron-checks.mjs --jobs 2; fi
       # Phase 5: start, memory per page, idle processor and tab switch, against speed-budgets.json. Alone, after the
       # other checks (which run three at a time and would slow it), and even when one of them failed.

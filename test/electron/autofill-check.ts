@@ -2,11 +2,14 @@
 // Bitwarden (test/fixtures/fake-bw.mjs): the light shows by an email box, Tab fills it, the arrow takes the next email,
 // one click fills a whole form, the PIN opens Bitwarden in the address bar without the page seeing the digits, five
 // wrong PINs wipe the seal, and a new login is offered and kept after he says Save.
+// QA fixes (2026-11-25): a changed password updates his login (F3), a sign-in left hidden in the page still offers to keep
+// the login (F6), and the key fills a login inside a frame (F4). Parts that need the computer's own lock (the PIN) say
+// SKIP where there is none (Linux with no keyring, the CI runner).
 // Run: npx electron test/electron/autofill-check.ts
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, safeStorage } from 'electron';
 import https from 'node:https';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,8 +20,11 @@ const PORT = 47993, SHOP = `https://shop.example:${PORT}`;
 const tmp = mkdtempSync(path.join(os.tmpdir(), 'af-'));
 process.env.SAMARA_TEST_BW = path.join(HERE, '..', 'fixtures', 'fake-bw.mjs');
 process.env.FAKE_BW_DIR = tmp;
+writeFileSync(path.join(tmp, 'items.json'), JSON.stringify([
+  { id: '11111111-1111-1111-1111-111111111111', type: 1, name: 'Northwind', login: { username: 'alex@example.com', password: 'opensesame', totp: 'otpauth://keep', uris: [{ uri: 'https://shop.example' }] } },
+  { id: '44444444-4444-4444-4444-444444444444', type: 1, name: 'Auth', login: { username: 'framed@example.com', password: 'inframe', uris: [{ uri: 'https://auth.example' }] } }]));
 app.setPath('userData', path.join(tmp, 'ud'));
-app.commandLine.appendSwitch('host-resolver-rules', 'MAP shop.example 127.0.0.1');
+app.commandLine.appendSwitch('host-resolver-rules', 'MAP shop.example 127.0.0.1, MAP auth.example 127.0.0.1');
 app.commandLine.appendSwitch('ignore-certificate-errors');
 // Off screen and never focused (the test must not take his keyboard): keep its pages running at full speed.
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
@@ -32,9 +38,15 @@ const PAGES: Record<string, string> = {
   '/signin': `<!doctype html><title>Sign in</title><form action="/account" method="get" style="margin:40px">
     <label>Email <input id="email" type="email" autocomplete="username"></label><br><label>Password <input id="pw" type="password" autocomplete="current-password"></label><br><button>Continue</button></form>`,
   '/account': `<!doctype html><title>Account</title><p>Welcome back.</p>`,
+  // F6: signed in, but the page keeps its sign-in box (hidden) in the page.
+  '/account2': `<!doctype html><title>Account</title><p>Welcome back.</p><div style="display:none"><input type="password"></div>`,
+  '/hidden': `<!doctype html><title>Join</title><form action="/account2" method="get" style="margin:40px"><input id="u" autocomplete="username"><input id="p" type="password"><button id="go" style="width:120px;height:40px">Join</button></form>`,
+  // F4: the sign-in lives in a frame from auth.example.
+  '/framed': `<!doctype html><title>Framed</title><p>Sign in below</p><iframe id="f" src="https://auth.example:${PORT}/inner" style="width:500px;height:240px"></iframe>`,
+  '/inner': `<!doctype html><title>Inner</title><form style="margin:10px"><input id="email" type="email" autocomplete="username"><input id="pw" type="password"></form>`,
   '/ship': `<!doctype html><title>Shipping</title><form style="margin:40px"><input id="name" autocomplete="name"><input id="mail" type="email"><input id="tel" type="tel">
     <input id="street" autocomplete="address-line1"><input id="city" autocomplete="address-level2"><input id="postal" autocomplete="postal-code"></form>`,
-  '/new': `<!doctype html><title>New</title><form action="/account" method="get" style="margin:40px"><input id="u" autocomplete="username"><input id="p" type="password"><button id="go">Join</button></form>`,
+  '/new': `<!doctype html><title>New</title><form action="/account" method="get" style="margin:40px"><input id="u" autocomplete="username"><input id="p" type="password"><button id="go" style="width:120px;height:40px">Join</button></form>`,
 };
 
 app.whenReady().then(async () => {
@@ -69,6 +81,15 @@ app.whenReady().then(async () => {
     await wait(250);
   };
   const lightOn = () => Boolean(b.pane.lightV?.getVisible());
+  // His own click (a page's scripted click is ignored on purpose: security check 2026-10-24, finding 4).
+  const click = async (sel: string) => {
+    const r = await tab().executeJavaScript(`(() => { const r = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) }; })()`);
+    tab().focus();
+    for (const type of ['mouseDown', 'mouseUp'] as const) tab().sendInputEvent({ type, x: r.x, y: r.y, button: 'left', clickCount: 1 });
+  };
+  const fill = (u: string, p: string) => tab().executeJavaScript(`document.querySelector('#u, #email').value = ${JSON.stringify(u)}; document.querySelector('#p, #pw').value = ${JSON.stringify(p)}; 1`);
+  const lockHere = safeStorage.isEncryptionAvailable();
+  const skip = (name: string) => console.log(`SKIP ${name} (no lock of its own on this computer)`);
   // Waits for what it is waiting for (a busy Mac is slow), up to a limit.
   const until = async (f: () => unknown, ms = 8000) => { for (let t = 0; t < ms; t += 150) { if (await f()) return true; await wait(150); } return false; };
 
@@ -88,12 +109,13 @@ app.whenReady().then(async () => {
   console.log('stage: ship');
   await focus('#mail');
   console.log('stage: focused ' + JSON.stringify({ af: b.af && { kind: b.af.kind, offer: b.af.offer, empty: b.af.empty }, light: lightOn(), active: b.active, cur: b.cur()?.id, url: tab().getURL() }));
-  ok('the light shows beside an email box', lightOn());
+  ok('the light shows beside an email box', await until(lightOn, 3000) || (await focus('#mail'), await until(lightOn, 3000)));
   const lb = b.pane.lightV?.getBounds(), fb = await tab().executeJavaScript(`(() => { const r = document.querySelector('#mail').getBoundingClientRect(); return { x: r.right, y: r.top + r.height / 2 }; })()`);
   ok('...right beside the box', lb && Math.abs(lb.x - (shopTab().view.getBounds().x + fb.x)) <= 6, JSON.stringify({ lb, fb }));
   await key('Down'); await key('Tab');
   ok('the arrow then Tab fills the second email', (await val('#mail')) === 'alex.work@example.com', await val('#mail'));
-  ok('...and the other boxes of the form too (one move)', (await val('#name')) === 'Alex Example' && (await val('#postal')) === 'B3H 1A1', `${await val('#name')} / ${await val('#postal')}`);
+  // Security check 2026-10-24 (finding 2, autofill-attacks-check.ts): Tab fills only the box he is in; the rest waits for his click.
+  ok('...and only that box (Tab never fills the rest of the form)', (await val('#name')) === '' && (await val('#postal')) === '', `${await val('#name')} / ${await val('#postal')}`);
   ok('the light goes once it has filled', await until(() => !lightOn(), 3000));
 
   // 2 · a click on the light fills the whole form
@@ -107,6 +129,7 @@ app.whenReady().then(async () => {
   // 3 · the PIN: open Bitwarden once with the master password, set a PIN, lock (it only forgets the session here)
   ok('the master password opens the stand-in Bitwarden', await b.vault.unlock('correct horse'));
   await b.learnSites();
+  if (lockHere) {
   await b.afSetPin({ pin: '1234', again: '1234' }); await wait(300);
   ok('the PIN is sealed', b.pinSeal.has());
   b.vault.lock();
@@ -127,17 +150,46 @@ app.whenReady().then(async () => {
   for (let i = 0; i < 5; i++) { for (const d of '9999') await key(d); await until(() => !b.afPin?.checking, 4000); await wait(200); }
   ok('five wrong PINs wipe the seal', !b.pinSeal.has() && !existsSync(path.join(stateDir, 'autofill-pin.json')));
   ok('...and lock the tool itself', JSON.parse(readFileSync(path.join(tmp, 'state.json'), 'utf8')).unlocked === false);
+  } else for (const n of ['the PIN is sealed', 'the PIN opens Bitwarden and the light brings the login', 'five wrong PINs wipe the seal']) skip(n);
 
   // 5 · a new login: offered after the page moves on; Save keeps exactly what he saw
   await b.vault.unlock('correct horse');
   await go('/new');
-  await tab().executeJavaScript(`document.querySelector('#u').value = 'newbie'; document.querySelector('#p').value = 'hunter2!'; document.querySelector('#go').click(); 1`);
+  await fill('newbie', 'hunter2!'); await click('#go');
   await until(() => b.afBandMode === 'save', 15000);
   ok('a new login waits behind the key', b.afSave !== null && b.afBandMode === 'save', JSON.stringify({ host: b.afSave?.host, user: b.afSave?.user }));
   await b.afSaveGo({ site: 'shop.example', user: 'newbie', pass: 'hunter2!' }); await wait(800);
   const made = existsSync(path.join(tmp, 'created.log')) ? readFileSync(path.join(tmp, 'created.log'), 'utf8') : '';
   ok('Save keeps it in Bitwarden, as he saw it', /"username":"newbie"/.test(made) && /"password":"hunter2!"/.test(made) && /shop\.example/.test(made));
   ok('the secret went in by stdin, never the command line', !made.includes('--') && b.afSave === null);
+
+
+  // 6 · F3: a changed password updates the login he has (no second login), and nothing else in it changes
+  const createdBefore = readFileSync(path.join(tmp, 'created.log'), 'utf8');
+  await go('/signin');
+  await fill('alex@example.com', 'newpass-1'); await click('button');
+  await until(() => b.afBandMode === 'save', 15000);
+  ok('a changed password is offered as an update', b.afSave?.update === '11111111-1111-1111-1111-111111111111', JSON.stringify(b.afSave && { user: b.afSave.user, update: b.afSave.update }));
+  await b.afSaveGo({ site: 'shop.example', user: 'alex@example.com', pass: 'newpass-1' }); await wait(800);
+  const edited = existsSync(path.join(tmp, 'edited.log')) ? readFileSync(path.join(tmp, 'edited.log'), 'utf8') : '';
+  ok('Update changes the password in his login', /^11111111-1111-1111-1111-111111111111 .*"password":"newpass-1"/.test(edited), edited.slice(0, 80));
+  ok('...keeps the rest of it (name, two-step code)', /"name":"Northwind"/.test(edited) && /"totp":"otpauth:\/\/keep"/.test(edited));
+  ok('...and never makes a second login', readFileSync(path.join(tmp, 'created.log'), 'utf8') === createdBefore);
+
+  // 7 · F6: signed in, the page keeps a hidden password box: the login is still offered
+  await go('/hidden');
+  await fill('hid', 'hidden-ok'); await click('#go');
+  await until(() => b.afBandMode === 'save', 15000);
+  ok('a sign-in box left hidden in the page does not stop the offer', b.afSave?.user === 'hid', JSON.stringify(b.afSave && { user: b.afSave.user }));
+  b.afSave = null; b.afBand();
+
+  // 8 · F4: the key fills a login inside a frame, for the frame's own site
+  await go('/framed'); await wait(800);
+  const frame = () => tab().mainFrame.framesInSubtree.find((f) => f.url.includes('auth.example'));
+  await b.vaultKey(); await wait(1200);
+  const fv = (await frame()?.executeJavaScript(`[document.querySelector('#email').value, document.querySelector('#pw').value]`).catch(() => null)) as string[] | null | undefined;
+  ok('the key fills the login inside a frame, for that frame\'s site', fv?.[0] === 'framed@example.com' && fv?.[1] === 'inframe', JSON.stringify(fv));
+  ok('...and nothing of it lands in the page around it', await tab().executeJavaScript(`document.querySelectorAll('input').length`) === 0);
 
   console.log(all ? 'ALL PASS' : 'FAILED'); app.exit(all ? 0 : 1);
 });
