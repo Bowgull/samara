@@ -61,6 +61,10 @@ app.whenReady().then(async () => {
   check('Go starts the session with the sites the user kept (job sites keep their login in a job scan)', r1.ok === true && r1.sites.join(',') === 'linkedin.com,boards.greenhouse.io' && r1.login.join(',') === 'linkedin.com,boards.greenhouse.io', JSON.stringify(r1));
   const j = b.driver.job(r1.job);
   check('the fence: their login on the kept job sites, the unticked site denied', j.planned && [...j.sites].join(',') === 'linkedin.com,greenhouse.io' && j.denied.has('jobbank.gc.ca'), JSON.stringify({ sites: [...j.sites], denied: [...j.denied] }));
+  // QA fix (Codex, PR #3): renaming a planned job to a job-hunt name never adds his login on more sites.
+  const before = [...j.sites].sort().join(',');
+  b.driver.rename(r1.job, 'Job hunt');
+  check('a new name never widens a plan\'s login sites', [...j.sites].sort().join(',') === before, JSON.stringify([...j.sites]));
   const den = await b.drive('open', { job: r1.job, url: `http://www.jobbank.gc.ca:${PORT}/` }).catch((e: Error) => ({ ok: false, error: e.message }));
   check('an unticked site is never opened', den.ok === false && /unticked/.test(den.error), JSON.stringify(den));
   const gh = await b.drive('open', { job: r1.job, url: `http://boards.greenhouse.io:${PORT}/acme` });

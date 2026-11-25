@@ -51,3 +51,10 @@ notes-check.ts
 notesboard-check.ts
 notepins-check.ts
 asknotes-check.ts
+# QA fix batch 1 (2026-11-25): Bitwarden's fill, save, update and frame fill, with their own certificate and stand-in
+# Bitwarden. Linux runs them under a window manager (samara-tests.yml) so focus behaves as on a desktop; the PIN parts
+# say SKIP there (no keyring) and run on the Mac and Windows.
+autofill-check.ts
+autofill-attacks-check.ts
+login-catch-check.ts
+vaultkey-check.ts

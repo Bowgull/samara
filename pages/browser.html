@@ -96,13 +96,13 @@
     <!-- 6.23: Bitwarden. The master password is typed HERE, in the companion's own frame, never into a website. -->
     <!-- Sheet 77: a new login he just used. Exactly what Bitwarden will keep, so he can fix anything first. -->
     <div class="bandchip vault afsave" id="afsavechip" hidden>
-      <div class="q">Keep this login in Bitwarden?</div>
+      <div class="q" id="afsaveq">Keep this login in Bitwarden?</div>
       <form id="afsaveform" autocomplete="off">
         <label class="srow"><span>Site</span><input id="afsite" type="text" spellcheck="false" autocomplete="off" maxlength="253"></label>
         <label class="srow"><span>Username</span><input id="afuser" type="text" spellcheck="false" autocomplete="off" maxlength="200"></label>
         <label class="srow"><span>Password</span><input id="afpass" type="password" autocomplete="off" maxlength="500"></label>
         <div class="keys">
-          <button class="key primary sm" type="submit">Save<span class="k">A</span></button>
+          <button class="key primary sm" id="afsavego" type="submit">Save<span class="k">A</span></button>
           <button class="key sm" id="afsaveno" type="button">Not now<span class="k">Z</span></button>
         </div>
       </form>

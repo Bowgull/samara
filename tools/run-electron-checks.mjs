@@ -45,8 +45,13 @@ function run(name) {
     p.stdout.on('data', (d) => { out += d; });
     p.stderr.on('data', (d) => { out += d; });
     const kill = setTimeout(() => { out += '\nRUNNER: timed out\n'; p.kill('SIGKILL'); }, TIMEOUT_MS);
-    p.on('close', (code) => { clearTimeout(kill); resolve({ name, code, secs: Math.round((Date.now() - started) / 1000), out }); });
-    p.on('error', (e) => { clearTimeout(kill); resolve({ name, code: -1, secs: 0, out: String(e) }); });
+    // Done when the check's own process exits. Not 'close' alone: a program a check starts (2026-11-25: xdg-open
+    // opening a real browser on the Linux runner) can keep the output pipes open long after, and the run never ended.
+    let done = false;
+    const finish = (code) => { if (done) return; done = true; clearTimeout(kill); resolve({ name, code, secs: Math.round((Date.now() - started) / 1000), out }); };
+    p.on('close', (code) => finish(code));
+    p.on('exit', (code, signal) => { setTimeout(() => finish(code ?? (signal ? 1 : 0)), 2000); });
+    p.on('error', (e) => { if (done) return; done = true; clearTimeout(kill); resolve({ name, code: -1, secs: 0, out: String(e) }); });
   });
 }
 
