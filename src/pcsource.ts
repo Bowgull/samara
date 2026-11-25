@@ -2,6 +2,7 @@
 // (engineupdate.ts) as the engine's two sources, so the PC keeps the key by the same rules as the Mac
 // (updateengine.ts). On the PC the pet restarts Samara onto whatever was pointed at.
 import { titleOf } from './ghrelease.ts';
+import { catchUp } from './catchup.ts';
 import type { EngineUpdates } from './engineupdate.ts';
 import type { SamaraUpdates } from './pcupdate.ts';
 import type { CardGroup, Offer, Source } from './updateengine.ts';
@@ -13,7 +14,10 @@ export function pcSamara(su: SamaraUpdates): Source {
       const r = su.ready;
       // Sheet 114: a newer one getting ready in its own folder; this one stays on the key until it is.
       const coming = r && su.getting && su.getting !== r.version ? { coming: { next: su.getting, now: r.version } } : {};
-      return r ? { version: r.version, since: r.since, title: titleOf(r), groups: [{ name: 'SAMARA', items: r.notes.map((text) => ({ text })) }], canBack: su.canBack(), ...coming } : null;
+      if (!r) return null;
+      // His ask (2026-11-24): how many versions behind, and what each one brought.
+      const c = catchUp(r, r.history, su.current());
+      return { version: r.version, since: r.since, title: titleOf(r), groups: c.groups, ...(c.behind ? { behind: c.behind } : {}), canBack: su.canBack(), ...coming };
     },
     check: (why) => su.check(why),
     go: async () => (su.go() ? { ok: true } : { ok: false, why: 'The update is not ready yet. It will show up again when it is.' }),

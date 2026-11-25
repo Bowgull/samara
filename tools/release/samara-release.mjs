@@ -30,6 +30,7 @@ mkdirSync(out, { recursive: true });
 // Phase 1 (2026-11-24): the list of every code file and its fingerprint, sealed with the same key, goes inside the
 // bundle; each Samara checks its own files against it after start (src/integrity.ts).
 const { listOf } = await import('../../src/integrity.ts');
+const { historyOf } = await import('../../src/catchup.ts');
 const list = listOf(shell, version);
 writeFileSync(path.join(out, 'integrity.json'), list);
 writeFileSync(path.join(out, 'integrity.sig'), sign(null, Buffer.from(list), createPrivateKey(pem)).toString('base64'));
@@ -46,6 +47,8 @@ const manifest = {
   v: 1, app: 'samara', version, name: v.name, commit, at: new Date().toISOString(), notes,
   items: lines.slice(0, 30).map((l) => ({ text: String(l.text), kind: l.kind === 'major' || l.kind === 'feature' ? l.kind : 'fix' })),
   bundle: { file: 'samara-bundle.tgz', sha256: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length },
+  // The versions before this one and their lines (catchup.ts), so a Samara that skipped some can say how far behind it was.
+  history: historyOf(rec.versions, items, version),
 };
 const text = JSON.stringify(manifest, null, 1);
 writeFileSync(path.join(out, 'manifest.json'), text);

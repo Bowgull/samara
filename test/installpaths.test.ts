@@ -150,7 +150,7 @@ test('Sheet 114, Mac: skipping the one on the key keeps the newer one coming', {
 });
 
 test('Sheet 114, PC: the ready one stays on the key while a newer one is made in its own folder', () => {
-  const su = { ready: { version: '1.27.0', name: 'Gojo', commit: 'a'.repeat(40), notes: ['x'], since: 1 }, getting: '1.27.1', canBack: () => false } as never;
+  const su = { ready: { version: '1.27.0', name: 'Gojo', commit: 'a'.repeat(40), notes: ['x'], since: 1 }, getting: '1.27.1', canBack: () => false, current: () => '1.26.0' } as never;
   const s = pcSamara(su);
   assert.equal(s.ready()?.version, '1.27.0'); assert.deepEqual(s.ready()?.coming, { next: '1.27.1', now: '1.27.0' });
   (su as { getting: string }).getting = '';

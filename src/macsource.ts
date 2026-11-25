@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { catchUp } from './catchup.ts';
 import { download as ghDownload, latest as ghLatest, titleOf, withSection, type Manifest } from './ghrelease.ts';
 import { behindMs, behindWords, chromeStable, closesGap, downloadEngine, enginePlatform, latestEngine, type EngineManifest, type EnginePlatform } from './enginerelease.ts';
 import { Evs, type Signed } from './evs.ts';
@@ -214,7 +215,8 @@ export class MacSamara implements Source {
   ready(): Offer | null {
     const s = this.stage.readySamara, coming = this.stage.coming();
     if (!s) return null;
-    return { version: s.m.version, since: Date.parse(s.m.at) || Date.now(), title: titleOf(s.m), groups: [{ name: 'SAMARA', items: s.m.notes.map((text) => ({ text })) }], canBack: this.canBack(), ...(coming ? { coming } : {}) };
+    const c = catchUp(s.m, s.m.history, this.current());   // his ask (2026-11-24): how many versions behind, and what each brought
+    return { version: s.m.version, since: Date.parse(s.m.at) || Date.now(), title: titleOf(s.m), groups: c.groups, ...(c.behind ? { behind: c.behind } : {}), canBack: this.canBack(), ...(coming ? { coming } : {}) };
   }
   async check(why: string): Promise<void> { await this.look(why); }
 
