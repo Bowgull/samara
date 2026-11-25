@@ -10,14 +10,17 @@ import { getCurrentFuseWire, FuseV1Options } from '@electron/fuses';
 
 const bin = process.argv[2];
 if (!bin || !existsSync(bin)) { console.error('Give the path to the engine: node tools/qa/engine-report.mjs <electron binary>'); process.exit(2); }
-// The versions, asked of the engine itself running as plain Node (works only while its RunAsNode fuse is on: that is
-// itself a finding, reported below).
-let versions = 'unknown (RunAsNode is off, so the engine cannot be asked)';
-try {
-  versions = execFileSync(bin, ['-p', 'JSON.stringify({ electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node })'], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, encoding: 'utf8', timeout: 20_000 }).trim();
-} catch { /* reported as unknown */ }
-console.log(`engine:   ${bin}\nversions: ${versions}`);
 const wire = await getCurrentFuseWire(bin);
+const fuseOn = (o) => { const v = wire[o]; return v === '1' || v === 49 || v === true; };
+// The versions, asked of the engine itself running as plain Node. Only while its RunAsNode fuse is on: with it off the
+// engine would start as an app instead (Codex on PR #15), so it is not asked at all.
+let versions = 'not asked (RunAsNode is off, so the engine cannot run as plain Node)';
+if (fuseOn(FuseV1Options.RunAsNode)) {
+  try {
+    versions = execFileSync(bin, ['-p', 'JSON.stringify({ electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node })'], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, encoding: 'utf8', timeout: 20_000 }).trim();
+  } catch { versions = 'unknown (the engine did not answer)'; }
+}
+console.log(`engine:   ${bin}\nversions: ${versions}`);
 // What each switch should be for a browser that holds his logins (Electron's security guidance); castLabs ships its
 // own settings, which Samara keeps when it must for paid video (engineupdate.ts).
 const want = {
