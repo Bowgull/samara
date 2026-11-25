@@ -263,6 +263,9 @@ export function startClaudeDoor(getBrowser: () => SamaraBrowser | null, stateDir
                 : { ok: false, error: yes === null ? "Reading the notes needs the user's OK in Samara, and Samara is not open." : 'The user did not allow this chat into their notes.' };
             }
           }
+          // S1 (2026-11-25): one of his snips, by the name Samara typed into this chat when he picked Ask Claude. The name is
+          // made fresh for each snip and only he hands it over, so knowing it is his say-so; a path is never taken.
+          else if (op === 'snip') out = b.snipHub ? b.snipHub.forClaude(a.id) : { ok: false, error: "Samara's snips have not started yet." };
           else if (!OPS.has(op)) out = { ok: false, error: 'not a step this door allows' };
           // Indeed (and its Glassdoor) checks browsers it does not know; their official connector is the way in (2026-10-14).
           else if (op === 'open' && /^https?:\/\/([^/]*\.)?(indeed|glassdoor)\.[a-z.]+(\/|$)/i.test(String(a.url ?? ''))) out = { ok: false, error: "Indeed and Glassdoor are not opened in Samara: they put up security checks. Use the official Indeed connector (search_jobs) instead." };

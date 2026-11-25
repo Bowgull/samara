@@ -392,6 +392,8 @@ el('m-notes').addEventListener('click', () => { closeMenu(); window.samara?.brow
 el('m-timer').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('timer'); });
 // M1 (2026-11-25): the music player is Samara's.
 el('m-music').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('music'); });
+// S1 (2026-11-25): Snip is Samara's: drag a box around part of the screen.
+el('m-snip').addEventListener('click', () => { closeMenu(); window.samara?.browserAct?.('snip'); });
 // The tab count at the foot of the drawer (Phase R: trail clean up is retired; the overnight tidy does it).
 function paintTidy() {
   const live = state.tabs.filter((t) => !String(t.url).startsWith('samara:')).length;

@@ -24,6 +24,7 @@ import type { SyncMsg } from './bsync.ts';
 import type { NotesHub, NotesOpts } from './noteswire.ts';
 import type { TimersHub, TimersOpts } from './timerswire.ts';
 import type { MusicHub, MusicOpts } from './musicwire.ts';
+import type { SnipHub, SnipOpts } from './snipwire.ts';
 import { serviceFor } from './services.ts';
 import { sched } from './sched.ts';
 import { describeJobs } from './scheduler.ts';
@@ -83,7 +84,9 @@ export interface BootDeps {
   startTimers?(o: TimersOpts): TimersHub | null;
   /** M1 (2026-11-25): Samara's own music player (musicwire.ts). Optional so the wiring tests need no Electron. */
   startMusic?(o: Omit<MusicOpts, 'appData'>): MusicHub | null;
-  /** The Mac's Dock menu (right-click Samara in the Dock): New note, Set a timer. */
+  /** S1 (2026-11-25): Snip (snipwire.ts). Optional so the wiring tests need no Electron. */
+  startSnip?(o: SnipOpts): SnipHub | null;
+  /** The Mac's Dock menu (right-click Samara in the Dock): New note, Set a timer, Music player, Snip. */
   dockMenu?(rows: { label: string; click: () => void }[]): void;
 }
 
@@ -169,6 +172,8 @@ export interface SamaraBooted extends SamaraBase {
   timers: TimersHub | null;
   /** The music player (M1), null when it could not start. */
   music: MusicHub | null;
+  /** Snip (S1), null when it could not start. */
+  snips: SnipHub | null;
   plans: PlanMemory;
   updates: UpdateEngine;
   /** The open-urls folder, read again (a test, or a drop that raced the watcher). */
@@ -303,10 +308,16 @@ export function samaraBrowser(base: SamaraBase, p: Platform, bp: BrowserPlatform
   try { music = d.startMusic?.({ here: p.here, stateDir: p.stateDir, origin: pages.origin, log: (s) => p.log(s) }) ?? null; }
   catch (e) { p.log('the music player did not start: ' + (e as Error).message); }
   browser.musicHub = music;
+  // S1 (2026-11-25): Snip is Samara's too: a box round part of the screen, then Ask Claude or Pin it.
+  let snips: SnipHub | null = null;
+  try { snips = d.startSnip?.({ browser, here: p.here, stateDir: p.stateDir, origin: pages.origin, log: (s) => p.log(s) }) ?? null; }
+  catch (e) { p.log('snip did not start: ' + (e as Error).message); }
+  browser.snipHub = snips;
   const dock: { label: string; click: () => void }[] = [];
   if (notes) { const n = notes; dock.push({ label: 'New note', click: () => n.quick() }); }
   if (timers) { const t = timers; dock.push({ label: 'Set a timer', click: () => t.setup() }); }
   if (music) { const m = music; dock.push({ label: 'Music player', click: () => m.open() }); }
+  if (snips) { const s = snips; dock.push({ label: 'Snip', click: () => void s.start() }); }
   if (dock.length) d.dockMenu?.(dock);
 
   // M6: one browser on both machines. Changes go to the other machine's browser.
@@ -372,5 +383,5 @@ export function samaraBrowser(base: SamaraBase, p: Platform, bp: BrowserPlatform
     settle();
     sched.every('canary.settle', 10 * 60_000, settle, { first: 60_000 });
   }
-  return { ...base, browserNow: browser, notes, timers, music, plans, updates: ue, takeDrops };
+  return { ...base, browserNow: browser, notes, timers, music, snips, plans, updates: ue, takeDrops };
 }

@@ -13,10 +13,10 @@
 import path from 'node:path';
 
 // The Pop-outs section's names (moved here from taskbarplan.ts on 2026-11-20, phase 1 of Samara's own repo).
-export const POPOUT_TASKS = ['popouts-show', 'popouts-hide', 'popouts-gather', 'new-note', 'timer', 'player'] as const;
+export const POPOUT_TASKS = ['popouts-show', 'popouts-hide', 'popouts-gather', 'new-note', 'timer', 'player', 'snip'] as const;
 export type PopoutTask = typeof POPOUT_TASKS[number];
 /**
- * Nothing needs the companion any more: New note (N0), Timer (T1) and the Music player (M1) moved into Samara on
+ * Nothing needs the companion any more: New note (N0), Timer (T1), the Music player (M1) and Snip (S1) moved into Samara on
  * 2026-11-25. Kept (empty) so the hand-over code stays one place should a tool ever need it again.
  */
 export const NEEDS_COMPANION: ReadonlySet<PopoutTask> = new Set<PopoutTask>([]);
@@ -61,6 +61,7 @@ const WORDS: Record<SamaraTask, [string, string]> = {
   'new-note': ['New note', 'A new note, small and ready to type'],
   'timer': ['Timer', 'Set a timer'],
   'player': ['Music player', 'Open the music player'],
+  'snip': ['Snip', 'Drag a box around part of the screen'],
 };
 
 /** The pop-outs part: whether the companion runs (New note, Timer, Music need it), the icon file for each, and what the user took off. */
