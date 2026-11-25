@@ -13,13 +13,14 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { cp, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { readJson, saveJson, saveText } from './store.ts';
+import type { Step } from './catchup.ts';
 import { LATEST_API, RELEASES, RELEASE_KEY, download, isVersion, latest, newer, titleOf, withSection, type Manifest } from './ghrelease.ts';
 import type { CheckOutcome, CheckProgress } from './updateengine.ts';
 import { swallowed } from './swallow.ts';
 
 export interface SamaraVersion { version: string; dir: string }
 export interface Pointer extends SamaraVersion { status: 'trial' | 'good'; previous: SamaraVersion | null; at: string }
-export interface SamaraReady { version: string; name: string; commit: string; notes: string[]; since: number }
+export interface SamaraReady { version: string; name: string; commit: string; notes: string[]; since: number; history?: Step[] }
 type Fetch = Parameters<typeof latest>[0];
 
 export const samaraRoot = (env: NodeJS.ProcessEnv = process.env): string | null => (env.LOCALAPPDATA ? path.join(env.LOCALAPPDATA, 'Samara') : null);
@@ -93,7 +94,7 @@ export class SamaraUpdates {
       const made = await this.prepare(m);
       this.getting = '';
       if (!made) { this.o.changed(); return 'error'; }
-      this.ready = { version: m.version, name: m.name, commit: m.commit, notes: m.notes, since: Date.parse(m.at) || Date.now() };
+      this.ready = { version: m.version, name: m.name, commit: m.commit, notes: m.notes, since: Date.parse(m.at) || Date.now(), ...(m.history ? { history: m.history } : {}) };
       this.addToChangelog(m);
       this.o.changed();
       return 'ready';

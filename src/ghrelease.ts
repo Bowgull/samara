@@ -5,6 +5,7 @@
 // out against the public half below. Its own file so it is tested without Electron.
 import { createHash, createPublicKey, verify } from 'node:crypto';
 import { createWriteStream, renameSync, rmSync } from 'node:fs';
+import { readHistory, type Step } from './catchup.ts';
 
 /** The public half of his release key (src/Shell/release-key.pub; the private half is GitHub's secret SAMARA_RELEASE_KEY). */
 export const RELEASE_KEY = `-----BEGIN PUBLIC KEY-----
@@ -24,6 +25,8 @@ export interface Manifest {
   /** His version's name (his anime picks, tools/release/version.mjs: Gojo, Edward, Naruto...), and each line's kind. */
   name: string; items: { text: string; kind: 'major' | 'feature' | 'fix' }[];
   bundle: { file: string; sha256: string; bytes: number };
+  /** The versions before this one and their lines, newest first (catchup.ts): absent in releases before 2026-11-25. */
+  history?: Step[];
 }
 
 /** The release's manifest, only when his seal is on exactly this text and it says what a Samara release says. */
@@ -40,7 +43,7 @@ export function checkManifest(text: string, sigB64: string, pub: string = RELEAS
   const notes = (Array.isArray(m.notes) ? m.notes : []).map((x) => String(x).slice(0, 160)).filter(Boolean).slice(0, 30);
   const name = typeof m.name === 'string' && /^[A-Za-z][A-Za-z0-9 .'-]{0,39}$/.test(m.name) ? m.name : '';
   const items = (Array.isArray(m.items) ? m.items : []).slice(0, 30).map((x) => ({ text: String(x?.text ?? '').slice(0, 160), kind: x?.kind === 'major' || x?.kind === 'feature' ? x.kind : 'fix' as const })).filter((x) => x.text);
-  return { v: 1, app: 'samara', version: m.version!, commit: m.commit!, at: String(m.at ?? ''), notes, name, items, bundle: { file: b.file, sha256: b.sha256, bytes: b.bytes } };
+  return { v: 1, app: 'samara', version: m.version!, commit: m.commit!, at: String(m.at ?? ''), notes, name, items, bundle: { file: b.file, sha256: b.sha256, bytes: b.bytes }, ...(Array.isArray(m.history) ? { history: readHistory(m.history) } : {}) };
 }
 
 // One comparison for every source (updateengine.ts).

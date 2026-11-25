@@ -2401,7 +2401,7 @@ function paintWho() {
     if (si === 'ask') note.append('castLabs wants you to sign in before it signs this engine for video. Terminal opens with the sign-in typed. ', T2('b', '', 'Your password goes to castLabs only'), ', never to Samara or the companion.');
     else if (si === 'waiting') note.append("Finish in Terminal. Samara signs the engine by itself the moment you're in.");
     else {
-      if (typeof u.behind === 'string' && u.behind) for (const part of u.behind.slice(0, 200).split(/(\d+ weeks?|\d+ days?|less than a day)/)) if (part) note.append(/^(\d+ (weeks?|days?)|less than a day)$/.test(part) ? T2('b', '', part) : part);
+      if (typeof u.behind === 'string' && u.behind) for (const part of u.behind.slice(0, 200).split(/(\d+ weeks?|\d+ days?|less than a day|\d+ versions)/)) if (part) note.append(/^(\d+ (weeks?|days?|versions)|less than a day)$/.test(part) ? T2('b', '', part) : part);
       if (sec && u.tonight === true) note.append(note.childNodes.length ? ' ' : '', 'It goes in by itself ', T2('b', '', 'tonight'), ' while you sleep, unless you restart first.');
     }
     note.hidden = !note.childNodes.length;
