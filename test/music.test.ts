@@ -54,6 +54,26 @@ test('an expired sign-in is forgotten but its Client ID is kept for the next sig
   assert.deepEqual(JSON.parse(readFileSync(f, 'utf8')), { clientId: ID });
 });
 
+test('Spotify turning a token down: refreshed and tried once more; turned down again, the player offers Sign in again', async () => {
+  const f = path.join(tmp(), 'spotify.json');
+  writeFileSync(f, JSON.stringify({ clientId: ID, refreshToken: 'refresh-token-1', accessToken: 'old', expiresAt: 9e15 }));
+  let refreshes = 0, calls = 0, refuse = 1;
+  const fetcher = (async (url: string) => {
+    if (url.includes('/api/token')) { refreshes++; return okJson({ access_token: 'new' + refreshes, expires_in: 3600 }); }
+    calls++;
+    return calls <= refuse ? okJson({ error: { message: 'expired' } }, 401) : okJson({ devices: [] });
+  }) as Fetch;
+  const sp = new Spotify(f, fetcher, () => 1000);
+  assert.deepEqual(await sp.devices(), [], 'once: a fresh token, and it goes through');
+  assert.equal(refreshes, 1);
+  assert.equal(sp.connected, true);
+  calls = 0; refuse = 5;
+  await assert.rejects(sp.devices(), (e: { kind?: string }) => e.kind === 'signin');
+  assert.equal(calls, 2, 'tried once more, not forever');
+  assert.equal(sp.connected, false, 'not connected: the player shows Sign in to Spotify');
+  assert.equal(sp.clientId, ID, 'the Client ID is kept for the next sign-in');
+});
+
 test('a sign-in: his browser goes to Spotify and comes back to Samara with the code; a stranger\'s answer is ignored', async () => {
   const calls: string[] = [];
   const fetcher = (async (url: string, init?: { body?: string }) => { calls.push(url + ' ' + (init?.body ?? '')); return okJson({ access_token: 'a', refresh_token: 'refresh-token-9', expires_in: 3600 }); }) as Fetch;

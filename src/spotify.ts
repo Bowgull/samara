@@ -104,7 +104,7 @@ export class Spotify {
     return t.accessToken;
   }
 
-  private async call(method: string, p: string, body?: unknown): Promise<any> {
+  private async call(method: string, p: string, body?: unknown, again = true): Promise<any> {
     const auth = await this.token();
     const r = await this.fetcher(`https://api.spotify.com/v1${p}`, { method, headers: { authorization: `Bearer ${auth}`, ...(body ? { 'content-type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
     const text = await r.text();
@@ -113,7 +113,16 @@ export class Spotify {
       const ra = Number(r.headers?.get?.('retry-after'));
       throw new SpotifyError('Spotify asked to slow down.', 'rate', Number.isFinite(ra) && ra > 0 ? Math.min(3600, ra) : 30);
     }
-    if (r.status === 401) { if (this.t) this.t.expiresAt = 0; throw new SpotifyError('Spotify turned the sign-in down.', 'signin'); }
+    if (r.status === 401) {
+      // Turned down: refresh once and try again. Turned down after a fresh refresh too, the sign-in is no good: it is
+      // forgotten (the Client ID kept), so the player offers "Sign in to Spotify" again instead of going quiet.
+      if (this.t) this.t.expiresAt = 0;
+      if (again) return this.call(method, p, body, false);
+      const id = this.t?.clientId ?? this.clientId;
+      this.t = null;
+      saveJson(this.file, id ? { clientId: id } : {}, { pretty: true, ownerOnly: true });
+      throw new SpotifyError('Spotify turned the sign-in down.', 'signin');
+    }
     if (r.status === 403) throw new SpotifyError('Spotify only lets Premium accounts be controlled like this.', 'premium');
     if (r.status === 404 && /device/i.test(String(j?.error?.message ?? ''))) throw new SpotifyError('No Spotify is open to play on.', 'device');
     if (!r.ok) throw new SpotifyError(`Spotify said ${r.status}: ${String(j?.error?.message ?? text).slice(0, 160)}`);
