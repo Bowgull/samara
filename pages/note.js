@@ -1,7 +1,7 @@
 // Sheet 17: one sticky note on their screen. Type on it; drag it by its top; resize from the corner; right-click
 // for text, size, font, see-through, pin, back to board, delete. Drop it on the companion to put it back.
 // Sheet 60 (2026-10-22): look B, colour from the category, the ribbon tab, and the one control row on every note.
-// The QUICK NOTE (Ctrl + *, or New note in Samara's taskbar list and Dock menu) is this same page opened with ?quick: the same note, just small, empty and ready to type.
+// The QUICK NOTE (Control + Option + N on the Mac, Ctrl + Num * or Ctrl + Alt + N on the PC, or New note in Samara's taskbar list and Dock menu) is this same page opened with ?quick: the same note, just small, empty and ready to type.
 // Enter keeps it (Shift + Enter is a new line), Esc closes (whatever the user typed is kept; an empty one is simply gone).
 import { buildPaper, openMenu, closeMenu, paintNote } from './notepaper.js';
 import { setOwnCats, closePicker } from './notecats.js';

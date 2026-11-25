@@ -3,7 +3,7 @@
 // goes to the Trash, the rail gets the page notes, and the Hyrule map file is written in the companion's format.
 //
 // Run: npx electron test/electron/notes-check.ts <folder for the pictures>
-import { app, BrowserWindow, screen, shell } from 'electron';
+import { app, BrowserWindow, globalShortcut, screen, shell } from 'electron';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -109,6 +109,9 @@ app.whenReady().then(async () => {
   const again = new NotesStore({ dir: path.join(stateDir, 'notes'), dev: 'pc', log: () => {} });
   check('after a restart every note is there', again.list().length === 3 && again.trash().length === 1, `${again.list().length} + ${again.trash().length}`);
   check('Settings › Notes has its numbers', (b.notesHub.status() as { notes: number }).notes === 3);
+  // Q1: the quick-note keys are held (here, the PC's: Ctrl + Num * and Ctrl + Alt + N for a laptop), and Settings names them.
+  const ks = (b.notesHub.status() as { quickKeys?: string[] }).quickKeys ?? [];
+  check('the quick-note keys are held, and named for Settings', globalShortcut.isRegistered('Control+Alt+N') && ks.includes('Ctrl + Alt + N'), JSON.stringify(ks));
 
   console.log('pictures: ' + OUT);
   console.log(bad ? `${bad} FAILED` : 'ALL PASS'); app.exit(bad ? 1 : 0);

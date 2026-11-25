@@ -91,7 +91,7 @@ function paint() {
   box.replaceChildren(...b.cards.map(card));
   const empty = $('#nempty');
   empty.hidden = b.cards.length > 0;
-  empty.textContent = $('#nq').value.trim() ? 'No note matches that.' : view === 'trash' ? 'The Trash is empty. Deleted notes stay here for 30 days.' : cat !== '*' ? 'No notes in this category.' : 'No notes yet. Ctrl + Num * makes one anywhere.';
+  empty.textContent = $('#nq').value.trim() ? 'No note matches that.' : view === 'trash' ? 'The Trash is empty. Deleted notes stay here for 30 days.' : cat !== '*' ? 'No notes in this category.' : (/Mac/.test(navigator.platform) ? 'No notes yet. Control + Option + N makes one anywhere.' : 'No notes yet. Ctrl + Alt + N (or Ctrl + Num *) makes one anywhere.');
   $('#nnew').hidden = view === 'trash';
   $('#nmore').hidden = b.cards.length >= b.total;
   $('#nmore').textContent = `Show more (${b.total - b.cards.length} older)`;

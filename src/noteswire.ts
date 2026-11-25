@@ -17,7 +17,7 @@ import { writeFileAtomic } from './atomic.ts';
 import { PIN_CSS, deepOf, pageKey, paintCode, quoteAround, type PagePin } from './anchorpaint.ts';
 import { run } from './page.ts';
 import { MAX_HTML } from './notes.ts';
-import { remindAt, askNotes, askClaudeText, htmlFromText, type AskHit, type RemindPick } from './notes.ts';
+import { remindAt, askNotes, askClaudeText, htmlFromText, quickKeysFor, sayKey, type AskHit, type RemindPick } from './notes.ts';
 import { newChatLink } from './claudehand.ts';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -54,8 +54,6 @@ export interface NotesLink {
 /** Cards drawn at a time on the board; "Show more" asks for the next lot (every note is reachable, none hidden). */
 export const BOARD_PAGE = 300;
 
-/** The quick-note key the companion used (Ctrl + number pad *), kept so his hands need not learn a new one. */
-export const QUICK_KEY = 'Control+nummult';
 
 export interface NotesHub {
   store: NotesStore;
@@ -63,7 +61,8 @@ export interface NotesHub {
   quick(): void;
   /** A note out on the screen (or brought to the front when it already is). */
   open(id: string): boolean;
-  status(): StoreStatus & { quickKey: string | null; companion: ImportReport | null };
+  /** quickKeys: every quick-note key Samara holds on this machine, as he reads them (quickKey: the first, or null). */
+  status(): StoreStatus & { quickKey: string | null; quickKeys: string[]; companion: ImportReport | null };
   /** Every note as Markdown in a folder. Returns how many. */
   exportMarkdown(dir: string): number;
   flush(): void;
@@ -91,6 +90,8 @@ export function startNotes(o: NotesOpts): NotesHub {
   });
   // Declared before anything that may show them (the status is read by Settings).
   let quickKey: string | null = null;
+  const held: string[] = [];
+  const mac = process.platform === 'darwin';
   let companion: ImportReport | null = null;
   if (store.locked) o.log('notes: this computer\'s key will not open the notes kept here; they are left as they are, and new notes are still kept');
   const card = (n: Note & { out?: unknown }): BoardCard => ({ id: n.id, title: n.title, html: n.html, ...(n.cat ? { cat: n.cat } : {}), ...(n.src ? { site: n.src.site, url: n.src.url } : {}),
@@ -153,7 +154,7 @@ export function startNotes(o: NotesOpts): NotesHub {
       const added = store.list().length - before;
       return changed ? `Brought back: ${added} new, ${changed - added > 0 ? changed - added : 0} updated. Nothing here was removed.` : 'Everything in that copy is already here.';
     },
-    status: () => ({ ...store.status(), quickKey, companion }),
+    status: () => ({ ...store.status(), quickKey, quickKeys: held.map((k) => sayKey(k, mac)), companion }),
     act: (a) => {
       if (a === 'notesbackup') { const ok = store.backup(true); b.say('Notes', ok ? 'Backed up' : 'Not backed up: see the log', ok ? 'done' : 'bad'); }
       else if (a === 'notesexport') {
@@ -370,19 +371,23 @@ export function startNotes(o: NotesOpts): NotesHub {
   }
 
   // ---- the quick-note key
-  try { if (globalShortcut.register(QUICK_KEY, quick)) quickKey = QUICK_KEY; else o.log(`notes: the quick-note key (${QUICK_KEY}) is taken by another program (the companion's Shell, if it still runs)`); }
-  catch (e) { o.log('notes: no quick-note key: ' + (e as Error).message); }
+  // Q1 (2026-11-25): Control + Option + N on the Mac (a MacBook has no number pad); Ctrl + Num * and Ctrl + Alt + N on the PC.
+  for (const k of quickKeysFor(process.platform)) {
+    try { if (globalShortcut.register(k, quick)) held.push(k); else o.log(`notes: the quick-note key ${sayKey(k, mac)} is taken by another program`); }
+    catch (e) { o.log(`notes: no quick-note key ${k}: ` + (e as Error).message); }
+  }
+  quickKey = held[0] ?? null;
   // The Dock's New note (the Mac) is set by boot.ts with the Dock's other rows (Set a timer).
 
   // ---- housekeeping: a backup a day (14 kept), the Trash emptied of what is over 30 days, everything on disk at quit
   sched.every('notes.backup', 6 * 3_600_000, () => { store.gc(); if (store.backup()) o.log('notes: backed up'); }, { first: 2 * 60_000 });
   const flush = () => { try { store.flush(); } catch (e) { o.log('notes: could not write at quit: ' + (e as Error).message); } };
-  app.on('will-quit', () => { try { if (quickKey) globalShortcut.unregister(quickKey); } catch { /* going */ } flush(); wins?.closeAll(); });
+  app.on('will-quit', () => { for (const k of held) { try { globalShortcut.unregister(k); } catch { /* going */ } } flush(); wins?.closeAll(); });
 
   redraw();
   return {
     store, quick, open,
-    status: () => ({ ...store.status(), quickKey, companion }),
+    status: () => ({ ...store.status(), quickKey, quickKeys: held.map((k) => sayKey(k, mac)), companion }),
     exportMarkdown: (dir) => store.exportMarkdown(dir, (n: Note) => toMarkdown(n)),
     flush,
   };
