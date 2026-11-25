@@ -15,7 +15,8 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { writeFileAtomic } from './atomic.ts';
 import { readJson, saveText } from './store.ts';
-import { FUSE, readFuses, setFuses, wireMap } from './fusewire.ts';
+import { FUSE, readFuses } from './fusewire.ts';
+import { SwitchOrder, signWithSwitches } from './switchorder.ts';
 import { behindMs, behindWords, chromeStable, closesGap, downloadEngine, latestEngine } from './enginerelease.ts';
 import { Evs, type Signed } from './evs.ts';
 import { stampEngine } from './brand.ts';
@@ -70,7 +71,9 @@ export function shaFor(list: string, file: string): string | null {
 const DAY = 24 * 60 * 60_000;
 
 /** What the safety checks said about an engine (test/electron/calls-check.ts and engine-safety-check.ts). */
-export interface TestResult { ok: boolean; look: string[]; chrome: string; missing?: boolean }
+export interface TestResult { ok: boolean; look: string[]; chrome: string; missing?: boolean;
+  /** Stopped by a call or a game, not by the engine. */
+  held?: boolean }
 /** calls-check.ts exits with this when only look checks (Samara's own page) failed: the engine itself is fine. */
 export const LOOK_ONLY = 5;
 /**
@@ -161,6 +164,9 @@ export class EngineUpdates {
   private todayFile(): string { return path.join(this.engines, 'failed-today.txt'); }
   /** Failed the safety checks today: not tested again until tomorrow (or the user's own "Check for updates"). */
   private failedToday(v: string): boolean { try { return failedToday(readFileSync(this.todayFile(), 'utf8'), v, dayOf()); } catch { return false; } }
+  private clearFailedToday(v: string): void {
+    try { saveText(this.todayFile(), readFileSync(this.todayFile(), 'utf8').split(/\r?\n/).filter((l) => l.trim() && l.trim().split(/\s+/)[0] !== plain(v)).map((l) => l + '\n').join('')); } catch { /* none */ }
+  }
   private markFailedToday(v: string): void {
     let keep: string[] = [];
     try { keep = readFileSync(this.todayFile(), 'utf8').split(/\r?\n/).filter((l) => l.trim().split(/\s+/)[1] === dayOf()); } catch { /* first */ }
@@ -203,7 +209,7 @@ export class EngineUpdates {
     this.brandRunning();
     sched.every('engine.check', DAY, () => this.check(), { first: 10 * 60_000, quiet: true });
   }
-  stop(): void { this.timers.forEach(clearTimeout); this.timers = []; sched.cancel('engine.check'); }
+  stop(): void { this.timers.forEach(clearTimeout); this.timers = []; sched.cancel('engine.check'); this.stopQuiet?.(); this.stopQuiet = null; }
 
   /** Running on a trial engine for five minutes means it works: mark it good and tidy old engines away. */
   trialCheck(after = 5 * 60_000): void {
@@ -275,6 +281,8 @@ export class EngineUpdates {
       if (!found || this.failed().has(found.m.version) || this.filed().has(found.m.version)) { if (this.ready) this.set(null); return; }
       const { m, asset } = found, v = m.version;
       if (this.ready?.version === v && !this.signin) return;
+      // Phase 2: castLabs wants him to sign in and he has not yet: told once, not signed again until he has.
+      if (this.signin === 'ask' && this.signinFor?.version === v && this.evs.loginStamp() <= this.askedStamp) return;
       if (this.failedToday(v)) return;
       // 2026-11-02 (the PC lagged right after Samara opened): castLabs refusing to sign this engine was
       // tried again on every check and nudge, each time rewriting the engine's switches and hashing it whole. A refusal
@@ -302,7 +310,16 @@ export class EngineUpdates {
       if (signed === 'denied') this.denied.set(v, Date.now() + DAY);
       if (signed !== 'ok') return;
       await this.brand(dir);
-      const t = await this.test(v, byHand);
+      let t = await this.test(v, byHand);
+      // Phase 2: closed back doors that castLabs signed but that then fail the checks (video not playing, say): this
+      // machine learns it for the major, and the engine is signed and checked again as castLabs shipped it.
+      if (!t.ok && !t.held && this.closedNow.has(v)) {
+        this.order.learn(v, 'the engine failed its checks with its back doors closed');
+        this.clearFailedToday(v);
+        if ((await this.switchesAndSign(v)) !== 'ok') return;
+        await this.brand(dir);
+        t = await this.test(v, byHand);
+      }
       if (!t.ok) return;
       // A new major is never put in by itself: it waits for a click, security fixes or not.
       const security = !this.pendingMajor && closesGap(process.versions.chrome, m.chrome, stable);
@@ -337,17 +354,35 @@ export class EngineUpdates {
     });
     return true;
   }
-  /** The engine as castLabs shipped it, its switches as they came, signed for paid video (the switches live in
-   *  electron.exe, which the video signature covers). */
+  /** Phase 2: the engine signed for paid video with its back doors closed first (switchorder.ts), or as castLabs
+   *  shipped it when castLabs refuses that. The switches live in electron.exe, which the video signature covers. */
   async switchesAndSign(v: string, dir = path.join(this.engines, 'castlabs-' + plain(v))): Promise<Signed> {
-    // The switches as castLabs shipped them, kept the first time, so an engine can always be put back exactly as it came.
-    const exe = path.join(dir, 'electron.exe'), stockFile = path.join(dir, 'stock-fuses.txt');
-    if (!existsSync(stockFile)) writeFileSync(stockFile, readFuses(exe));
-    console.log(`shell: engine ${v} switches: ${setFuses(exe, wireMap(readFileSync(stockFile, 'utf8').trim()))} (as castLabs shipped it)`);
-    const r = await this.evs.sign(dir);
-    if (r === 'signin') { this.signin = 'ask'; this.signinFor = { version: plain(v), since: Date.now() }; this.o.changed(this.ready); this.o.signinNeeded?.(true); }
-    else if (r === 'ok') this.signin = null;
+    const { r, closed } = await signWithSwitches({ v: plain(v), fuseFile: path.join(dir, 'electron.exe'), stockFile: path.join(dir, 'stock-fuses.txt'), order: this.order, sign: () => this.evs.sign(dir), log: (t) => console.log('shell: ' + t) });
+    if (closed) this.closedNow.add(plain(v)); else this.closedNow.delete(plain(v));
+    if (r === 'signin') {
+      const first = this.signin !== 'ask' || this.signinFor?.version !== plain(v);
+      this.signin = 'ask'; this.signinFor = { version: plain(v), since: Date.now() }; this.askedStamp = this.evs.loginStamp();
+      this.o.changed(this.ready);
+      // Told once (Phase 2): the card and one note, not one on every check. A sign-in he does on his own, outside
+      // Samara's key, is noticed too, and the engine is signed then.
+      if (first) { this.o.signinNeeded?.(true); this.watchQuietly(); }
+    } else if (r === 'ok') { this.signin = null; this.stopQuiet?.(); this.stopQuiet = null; }
     return r;
+  }
+  /** What this machine learned about closing the switches before signing. */
+  private get order(): SwitchOrder { return new SwitchOrder(path.join(this.engines, 'switch-order.json')); }
+  /** Engines signed here with their back doors closed (this run). */
+  private readonly closedNow = new Set<string>();
+  /** castLabs' login file as it was when he was asked to sign in. */
+  private askedStamp = 0;
+  private stopQuiet: (() => void) | null = null;
+  /** Waits (a week, a look every half minute) for castLabs' sign-in, however he does it, then carries on. */
+  private watchQuietly(): void {
+    this.stopQuiet?.();
+    this.stopQuiet = this.evs.watchSignin(this.askedStamp, (inNow) => {
+      this.stopQuiet = null;
+      if (inNow && this.signin === 'ask') { this.signin = null; this.o.changed(this.ready); void this.check(); }
+    }, 7 * DAY, 30_000);
   }
   /** What the switches are on the engine running now ("0100..."), or '' (for the one-time login re-lock). */
   static runningFuses(): string { try { return readFuses(process.execPath); } catch { return ''; } }
@@ -412,20 +447,25 @@ export class EngineUpdates {
    * are reported on the key. A failure is remembered for the day, so the test is not run again until tomorrow.
    */
   private async test(v: string, byHand = false): Promise<TestResult> {
-    if (!byHand && this.o.quietNow()) return { ok: false, look: [], chrome: '' };
+    if (!byHand && this.o.quietNow()) return { ok: false, look: [], chrome: '', held: true };
     const runs: TestResult[] = [];
-    for (const script of ['test/electron/engine-safety-check.ts', 'test/electron/calls-check.ts']) {
+    // engine-safety-check is required. calls-check (calls, camera, spellcheck, Samara's page) runs when this Samara has
+    // it: releases carry only the safety check (2026-11-24: with both required, a Samara from a release turned every
+    // engine away as "missing").
+    const scripts = ['test/electron/engine-safety-check.ts', ...(existsSync(path.join(this.o.shellDir, 'test/electron/calls-check.ts')) ? ['test/electron/calls-check.ts'] : [])];
+    for (const script of scripts) {
       const r = await this.runCheck(v, script);
       runs.push(r);
       if (!r.ok) break;
     }
-    const ok = runs.length === 2 && runs.every((r) => r.ok);
+    const ok = runs.length === scripts.length && runs.every((r) => r.ok);
     const look = runs.flatMap((r) => r.look), chrome = runs.find((r) => r.chrome)?.chrome ?? '';
     if (ok) { if (look.length) console.log(`shell: engine ${v} passed the safety checks; ${look.length} look check${look.length === 1 ? '' : 's'} on Samara's page failed (shown on the key, not blocking)`); return { ok, look, chrome }; }
     // Held by a call or a game mid-test is not a failure; anything else waits until tomorrow.
-    if (!this.o.quietNow() && !runs.some((r) => r.missing)) this.markFailedToday(v);
+    const held = this.o.quietNow();
+    if (!held && !runs.some((r) => r.missing)) this.markFailedToday(v);
     console.log(`shell: engine ${v} did not pass the safety checks; not offered, tried again tomorrow`);
-    return { ok: false, look, chrome };
+    return { ok: false, look, chrome, ...(held ? { held } : {}) };
   }
   /** One check script on the new engine, at most four minutes. */
   private async runCheck(v: string, script: string): Promise<TestResult> {
