@@ -1580,6 +1580,16 @@
       "at": "2026-11-25T18:41:00-05:00",
       "text": "No gold ring when you click the address bar.",
       "kind": "fix"
+    },
+    {
+      "at": "2026-11-25T19:30:00-05:00",
+      "text": "Back is no longer lit up when Samara opens.",
+      "kind": "fix"
+    },
+    {
+      "at": "2026-11-25T19:31:00-05:00",
+      "text": "What you type in the address bar stays centered.",
+      "kind": "fix"
     }
   ]
 }

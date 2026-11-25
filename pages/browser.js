@@ -731,6 +731,7 @@ function editSlot(keepList = false) {
   }
   slot.classList.add('editing');                 // sheet 88 B: out wider while he types (sheet 102: to 1280)
   centreSlot();
+  balanceEdit();
   edit.value = t?.url ?? '';
   // Phase R (2026-11-24, his ask: "no yellow highlight, just let me type"): the whole address is still selected, so
   // typing replaces it as in Chrome, but the selection is not painted (on a Mac it takes the system's bright
@@ -750,6 +751,7 @@ function editSlot(keepList = false) {
 const plainSel = () => edit.classList.remove('allsel');
 edit.addEventListener('pointerdown', plainSel);
 edit.addEventListener('input', plainSel);
+for (const b of [edit, el('find')]) b?.addEventListener('input', () => balanceEdit());
 edit.addEventListener('keydown', (e) => { if (e.key.length > 1 && e.key !== 'Enter' && e.key !== 'Escape' && e.key !== 'Tab') plainSel(); });
 function closeSlot() { plainSel(); if (!edit.hidden) window.samara?.browserSlot?.(false); edit.placeholder = ''; edit.hidden = true; urlEl.hidden = false; el('slot').classList.remove('editing'); centreSlot(); slotTo = null; }
 // 2026-11-25 (his ask: "its off center"): the bar's middle sits on the window's middle. The keys either side are not
@@ -769,11 +771,31 @@ function centreSlot() {
   const fit = w < room - 4 - 0.5 ? Math.floor(w) + 'px' : '99999px';
   if (slot.style.getPropertyValue('--slot-ml') !== x + 'px') slot.style.setProperty('--slot-ml', x + 'px');
   if (slot.style.getPropertyValue('--slot-fit') !== fit) slot.style.setProperty('--slot-fit', fit);
+  balanceEdit();
 }
+// The typed address is centred on the bar, not on the room left after the shield and star at its left end: the box
+// gets the difference as padding on its other side.
+const measureCtx = document.createElement('canvas').getContext('2d');
+function balanceEdit() {
+  const slot = el('slot'), box = [el('edit'), el('find')].find((x) => x && !x.hidden);
+  if (!box || !box.offsetWidth) return;
+  const s = slot.getBoundingClientRect(), r = box.getBoundingClientRect();
+  let diff = Math.round((r.left - s.left) - (s.right - r.right));   // the padding is inside the box: its edges stay
+  // Too long to fit once padded: no padding, all the room for typing (it scrolls with the cursor).
+  measureCtx.font = getComputedStyle(box).font;
+  if (measureCtx.measureText(box.value || box.placeholder).width > r.width - Math.abs(diff) - 4) diff = 0;
+  box.style.paddingLeft = diff < 0 ? -diff + 'px' : '0px';
+  box.style.paddingRight = diff > 0 ? diff + 'px' : '0px';
+}
+// The band's keys show the gold focus ring only after Tab (samaralook.css), so the key Chromium focuses as Samara opens
+// stays plain. A mouse press goes back to no rings on the band.
+addEventListener('keydown', (e) => { if (e.key === 'Tab') document.documentElement.classList.add('tabbed'); }, true);
+addEventListener('pointerdown', () => document.documentElement.classList.remove('tabbed'), true);
 // Measured again whenever the window or a key beside the bar changes size (keys slide in and out).
 {
   const ro = new ResizeObserver(() => centreSlot());
   for (const k of [el('band'), el('runeslot'), el('upkey'), el('dlkey'), el('menukey'), document.querySelector('.band .lantern')]) if (k) ro.observe(k);
+  el('slot').addEventListener('transitionend', (e) => { if (e.target === el('slot')) centreSlot(); });
 }
 addEventListener('resize', () => { slotTo = null; if (sugg.length) paintSuggest(); });
 el('slot').addEventListener('click', (e) => { if (finding || lock.contains(e.target)) return; if (edit.hidden) editSlot(); });
@@ -938,7 +960,7 @@ function openFind() {
   urlEl.hidden = true; lock.hidden = true; delete lock.dataset.u;
   findTag.hidden = false; findBox.hidden = false; findN.hidden = false;
   findN.textContent = ''; findN.classList.remove('none');
-  findBox.focus(); findBox.select();
+  balanceEdit(); findBox.focus(); findBox.select();
   if (findBox.value) window.samara?.browserFind?.({ text: findBox.value });
 }
 function closeFind() {

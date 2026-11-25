@@ -26,6 +26,10 @@
 html:not(.solo) body :not(.hnd, .hnd *, .drawer, .drawer *):focus-visible{outline:3px solid var(--ring);outline-offset:2px}
 html:not(.solo) body :not(.hnd, .hnd *, .drawer, .drawer *):focus:not(:focus-visible){outline:none}
 html:not(.solo) body .slot .edit:focus-visible{outline:none}
+/* 2026-11-25 (his ask: "i hate that this is highlighted everytime i start a browser"): Chromium can hand the keyboard to
+   the first key on the band (Back) as Samara opens, and with no mouse used yet that counts as keyboard focus. The band's
+   keys show the ring only once he has pressed Tab (browser.js sets html.tabbed; the mouse clears it). */
+html:not(.solo):not(.tabbed) body .band :is(button,[role=button]):focus-visible{outline:none}
 
 /* ---- the switch: on and off, the same everywhere ------------------------------------------------------------
    <button class="sw" role="switch" aria-checked aria-label="Block ads"><i class="bed"><i class="nub"></i></i></button>
