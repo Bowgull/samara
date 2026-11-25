@@ -154,7 +154,8 @@ app.whenReady().then(async () => {
   await focus('#pw');
   for (let i = 0; i < 5; i++) { for (const d of '9999') await key(d); await until(() => !b.afPin?.checking, 4000); await wait(200); }
   ok('five wrong PINs wipe the seal', !b.pinSeal.has() && !existsSync(path.join(stateDir, 'autofill-pin.json')));
-  ok('...and lock the tool itself', JSON.parse(readFileSync(path.join(tmp, 'state.json'), 'utf8')).unlocked === false);
+  // Locking the tool runs in the background (vault.ts lockHard does not wait for it): wait for it, up to 5 s.
+  ok('...and lock the tool itself', await until(() => JSON.parse(readFileSync(path.join(tmp, 'state.json'), 'utf8')).unlocked === false, 5000));
   } else for (const n of ['the PIN is sealed', 'the PIN opens Bitwarden and his click on the light brings the login', 'five wrong PINs wipe the seal']) skip(n);
 
   // 5 · a new login: offered after the page moves on; Save keeps exactly what he saw
