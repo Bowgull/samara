@@ -303,7 +303,7 @@ export class MacSamara implements Source {
  *  2026-10-20: the Dock pin follows the folder), and the copy in rollback/ comes off macOS's list of apps. */
 const shq = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
 export const backScript = (dir = macHome(), id = macBundleId()): string => [
-  `APP="$HOME/Applications/Samara.app"; BR=${shq(path.join(dir, 'browser'))}`,
+  `APP="$HOME/Applications/Samara.app"; BR=${shq(path.posix.join(dir, 'browser'))}`,
   `osascript -e 'quit app id "${id}"' >/dev/null 2>&1 || true`,
   'for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do pgrep -f "Samara.app/Contents/MacOS/" >/dev/null 2>&1 || break; sleep 0.5; done',
   'rm -rf "$BR/rollback/next"; mkdir -p "$BR/rollback/next" && mv "$APP/Contents" "$BR/rollback/next/Contents" && mv "$BR/rollback/Samara.app/Contents" "$APP/Contents" && mv "$BR/rollback/next/Contents" "$BR/rollback/Samara.app/Contents"; rmdir "$BR/rollback/next" 2>/dev/null',
