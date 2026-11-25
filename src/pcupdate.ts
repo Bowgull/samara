@@ -15,6 +15,7 @@ import path from 'node:path';
 import { readJson, saveJson, saveText } from './store.ts';
 import { LATEST_API, RELEASES, RELEASE_KEY, download, isVersion, latest, newer, titleOf, withSection, type Manifest } from './ghrelease.ts';
 import type { CheckOutcome, CheckProgress } from './updateengine.ts';
+import { swallowed } from './swallow.ts';
 
 export interface SamaraVersion { version: string; dir: string }
 export interface Pointer extends SamaraVersion { status: 'trial' | 'good'; previous: SamaraVersion | null; at: string }
@@ -101,7 +102,7 @@ export class SamaraUpdates {
 
   private addToChangelog(m: Manifest): void {
     if (!this.o.changelog) return;
-    try { let had = ''; try { had = readFileSync(this.o.changelog, 'utf8'); } catch { /* first */ } const now = withSection(had, m); if (now !== had) writeFileSync(this.o.changelog, now); } catch { /* best effort */ }
+    try { let had = ''; try { had = readFileSync(this.o.changelog, 'utf8'); } catch { /* first */ } const now = withSection(had, m); if (now !== had) writeFileSync(this.o.changelog, now); } catch (e) { swallowed('update.changelog', e); }
   }
   /** The release unpacked whole into its own folder, its libraries in, before anything points at it. */
   async prepare(m: Manifest): Promise<boolean> {

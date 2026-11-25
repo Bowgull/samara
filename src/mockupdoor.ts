@@ -32,11 +32,14 @@ const same = (a: string, b: string) => a.length === b.length && timingSafeEqual(
 export interface DoorAsk { cwd?: unknown; path?: unknown; url?: unknown; title?: unknown; branch?: unknown; project?: unknown; icon?: unknown }
 export type DoorAnswer = { ok: boolean; message: string };
 
+/** lsof by absolute path only (never a PATH lookup): macOS keeps it in /usr/sbin, most Linux in /usr/bin. */
+const LSOF = ['/usr/sbin/lsof', '/usr/bin/lsof'].find((f) => existsSync(f)) ?? '/usr/sbin/lsof';
+
 /**
  * The file a live page on this Mac is, when the program answering on its port serves a plain folder: the folder it was
  * started in (lsof), the address's path under it, an existing .html file. Null for anything else.
  */
-export function servedFile(u: string, lsof = '/usr/sbin/lsof'): string | null {
+export function servedFile(u: string, lsof = LSOF): string | null {
   try {
     const x = new URL(u);
     const port = Number(x.port || (x.protocol === 'https:' ? 443 : 80));

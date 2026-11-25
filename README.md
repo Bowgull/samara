@@ -40,6 +40,7 @@ npm run start:mac  # macos
 ```
 npm run check      # type check
 npm test           # unit tests
+npm run check:windows   # the real-window checks CI runs (test/electron/ci-checks.txt)
 ```
 
 Paid video needs castLabs' engine signed with your own castLabs EVS account; everything else runs on plain Electron.

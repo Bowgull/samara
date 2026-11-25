@@ -196,8 +196,11 @@ function settle(): void {
   pending.unref?.();
 }
 
-ipcMain.on('popout:hide', () => { if (win?.isVisible()) win.hide(); else win?.show(); });
-ipcMain.on('popout:close', () => { win?.destroy(); app.quit(); });
+// Only the bar's own page may hide or close the window (Phase 0, 2026-11-24). The service has no preload, so this is the
+// second lock, for a page that ever got past the first.
+const fromBar = (e: Electron.IpcMainEvent): boolean => Boolean(views && e.sender === views.chrome.webContents && e.senderFrame?.parent === null);
+ipcMain.on('popout:hide', (e) => { if (!fromBar(e)) return; if (win?.isVisible()) win.hide(); else win?.show(); });
+ipcMain.on('popout:close', (e) => { if (!fromBar(e)) return; win?.destroy(); app.quit(); });
 
 app.on('window-all-closed', () => app.quit());
 process.on('uncaughtException', e => console.error('drm: uncaught: ' + (e as Error).message));
