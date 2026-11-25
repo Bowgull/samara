@@ -30,7 +30,7 @@ export function homeHost(host: string): boolean {
   return HOME_HOSTS.some((d) => h === d || h.endsWith('.' + d));
 }
 
-const tailnet = (a: string) => /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}$/.test(a);
+export const tailnet = (a: string) => /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}$/.test(a);
 
 /** The proxy script for the PC's browser session: Prime's addresses via the Mac, then straight out if the Mac is away. */
 export function homePac(macAddr: string, port = HOME_ROUTE_PORT): string {

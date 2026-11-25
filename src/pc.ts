@@ -37,6 +37,7 @@ import { jumpIcons } from './jumpicons.ts';
 import { NEEDS_COMPANION, isPopoutTask, type PopoutTask } from './jumplist.ts';
 import { launcherEnv, samaraLauncher, writeExitMark } from './samaraexit.ts';
 import { Answers, mockRelay, pictureName, sendRelay } from './sendrelay.ts';
+import { DirectHost } from './directsync.ts';
 
 const PORT = Number(process.env.SAMARA_PORT ?? 47831);
 const STATE_DIR = process.env.SAMARA_STATE_DIR ?? path.join(process.env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming'), 'Samara');
@@ -137,10 +138,25 @@ app.on('second-instance', (_e, argv, _cwd, data) => {
 });
 
 /** the companion: the browser's news in, and the way to the companion's windows. */
+/** N2 (2026-11-25): the Mac's Samara, straight over Tailscale once it has paired through the hub (directsync.ts). */
+const direct = new DirectHost({
+  stateDir: STATE_DIR, log: (s) => console.log('samara: ' + s),
+  onMessage: (m) => { void boot?.browserNow.sync?.got(m as never).catch((e: Error) => console.error('samara: sync: ' + e.message)); },
+  // Down (review of N2, 2026-11-25): nothing is sent as if the Mac heard it (a closed tab would move the tabs' base on
+  // and come back later). The PC stops counting the Mac as there, then asks through the hub; a Mac still on the hub
+  // answers hello and both send everything again. A Mac that is asleep answers nothing, and the PC waits.
+  onLink: (up) => {
+    const s = boot?.browserNow.sync;
+    if (up) { void s?.link(true); return; }
+    void s?.link(false).then(() => { if (link.connected) link.send({ t: 'bsync.ping' } as never); });
+  },
+});
 const link = new CompanionLink({
   port: PORT, stateDir: STATE_DIR, role: 'samara',
   onMessage: (m) => {
     const b = boot?.browserNow;
+    // N2: the Mac's Samara introduces itself through the hub; from then on the two talk straight (directsync.ts).
+    if (m.t === 'bsync.pair') { direct.pair(m, (r) => link.send(r as never)); return; }
     if (typeof m.t === 'string' && m.t.startsWith('bsync.')) { void b?.sync?.got(m as never).catch((e: Error) => console.error('samara: sync: ' + e.message)); return; }
     if (m.t === 'claude.jobs' || m.t === 'claude.wait') { b?.claudeNews(m); return; }
     if (m.t === 'browser.open' && typeof m.url === 'string') { b?.openForward(m.url); return; }
@@ -244,7 +260,7 @@ app.whenReady().then(async () => {
     plans,
     claude: plans,
     mockupDoor: { offWhy: () => "Samara's Mockups trail is switched off. Tell the user where the file is." },
-    syncSend: (m) => link.send(m as never),
+    syncSend: (m) => { if (!direct.send(m as never)) link.send(m as never); },
     updates: {
       sources: (changed) => {
         // A test copy never updates anything (2026-11-12: one unpacked a 368 MB engine into the real engines folder).
@@ -322,6 +338,8 @@ app.whenReady().then(async () => {
     log('taskbar list: ' + writeSamaraJumpList(app, { main: path.join(HERE, 'samara.ts'), dir: path.join(HERE, '..'), icon: SAMARA_JUMP_ICON, ownId: 'Samara', popouts, quit: true }));
   }
   link.start();
+  // N2: paired before, the Mac's Samara can reach this one straight away, the companion running or not.
+  direct.listen();
   // Started by a link, a task or his click: the window comes up. Started quietly (--quiet, a Claude session): only the doors.
   // New note from the taskbar list with Samara closed: only the quick note comes up, not a browser window.
   if ((!process.argv.includes('--quiet') && startTask !== 'new-note') || waitingUrls.length) {
@@ -339,5 +357,5 @@ app.whenReady().then(async () => {
 
 // Closing the last window does not end Samara: Claude's door and the sync stay up.
 app.on('window-all-closed', () => { /* stay */ });
-app.on('before-quit', () => { if (!process.env.SAMARA_TEST) samaraShortcutsLit(false, { quitting: true }); link.stop(); });
+app.on('before-quit', () => { if (!process.env.SAMARA_TEST) samaraShortcutsLit(false, { quitting: true }); link.stop(); direct.close(); });
 void claudeOpenTarget;
