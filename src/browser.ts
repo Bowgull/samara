@@ -2097,6 +2097,8 @@ export class SamaraBrowser {
   /** Each new placing has a number: a slower one never lands over a newer one. */
   noticeGen = 0;
   noticeAsk: { seq: number; done: (a: { left: number; right: number; bottom: number } | null) => void } | null = null;
+  /** The notice showing hangs from a key on the right half of the window (it keeps its right edge as it grows). */
+  noticeFromRight = false;
   noticeAskSeq = 0;
   /** The TV's own asks (link, asleep, setup) as a notice, kept in step with tvAsk. */
   tvNotice: { id: number; ask: string; err: string } | null = null;
