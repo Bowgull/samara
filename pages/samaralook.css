@@ -196,3 +196,27 @@ html.sbdrag,html.sbdrag *{cursor:col-resize !important}
 .slot .lock .destfav{display:block;border-radius:3px}
 /* the typed address's selected finish (sheet 88) is shown dimmer, never painted yellow */
 .slot .edit.finish::selection{background:transparent;color:#7d7398}
+
+/* ---- Sheet 123 v13 (mode C): the shield's panel is the bar growing (browser.js placeSiteDrawer). The rest of the bar,
+   the same ink with its outline down the sides and round its bottom, hangs from the bar; a drawer of the band's wood
+   comes out around it from under the band's edge. One clock with the address drawer: 420 ms on the arrive curve, the
+   rows land after. Plain rows on the ink: no wood frame, no icons, the bar above already says which site. */
+#sitepanel.grown{border:0;border-image:none;background:none;box-shadow:none;border-radius:0;transform-origin:50% 0;
+  padding:6px 36px 24px 30px;color:#e6dff5;image-rendering:auto;
+  animation:drawerin .42s cubic-bezier(.32,.72,0,1) both}
+#sitepanel.grown::before{content:"";display:block;position:absolute;left:0;right:0;top:var(--woodTop,8px);bottom:0;width:auto;height:auto;z-index:-2;
+  border-radius:0 0 22px 22px;background:url(art/browser/band.png) repeat var(--woodPos,0 0)/128px 58px;image-rendering:pixelated;
+  box-shadow:0 0 0 4px var(--outline),0 8px 0 rgba(0,0,0,.35),0 22px 40px rgba(0,0,0,.45);clip-path:inset(0 -80px -80px -80px)}
+#sitepanel.grown::after{content:"";position:absolute;left:16px;right:16px;top:0;bottom:14px;z-index:-1;
+  background:#0B0718;border-radius:0 0 11px 11px;box-shadow:0 0 0 2px var(--outline);clip-path:inset(0 -4px -4px -4px)}
+#sitepanel.grown{isolation:isolate}
+#sitepanel.grown>*{animation:drawerrows .2s cubic-bezier(.32,.72,0,1) .3s both}
+#sitepanel.grown .q,#sitepanel.grown .sic{display:none}
+#sitepanel.grown .srow{min-height:44px;margin-top:0}
+#sitepanel.grown .srow b{color:#e6dff5;font:500 15px var(--body);text-shadow:none}
+#sitepanel.grown .ssec{color:#6f6596;margin:8px 0 0;padding:10px 0 4px;background:none}
+#sitepanel.grown .poprow b{color:#e6dff5;text-shadow:none}
+#sitepanel.grown .poprow small{color:#7d7398}
+@keyframes drawerin{from{clip-path:inset(0 -80px 100% -80px)}to{clip-path:inset(0 -80px -80px -80px)}}
+@keyframes drawerrows{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){#sitepanel.grown,#sitepanel.grown>*{animation:none}}

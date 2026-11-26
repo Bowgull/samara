@@ -110,7 +110,9 @@ if (!SOLO && !FLOAT) {
     const k = e.target instanceof Element ? e.target.closest(FLOAT_KEYS) : null;
     if (!k) return;
     e.stopPropagation(); e.preventDefault();
-    window.samara?.browserFloat?.({ click: k.id, kb: e.detail === 0 });
+    // Sheet 123 v13: the shield's drawer hangs from the real bar, so the layer is told where the bar is.
+    const sr = el('slot').getBoundingClientRect();
+    window.samara?.browserFloat?.({ click: k.id, kb: e.detail === 0, slot: { left: sr.left, width: sr.width, bottom: sr.bottom } });
   }, true);
   window.samara?.onBrowserFloat?.((f) => {
     if (!f) return;
@@ -121,6 +123,8 @@ if (!SOLO && !FLOAT) {
       el('dlkey').setAttribute('aria-expanded', String(f.over.includes('dl')));
       el('upkey').setAttribute('aria-expanded', String(f.over.includes('up')));
       lock.classList.toggle('open', f.over.includes('site'));
+      // Sheet 123 v13: the shield's drawer hangs from the bar, so the bar squares its bottom corners to meet it.
+      if (edit.hidden) el('slot').classList.toggle('open', f.over.includes('site'));
     }
     // A menu line that works on the band itself: find on the page, this site's notes, the tab list.
     if (f.do === 'find') setTimeout(openFind, 0);
@@ -131,6 +135,7 @@ if (!SOLO && !FLOAT) {
 if (FLOAT) {
   window.samara?.onBrowserFloat?.((f) => {
     if (!f || typeof f.click !== 'string' || !/^(menukey|star|lock|dlkey|upkey)$/.test(f.click)) return;
+    if (f.slot && [f.slot.left, f.slot.width, f.slot.bottom].every(Number.isFinite)) bandSlot = f.slot;
     el(f.click).click();
     if (f.kb && f.click === 'menukey' && menuOpen) menuFocus(0);
     // A key that opened nothing (the shield on a page with no site): the layer goes again at once.
@@ -1477,11 +1482,25 @@ lock.addEventListener('click', (e) => {
   lock.classList.toggle('open', !el('sitepanel').hidden);
   // Hung from the shield itself (2026-10-14: it sat off to the side): its pointer (24px in, 18 wide) under the
   // shield's middle, measured each time, since the address bar moves with the window and the band.
-  if (!el('sitepanel').hidden) {
-    const band = el('band').getBoundingClientRect(), r = lock.getBoundingClientRect();
-    el('sitepanel').style.left = Math.max(8, Math.round(r.left + r.width / 2 - band.left - 33)) + 'px';
-  }
+  if (!el('sitepanel').hidden) placeSiteDrawer();
 });
+/**
+ * Sheet 123 v13 (mode C, his OK 2026-11-25): the shield's panel is the bar growing, not a pop-up. The rest of the bar
+ * (the same ink, rounded at the bottom) hangs from the bar's bottom edge, as wide as the bar, and a drawer of the band's
+ * wood comes out around it from under the band's edge, its grain lined up with the band's.
+ */
+let bandSlot = null;                                  // the layer: where the band's real bar is (its own copy is unseen)
+function placeSiteDrawer() {
+  const p = el('sitepanel'), band = el('band'), b = band.getBoundingClientRect(), s = (FLOAT && bandSlot) || el('slot').getBoundingClientRect();
+  const PAD = 16, left = Math.round(s.left - b.left - PAD), top = Math.round(s.bottom - b.top);
+  const woodTop = Math.max(0, Math.round(b.bottom - 4 - s.bottom));
+  const bg = getComputedStyle(band), bgY = parseFloat(bg.backgroundPositionY) || 0;
+  p.classList.add('grown');
+  p.style.left = left + 'px'; p.style.top = top + 'px'; p.style.width = Math.round(s.width + 2 * PAD) + 'px';
+  p.style.setProperty('--woodTop', woodTop + 'px');
+  p.style.setProperty('--woodPos', `${-left}px ${bgY - (top + woodTop)}px`);
+}
+addEventListener('resize', () => { if (!el('sitepanel').hidden) placeSiteDrawer(); });
 // Sheet 37: the shield's panel, every rule for this site. The Shell sends them in state.site.
 for (const s of document.querySelectorAll('#sitepanel [data-pix]')) { const svg = pixIcon(s.dataset.pix, 2); if (svg) s.append(svg); }
 function setSw(id, on, disabled = false) { el(id).classList.toggle('on', on); el(id).setAttribute('aria-checked', String(on)); el(id).disabled = disabled; }
@@ -1540,7 +1559,7 @@ document.addEventListener('click', (e) => { if (!el('sitepanel').contains(e.targ
 // Only on a real change: every click anywhere sets hidden again, and a stray "unfreeze" put the live page back over the open
 // tab list (2026-10-14).
 let siteOver = false;
-new MutationObserver(() => { const open = !el('sitepanel').hidden; if (open === siteOver) return; siteOver = open; if (open) freeze('site'); else unfreeze('site'); }).observe(el('sitepanel'), { attributes: true, attributeFilter: ['hidden'] });
+new MutationObserver(() => { const open = !el('sitepanel').hidden; if (open === siteOver) return; siteOver = open; if (!FLOAT && edit.hidden) el('slot').classList.toggle('open', open); if (open) freeze('site'); else unfreeze('site'); }).observe(el('sitepanel'), { attributes: true, attributeFilter: ['hidden'] });
 el('popopen').addEventListener('click', () => { window.samara?.browserAct?.('popupopen'); el('sitepanel').hidden = true; lock.classList.remove('open'); });
 el('popallow').addEventListener('click', () => { window.samara?.browserAct?.('popupallow'); el('sitepanel').hidden = true; lock.classList.remove('open'); });
 

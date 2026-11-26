@@ -320,7 +320,11 @@ export const PanesPart = {
     const v = this.floatView();
     if (!v || !P.floatReady) return;
     this.floatShow(true);
-    v.webContents.send('browser:float', { click: a.click, kb: a.kb === true });
+    // Sheet 123 v13: where the band's bar is, so the shield's drawer hangs from it (numbers only).
+    const s = a.slot as Record<string, unknown> | undefined;
+    const slot = s && [s.left, s.width, s.bottom].every((n) => typeof n === 'number' && Number.isFinite(n))
+      ? { left: s.left as number, width: s.width as number, bottom: s.bottom as number } : undefined;
+    v.webContents.send('browser:float', { click: a.click, kb: a.kb === true, slot });
   },
 
   /** The layer: a panel opened (show it) or the last one closed (put it away); the band's keys show which are open. */

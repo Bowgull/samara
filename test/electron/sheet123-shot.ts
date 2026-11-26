@@ -55,14 +55,16 @@ app.whenReady().then(async () => {
   b.guesses = async () => [];
   // the band and the list layer, laid together as the screen shows them
   const shot = async (name: string) => {
-    const frame = await fw.capturePage({ x: 0, y: 0, width: W, height: 520 });
+    const frame = await fw.capturePage({ x: 0, y: 0, width: W, height: Number(process.env.H) || 520 });
     const v = b.pane.sugV, vis = v && !v.webContents.isDestroyed() && v.getVisible();
     const parts = [{ src: frame.toDataURL(), x: 0, y: 0 }];
     if (vis) { const bb = v.getBounds(); parts.push({ src: (await v.webContents.capturePage()).toDataURL(), x: bb.x, y: bb.y }); }
-    const comp = new BrowserWindow({ show: false, width: W, height: 520, webPreferences: { offscreen: true } });
+    const f = b.pane.floatV;
+    if (f && !f.webContents.isDestroyed() && f.getVisible()) { const bb = f.getBounds(); parts.push({ src: (await f.webContents.capturePage()).toDataURL(), x: bb.x, y: bb.y }); }
+    const comp = new BrowserWindow({ show: false, width: W, height: Number(process.env.H) || 520, webPreferences: { offscreen: true } });
     await comp.loadURL('data:text/html,' + encodeURIComponent(`<body style="margin:0;background:#888">${parts.map((p) => `<img src="${p.src}" style="position:absolute;left:${p.x}px;top:${p.y}px;width:auto">`).join('')}</body>`));
     await wait(400);
-    writeFileSync(`${out}-${name}.png`, (await comp.webContents.capturePage({ x: 0, y: 0, width: W, height: 520 })).toPNG());
+    writeFileSync(`${out}-${name}.png`, (await comp.webContents.capturePage({ x: 0, y: 0, width: W, height: Number(process.env.H) || 520 })).toPNG());
     comp.destroy();
     console.log('shot ' + name + (vis ? ' ' + JSON.stringify(v.getBounds()) : ' (no layer)'));
   };
@@ -84,5 +86,22 @@ app.whenReady().then(async () => {
   await shot('closing');
   await wait(600);
   await shot('shut');
+  // Sheet 123 v13 mode C: the shield's drawer
+  await fw.executeJavaScript(`document.getElementById('lock').click(); 1`); await wait(1000);
+  const fv = b.pane.floatV;
+  console.log('float ' + JSON.stringify({ has: Boolean(fv), vis: fv?.getVisible?.(), floated: await fw.executeJavaScript(`document.documentElement.classList.contains('floated')`) }));
+  if (fv) console.log('floatdoc ' + JSON.stringify(fv.getBounds()) + ' ' + await fv.webContents.executeJavaScript(`JSON.stringify({ hidden: document.getElementById('sitepanel').hidden, r: document.getElementById('sitepanel').getBoundingClientRect(), op: getComputedStyle(document.documentElement).opacity, kids: [...document.getElementById('sitepanel').children].map((k) => k.className + ':' + Math.round(k.getBoundingClientRect().height) + ':' + getComputedStyle(k).display), slot: document.getElementById('slot').getBoundingClientRect(), band: document.getElementById('band').getBoundingClientRect(), parent: document.getElementById('sitepanel').offsetParent?.id, style: document.getElementById('sitepanel').getAttribute('style'), cs: (() => { const c = getComputedStyle(document.getElementById('sitepanel')); return [c.left, c.height, c.transform, c.display, c.position]; })() })`));
+  await shot('shield');
+  // The float layer is see-through and does not capture in this hidden window, so the same panel (same page, CSS and
+  // placing code) is drawn in the band's own page for the picture.
+  await fw.executeJavaScript(`(() => { const $ = (i) => document.getElementById(i); document.documentElement.classList.remove('floated');
+    const p = $('sitepanel'), band = $('band'), b = band.getBoundingClientRect(), s = $('slot').getBoundingClientRect();
+    const left = Math.round(s.left - b.left - 16), top = Math.round(s.bottom - b.top), woodTop = Math.max(0, Math.round(b.bottom - 4 - s.bottom));
+    const bgY = parseFloat(getComputedStyle(band).backgroundPositionY) || 0;
+    p.classList.add('grown'); p.style.left = left + 'px'; p.style.top = top + 'px'; p.style.width = Math.round(s.width + 32) + 'px';
+    p.style.setProperty('--woodTop', woodTop + 'px'); p.style.setProperty('--woodPos', (-left) + 'px ' + (bgY - (top + woodTop)) + 'px');
+    p.hidden = false; $('slot').classList.add('open'); $('lock').classList.add('open'); return 1; })()`);
+  await wait(900);
+  writeFileSync(`${out}-shieldband.png`, (await fw.capturePage({ x: 0, y: 0, width: W, height: Number(process.env.H) || 520 })).toPNG());
   app.exit(0);
 });
