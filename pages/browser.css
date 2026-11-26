@@ -178,6 +178,11 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--wood2);font:500 
 .slot .edit[hidden]{display:none}
 /* Phase R: the whole address selected on click, but not painted (browser.js editSlot). */
 .slot .edit.allsel::selection{background:transparent;color:inherit}
+/* 2026-11-25 (his ask: "text should always be centered when im typing as well"): the address stays in the middle when
+   the bar opens, as it was shown. Longer than the box, it scrolls with the cursor as usual. Selected words are plum,
+   never the system's colour (his rule: the bar never shows yellow while he types). */
+.slot .edit{text-align:center}
+.slot .edit:not(.allsel)::selection{background:#4a2f78;color:#F0E6FF}
 /* 6.23: the vault key, beside the star, only on a page with a password box. */
 .slot .vkey{flex:0 0 auto;display:grid;place-items:center;width:26px;height:24px;padding:0;border:none;border-radius:6px;background:none;cursor:pointer}
 .slot .vkey[hidden]{display:none}
@@ -1166,8 +1171,12 @@ html.windrag,html.windrag *{cursor:grabbing !important}
 /* ---- Sheet 88 (2026-10-25). B: the bar sits calm in the middle at 760 wide, showing just the site's
    name; clicked (or ⌘L) it slides out to the full width for the whole address and the suggestions. C: a slimmer band,
    so the page starts 12 px higher (the lip stays). ---- */
-.band .slot{max-width:1000px;box-sizing:border-box;margin:0 auto;transition:max-width .24s cubic-bezier(.2,.8,.2,1)}
-.band .slot.editing{max-width:1280px}
+/* 2026-11-25 (his ask: "its off center"): centred on the window, not in the gap between the keys (four on the left,
+   one on the right). browser.js centreSlot sets --slot-ml; --slotmax is the width it is headed for, so it can be read
+   mid-slide. */
+.band .slot{--slotmax:1000px;max-width:min(var(--slotmax),var(--slot-fit,100%));box-sizing:border-box;margin:0 auto 0 var(--slot-ml,4px);
+  transition:max-width .24s cubic-bezier(.2,.8,.2,1),margin-left .24s cubic-bezier(.2,.8,.2,1)}
+.band .slot.editing{--slotmax:1280px}
 .slot .url{text-align:center}
 @media (prefers-reduced-motion:reduce){.band .slot{transition:none}}
 .band{height:60px}

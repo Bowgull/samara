@@ -75,7 +75,9 @@ export const NoticesPart = {
     const [cw, ch] = w.getContentSize();
     const W = wid ?? (small ? 300 : 356) + 32, H = h ?? (small ? 88 : 260);
     const k = a ?? { left: cw - 140, right: cw - 110, bottom: 64 };
-    const x = (k.left + k.right) / 2 > cw / 2 ? k.right + 12 + 16 - W : k.left - 20 - 16;
+    const fromRight = (k.left + k.right) / 2 > cw / 2;
+    this.noticeFromRight = fromRight;
+    const x = fromRight ? k.right + 12 + 16 - W : k.left - 20 - 16;
     const y = Math.max(0, Math.round(k.bottom - 6));
     return { x: Math.max(0, Math.min(cw - W, Math.round(x))), y, width: Math.min(W, cw), height: Math.max(0, Math.min(H, ch - y)) };
   },
@@ -119,8 +121,10 @@ export const NoticesPart = {
     if (!w || w.isDestroyed() || !v || v.webContents.isDestroyed() || this.noticePane !== P) return;
     const [cw, ch] = w.getContentSize(), b = v.getBounds();
     const width = Math.max(40, Math.min(cw, Math.round(wd))), height = Math.max(0, Math.min(ch - b.y, Math.round(h)));
-    // a wider notice than the guess keeps its right edge (it hangs from a right-hand key)
-    const x = width !== b.width && b.x + b.width >= cw / 2 ? Math.max(0, b.x + b.width - width) : b.x;
+    // a wider notice than the guess keeps its right edge when it hangs from a right-hand key. Which side is the key's,
+    // not the notice's: the shield sits nearer the middle since the address bar is centred (2026-11-25), and a notice
+    // hanging from it reaches past the middle.
+    const x = width !== b.width && this.noticeFromRight ? Math.max(0, b.x + b.width - width) : b.x;
     if (height !== b.height || width !== b.width) v.setBounds({ x, y: b.y, width, height });
   },
 
