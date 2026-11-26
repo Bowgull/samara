@@ -434,6 +434,10 @@ export class Popout {
     // Going in and out of fullscreen fires these too (2026-11-03). The fullscreen box,
     // held to 16 by 9, was written down as his size. Only a size he made himself is remembered.
     if (this.correcting || this.fullUntil > Date.now() || this.window?.isFullScreen()) return;
+    // While the bar is held (drag() between 'start' and 'end') nothing tidies: 'end' calls this once he lets go. On the
+    // Mac 'moved' is only another name for 'move' and fires on every step of the drag, so without this a pause near an
+    // edge snapped the window under his held mouse and the next step threw it back (found by CI, 2026-11-26).
+    if (this.dragFrom) return;
     if (this.pending) clearTimeout(this.pending);
     this.pending = setTimeout(() => {
       const w = this.window;
