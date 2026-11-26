@@ -17,6 +17,21 @@ import type { MockSend, MockSendItem, MockStage, MockVersion, MockupDrop } from 
 import type { SamaraBrowser, Tab } from './browser.ts';
 import { isWeb, toggleFull, fitShot, SAMARA_SHOT } from './browser.ts';
 
+
+/** Sheet 123 v13 (mode D): each place the page shows the word, in page order, as [before, the word, after]. */
+let hitSeq = 0;
+function hitsCode(q: string): string {
+  return `(() => { const q = ${JSON.stringify(q.toLowerCase())}, out = [];
+    const w = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_TEXT, { acceptNode: (n) => {
+      const p = n.parentElement; if (!p || /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(p.tagName)) return 2;
+      return p.getClientRects().length ? 1 : 2; } });
+    let n; while ((n = w.nextNode()) && out.length < 50) {
+      const t = n.nodeValue, l = t.toLowerCase(); let i = l.indexOf(q);
+      while (i >= 0 && out.length < 50) { out.push([t.slice(Math.max(0, i - 40), i), t.slice(i, i + q.length), t.slice(i + q.length, i + q.length + 40)]); i = l.indexOf(q, i + q.length); }
+    }
+    return out; })()`;
+}
+
 export const MockupsPart = {
   /**
    * Claude opened a mockup (a .mockup file in open-urls, main.ts). Its version as it is now (HEAD) goes into the history,
@@ -656,6 +671,17 @@ export const MockupsPart = {
     const q = String(text).slice(0, 200);
     if (!q) { wc.stopFindInPage('clearSelection'); this.win?.webContents.send('browser:found', { at: 0, of: 0 }); return; }
     wc.findInPage(q, { forward: !back, findNext: !next });
+    // Sheet 123 v13 (mode D): a new word also asks the page for each match with the words around it, for the drawer.
+    // Read in Samara's own isolated world; the page's words come back as plain text only.
+    if (!next) {
+      const seq = ++hitSeq;
+      void run<string[][]>(wc, hitsCode(q), { world: 999, ms: 1500, fallback: [] }).then((hits) => {
+        if (seq !== hitSeq || !this.win || this.win.isDestroyed()) return;
+        const clean = (Array.isArray(hits) ? hits : []).slice(0, 50).filter((h) => Array.isArray(h) && h.length === 3)
+          .map((h) => h.map((x) => String(x ?? '').replace(/\s+/g, ' ').slice(0, 80)));
+        this.win.webContents.send('browser:findhits', { q, hits: clean });
+      });
+    }
   },
 
   findStop(this: SamaraBrowser): void { this.cur()?.view?.webContents.stopFindInPage('keepSelection'); },

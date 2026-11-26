@@ -3,6 +3,7 @@
 // path (b.suggest stands in for his history). Run: npx electron test/electron/sheet123-shot.ts <out-prefix>
 import { app, BrowserWindow, nativeImage } from 'electron';
 import { mkdtempSync, writeFileSync } from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,7 +26,13 @@ app.whenReady().then(async () => {
   const P = (f: string) => path.join(HERE, '..', '..', 'src', f);
   const b: any = new SamaraBrowser({ origin: pages.origin, preloadPath: P('samarapreload.cjs'), tabPreloadPath: P('tabpreload.cjs'), settingsPreloadPath: P('settingspreload.cjs'), thingsPreloadPath: P('thingspreload.cjs'), stateDir: mkdtempSync(path.join(os.tmpdir(), 's123-state-')) });
   wireBrowser(() => b);
-  b.open('about:blank');
+  // a page of words for find (sheet 123 v13 mode D)
+  const words = ['When I click the bar it grows and drops down, as one piece.', 'Let the wood grow with it, a drawer from under the band.',
+    'The rows land after the drawer has opened.', 'How the bar growing covers the wood felt stuck on.', 'The bar grows, as one piece, and nothing else on the band moves.',
+    'Close: the rows go first, then the drawer slides shut.', 'Its grain lines up with the band, so the drawer looks like it grew out of it.'];
+  const site = http.createServer((_q, r) => { r.writeHead(200, { 'content-type': 'text/html' }); r.end(`<title>Notes</title><body style="font:18px sans-serif;padding:120px 80px">${words.map((w) => `<p>${w}</p>`).join('')}`); });
+  await new Promise<void>((r) => site.listen(0, '127.0.0.1', () => r()));
+  b.open(`http://127.0.0.1:${(site.address() as any).port}/`);
   for (let i = 0; i < 100 && !b.win; i++) await wait(150);
   b.win.setContentSize(W, 700);
   await wait(4000);
@@ -110,5 +117,14 @@ app.whenReady().then(async () => {
     p.hidden = false; $('slot').classList.add('open'); $('lock').classList.add('open'); return 1; })()`);
   await wait(900);
   writeFileSync(`${out}-shieldband.png`, (await fw.capturePage({ x: 0, y: 0, width: W, height: Number(process.env.H) || 520 })).toPNG());
+  await fw.executeJavaScript(`(() => { document.getElementById('sitepanel').hidden = true; document.getElementById('slot').classList.remove('open'); document.getElementById('lock').classList.remove('open'); document.documentElement.classList.add('floated'); return 1; })()`);
+  // Sheet 123 v13 mode D: find, each match with the words around it
+  fw.send('browser:findopen'); await wait(300); fw.focus();
+  for (const k of 'grow') { fw.sendInputEvent({ type: 'char', keyCode: k }); await wait(90); }
+  await wait(1200);
+  await shot('find');
+  fw.sendInputEvent({ type: 'keyDown', keyCode: 'Return' }); fw.sendInputEvent({ type: 'keyUp', keyCode: 'Return' }); await wait(700);
+  await shot('find-next');
+  console.log('findbar ' + await fw.executeJavaScript(`document.getElementById('findn').textContent`));
   app.exit(0);
 });

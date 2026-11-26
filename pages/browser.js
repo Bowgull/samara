@@ -882,6 +882,7 @@ function choose(i) {
 }
 // The layer says which line his mouse is on (the bar remembers it for Enter) or which one he clicked.
 window.samara?.onBrowserSuggestAct?.((a) => {
+  if (finding && a && Number.isInteger(a.i)) { if (a.act === 'pick') findJump(findStart + a.i); return; }
   if (edit.hidden || !a || !Number.isInteger(a.i) || !sugg[a.i]) return;
   if (a.act === 'pick') { choose(a.i); return; }
   // Sheet 123: the row his mouse is on lights up, and the bar shows where Enter goes now.
@@ -1023,7 +1024,7 @@ function openFind() {
 }
 function closeFind() {
   if (!finding) return;
-  finding = false;
+  finding = false; findHits = { q: '', hits: [] }; paintFind();
   findTag.hidden = true; findBox.hidden = true; findN.hidden = true;
   urlEl.hidden = false;
   window.samara?.browserFindStop?.();
@@ -1042,7 +1043,45 @@ window.samara?.onBrowserFound?.((r) => {
   const none = findBox.value && r.of === 0;
   findN.classList.toggle('none', Boolean(none));
   findN.textContent = !findBox.value ? '' : none ? 'NONE' : `${r.at} OF ${r.of}`;
+  findAt = Number(r.at) || 0; findOf = Number(r.of) || 0; paintFind();
 });
+/**
+ * Sheet 123 v13 (mode D, his OK 2026-11-25): the bar is already the find field; grown, it shows each match with the
+ * words around it, so he can jump straight to the right one. The match he is on is the lit row; a click goes there.
+ * The same drawer as the address list (suggest.html), on the same clock.
+ */
+let findHits = { q: '', hits: [] }, findAt = 0, findOf = 0, findStart = 0, findShown = false;
+window.samara?.onBrowserFindHits?.((r) => {
+  if (!finding || !r || r.q !== findBox.value.slice(0, 200) || !Array.isArray(r.hits)) return;
+  findHits = { q: r.q, hits: r.hits }; paintFind();
+});
+findBox.addEventListener('input', () => { if (!findBox.value) paintFind(); });
+function paintFind() {
+  const q = findBox.value.slice(0, 200);
+  const hits = finding && q && findHits.q === q ? findHits.hits : [];
+  if (!hits.length) {
+    if (findShown) {
+      findShown = false; window.samara?.browserSuggestShow?.(null);
+      clearTimeout(unopenT); unopenT = setTimeout(() => { if (!findShown && sugFirst) el('slot').classList.remove('open'); }, 360);
+    }
+    return;
+  }
+  const max = innerHeight < 560 ? 3 : 5, cur = Math.max(0, Math.min(hits.length - 1, (findAt || 1) - 1));
+  findStart = Math.max(0, Math.min(hits.length - max, cur - Math.floor(max / 2)));
+  const rows = hits.slice(findStart, findStart + max).map((h, k) => ({ kind: 'hit', title: h.join('\u2063'), url: String(findStart + k + 1), favicon: '' }));
+  const r = el('slot').getBoundingClientRect(), b = el('band').getBoundingClientRect();
+  window.samara?.browserSuggestShow?.({ rows, pick: cur - findStart, typed: q, first: !findShown, from: 0, max, expect: 0, mode: 'find',
+    rect: { x: Math.round(r.left), y: Math.round(r.bottom), width: Math.round(r.width) },
+    band: { x: Math.round(b.left), top: Math.round(b.top), bottom: Math.round(b.bottom) } });
+  if (!findShown) { findShown = true; clearTimeout(unopenT); el('slot').classList.add('open'); }
+}
+/** A match row clicked: Enter's own next-match steps, as many as it takes to land on it. */
+function findJump(k) {
+  if (!findOf || !findBox.value) return;
+  const steps = ((k + 1) - (findAt || 1) + findOf) % findOf;
+  for (let i = 0; i < steps; i++) window.samara?.browserFind?.({ text: findBox.value, next: true });
+  findBox.focus();
+}
 
 // The browser's keys work here too, when the frame has the keyboard.
 window.addEventListener('keydown', (e) => {

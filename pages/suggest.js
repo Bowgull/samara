@@ -58,6 +58,16 @@ function fill(row, s, typed) {
       sg.replaceChildren(img);
     } else sg.replaceChildren(glyph(s.kind));
   }
+  // Sheet 123 v13 (find): the words around the match, the match itself bright and underlined in gold, its number last.
+  row.classList.toggle('hit', s.kind === 'hit');
+  if (s.kind === 'hit') {
+    const [before = '', word = '', after = ''] = String(s.title).split('\u2063');
+    st.replaceChildren(document.createTextNode((before.length >= 40 ? '…' : '') + before.trimStart()),
+      Object.assign(document.createElement('mark'), { textContent: word }), document.createTextNode(after.trimEnd() + (after.length >= 40 ? '…' : '')));
+    su.replaceChildren(Object.assign(document.createElement('span'), { className: 'n', textContent: String(s.url) }));
+    sa.textContent = '';
+    return;
+  }
   const bare = String(s.url ?? '').replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
   const onlyUrl = !s.title || s.title === s.url;
   if (s.kind === 'search') st.textContent = typed;

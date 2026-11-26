@@ -45,3 +45,10 @@ html,body{margin:0;background:transparent;overflow:hidden;user-select:none;-webk
 .srow.on .su{color:#8a80a5}
 .srow.on .sg svg path{fill:var(--gold-lit)}
 @media (prefers-reduced-motion:reduce){.grow,.grow.in,.srow,.grow.in .srow,.sg img,.st{transition:none}}
+/* Sheet 123 v13 (find): no icon; the words around the match quiet, the match bright with a gold underline, its number last */
+.srow.hit .sg{display:none}
+.srow.hit .st{flex:1;max-width:none;color:#bdb4d6}
+.srow.hit.on .st{color:#e6dff5}
+.srow.hit .st mark{background:none;color:#fff;font-weight:700;box-shadow:inset 0 -2px 0 rgba(255,196,60,.7)}
+.srow.hit .su{flex:none}
+.srow.hit .su .n{font:500 12px var(--body);color:#5f5680}

@@ -97,7 +97,8 @@ export const AddressPart = {
     const width = Math.max(40, Math.min(cw - x, bw + 2 * PAD - Math.max(0, x - (bx - PAD))));
     const woodTop = Math.max(0, Math.min(60, num(band.bottom) - 4 - y));
     const show: SugShow = { rows, pick: Number.isInteger(a.pick) ? Number(a.pick) : -1, typed: str(a.typed, 200), from: num(a.from), expect: Math.max(0, Math.min(4, num(a.expect))), first: a.first === true, x, y, width,
-      max: Math.max(1, Math.min(14, num(a.max) || 5)), pad: bx - PAD >= 0 ? PAD : Math.max(0, bx), woodTop, woodX: x - num(band.x), woodY: y + woodTop - num(band.top) };
+      max: Math.max(1, Math.min(14, num(a.max) || 5)), pad: bx - PAD >= 0 ? PAD : Math.max(0, bx), woodTop, woodX: x - num(band.x), woodY: y + woodTop - num(band.top),
+      ...(a.mode === 'find' ? { mode: 'find' as const } : {}) };
     const first = !P.sugLast || show.first;
     P.sugLast = show;
     const v = this.sugView();
@@ -120,7 +121,7 @@ export const AddressPart = {
       const until = Date.now() + 400;
       const back = setInterval(() => {
         if (Date.now() > until || w.isDestroyed() || v.webContents.isDestroyed()) { clearInterval(back); return; }
-        if (v.webContents.isFocused() && P.slotOpen) w.webContents.focus();
+        if (v.webContents.isFocused() && (P.slotOpen || show.mode === 'find')) w.webContents.focus();
       }, 10);
     }
     v.webContents.send('suggest:show', { ...show, first });
@@ -138,7 +139,10 @@ export const AddressPart = {
   /** He points at or clicks a row in the list: the bar does it (it holds the typing and the choices). */
   suggestAct(this: SamaraBrowser, act: 'hover' | 'pick', i: number): void {
     const w = this.win;
-    if (w && !w.isDestroyed()) w.webContents.send('browser:suggestAct', { act, i });
+    if (!w || w.isDestroyed()) return;
+    // Sheet 123 v13: a match clicked in the find drawer, and the typing stays in the find field (the bar keeps finding).
+    if (this.pane.sugLast?.mode === 'find') w.webContents.focus();
+    w.webContents.send('browser:suggestAct', { act, i });
   },
 
   /** Shift+Delete on one of his own lines (sheet 102): a past search goes from History, every time he made it; a page, every visit to it. */

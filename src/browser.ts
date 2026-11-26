@@ -549,10 +549,10 @@ export const SETTLED_JS = `(async () => {
   return false;
 })()`;
 /** Sheet 102: what the address bar's list is told, as checked here. */
-export interface SugShow { rows: { kind: string; title: string; url: string; favicon: string }[]; pick: number; typed: string; from: number; expect: number; first: boolean; x: number; y: number; width: number; max: number; pad: number; woodTop: number; woodX: number; woodY: number }
+export interface SugShow { rows: { kind: string; title: string; url: string; favicon: string }[]; pick: number; typed: string; from: number; expect: number; first: boolean; x: number; y: number; width: number; max: number; pad: number; woodTop: number; woodX: number; woodY: number; mode?: 'find' }
 /** A size in plain words, as the download tray says it. */
 export const mbOf = (n: number): string => (n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : n >= 1e3 ? Math.round(n / 1e3) + ' KB' : (n || 0) + ' B');
-export const SUG_KINDS = new Set(['search', 'guess', 'past', 'go', 'tab', 'mark', 'history', 'closed']);
+export const SUG_KINDS = new Set(['search', 'guess', 'past', 'go', 'tab', 'mark', 'history', 'closed', 'hit']);
 /** Never a tab he looked at in the last 10 minutes, even when memory is short. */
 export const SLEEP_MIN_MS = 10 * 60_000;
 /** Sheet 100 v4: a mockup tab not looked at for this long closes by itself (it stays in the Mockups tab). */
