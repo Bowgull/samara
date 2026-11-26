@@ -17,6 +17,29 @@ import { keep } from './mockhome.ts';
 import type { SamaraBrowser, SugShow } from './browser.ts';
 import { isWeb, SUG_KINDS } from './browser.ts';
 
+/** Sheet 123: a layer steps back while the bar is open: it fades (140 ms, its own page's opacity), then is hidden. */
+const fading = new WeakMap<WebContentsView, string[]>(), hidByBar = new WeakSet<WebContentsView>();
+function stepBack(v: WebContentsView, still: () => boolean, hide = true): void {
+  const wc = v.webContents;
+  void (async () => {
+    try {
+      const keys = [await wc.insertCSS('html{transition:opacity .14s cubic-bezier(.5,0,.75,0) !important}'), await wc.insertCSS('html{opacity:0 !important}')];
+      fading.set(v, keys);
+    } catch { /* its page is gone */ }
+    if (hide) setTimeout(() => { if (still() && !wc.isDestroyed() && v.getVisible()) { v.setVisible(false); hidByBar.add(v); } }, 150);
+  })();
+}
+/** ...and comes back: shown, then faded in. */
+function stepForward(v: WebContentsView): void {
+  const wc = v.webContents;
+  if (wc.isDestroyed()) return;
+  if (hidByBar.has(v)) { hidByBar.delete(v); v.setVisible(true); }   // only what the bar itself hid comes back
+  const keys = fading.get(v); fading.delete(v);
+  if (!keys) return;
+  void wc.removeInsertedCSS(keys[1]).catch(() => {});
+  setTimeout(() => { if (!wc.isDestroyed()) void wc.removeInsertedCSS(keys[0]).catch(() => {}); }, 220);
+}
+
 export const AddressPart = {
   // ------------------------------------------------------------------ sheet 102, the address bar's list
   /**
@@ -52,7 +75,10 @@ export const AddressPart = {
     if (!m || typeof m !== 'object') {
       P.sugLast = null;
       const v = P.sugV && !P.sugV.webContents.isDestroyed() ? P.sugV : null;
-      if (v?.getVisible()) { v.webContents.send('suggest:show', null); setTimeout(() => { if (!P.sugLast && !v.webContents.isDestroyed()) v.setVisible(false); }, 20); }
+      // Sheet 123: the drawer slides shut first (rows 90 ms, then 260 ms), and only then does the layer go.
+      if (v?.getVisible()) { v.webContents.send('suggest:show', null); setTimeout(() => { if (!P.sugLast && !v.webContents.isDestroyed()) v.setVisible(false); }, 400); }
+      const back = P.sugHid; P.sugHid = null;
+      if (back?.length) setTimeout(() => { if (P.sugLast) { P.sugHid = back; return; } for (const h of back) stepForward(h); }, 400);
       return;
     }
     const a = m as Record<string, unknown>, r = (a.rect ?? {}) as Record<string, unknown>;
@@ -63,17 +89,29 @@ export const AddressPart = {
       favicon: /^data:image\//.test(str(x?.favicon, 20_000)) ? str(x.favicon, 20_000) : '',
     }));
     const [cw, ch] = w.getContentSize();
-    const x = Math.max(0, Math.min(cw - 40, num(r.x))), y = Math.max(0, Math.min(ch - 40, num(r.y)));
-    const width = Math.max(40, Math.min(cw - x, num(r.width)));
-    const show: SugShow = { rows, pick: Number.isInteger(a.pick) ? Number(a.pick) : -1, typed: str(a.typed, 200), from: num(a.from), expect: Math.max(0, Math.min(4, num(a.expect))), first: a.first === true, x, y, width };
+    // Sheet 123: the layer is the rest of the bar plus the wood drawer round it, so it starts PAD to the left of the
+    // bar (its outline and 14 px of wood) and is that much wider on each side. The bar's own bottom edge is its top.
+    const PAD = 16, band = (a.band ?? {}) as Record<string, unknown>;
+    const bx = num(r.x), bw = Math.max(40, num(r.width));
+    const x = Math.max(0, Math.min(cw - 40, bx - PAD)), y = Math.max(0, Math.min(ch - 40, num(r.y)));
+    const width = Math.max(40, Math.min(cw - x, bw + 2 * PAD - Math.max(0, x - (bx - PAD))));
+    const woodTop = Math.max(0, Math.min(60, num(band.bottom) - 4 - y));
+    const show: SugShow = { rows, pick: Number.isInteger(a.pick) ? Number(a.pick) : -1, typed: str(a.typed, 200), from: num(a.from), expect: Math.max(0, Math.min(4, num(a.expect))), first: a.first === true, x, y, width,
+      max: Math.max(1, Math.min(14, num(a.max) || 5)), pad: bx - PAD >= 0 ? PAD : Math.max(0, bx), woodTop, woodX: x - num(band.x), woodY: y + woodTop - num(band.top) };
     const first = !P.sugLast || show.first;
     P.sugLast = show;
     const v = this.sugView();
     if (!v) return;
     // Its height is the list's own (the page says, suggestSize): a first guess until then, rows 40 tall.
-    const b = v.getBounds(), height = first || !v.getVisible() ? Math.min(ch - y, 14 + 40 * Math.max(1, rows.length)) : b.height;
+    const b = v.getBounds(), height = first || !v.getVisible() ? Math.min(ch - y, 74 + 40 * Math.max(1, Math.min(rows.length, show.max))) : b.height;
     v.setBounds({ x, y, width, height });
     if (first || !v.getVisible()) {
+      // Sheet 123: while the bar is open, what hangs over the page near it steps back (the notice, the hand card, and the
+      // band's float layer, where the plan card is): a 140 ms fade, then hidden. They come back when it shuts.
+      // The float layer only fades, never hides: hiding it could take the keyboard from the bar (measured: 1 in 3 opens
+      // shut at once). The drawer is added after it, so it is on top and the faded layer catches no clicks over it.
+      if (!P.sugHid) P.sugHid = [P.noticeV, P.handV, P.floatV].filter((x): x is WebContentsView => Boolean(x && !x.webContents.isDestroyed() && x.getVisible()));
+      for (const h of P.sugHid) stepBack(h, () => Boolean(P.sugLast), h !== P.floatV);
       w.contentView.addChildView(v); v.setVisible(true);
       // The list never needs the keyboard (its rows act through suggestAct). Chromium gives it the keyboard when it is
       // first shown, and the bar then closed under him a moment after he opened it (2026-11-22, grabbed while Samara

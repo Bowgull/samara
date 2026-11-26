@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <!-- Sheet 102 (2026-10-29): the address bar's list on Samara's own layer over the live page. It only draws what the bar
-     sends and says which row he points at or clicks; the typing stays in the bar. -->
+     sends and says which row he points at or clicks; the typing stays in the bar.
+     Sheet 123 (2026-11-25, "THE BAR GROWS"): this layer is the rest of the bar. Its ink carries on from the bar's own
+     bottom edge with no seam, and a drawer of the band's wood comes out around it. Nothing else on the band moves. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'">
 <title>Samara suggestions</title>
 <link rel="stylesheet" href="cockpit.css">
@@ -11,7 +13,7 @@
 <link rel="stylesheet" href="samaralook.css">
 </head>
 <body>
-<div class="box" id="box" role="listbox"><div class="mark" id="mark"></div><div class="rows" id="rows"></div></div>
+<div class="grow" id="grow"><div class="wood" id="wood"></div><div class="box" id="box" role="listbox"><div class="rows" id="rows"></div></div></div>
 <script src="suggest.js"></script>
 </body>
 </html>

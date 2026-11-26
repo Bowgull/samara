@@ -301,6 +301,8 @@ export interface Pane {
   /** Sheet 102: the address bar's list on its own layer, and the last thing it was told (sent again once it has loaded). */
   sugV?: WebContentsView | null;
   sugLast?: SugShow | null;
+  /** Sheet 123: the layers that stepped back while the bar is open, to bring back when it shuts. */
+  sugHid?: WebContentsView[] | null;
   /** Sheet 106 v7: Samara's notices, on their own layer over the live page; the one it is drawing now. */
   noticeV?: WebContentsView | null;
   noticeOn?: number | null;
@@ -547,7 +549,7 @@ export const SETTLED_JS = `(async () => {
   return false;
 })()`;
 /** Sheet 102: what the address bar's list is told, as checked here. */
-export interface SugShow { rows: { kind: string; title: string; url: string; favicon: string }[]; pick: number; typed: string; from: number; expect: number; first: boolean; x: number; y: number; width: number }
+export interface SugShow { rows: { kind: string; title: string; url: string; favicon: string }[]; pick: number; typed: string; from: number; expect: number; first: boolean; x: number; y: number; width: number; max: number; pad: number; woodTop: number; woodX: number; woodY: number }
 /** A size in plain words, as the download tray says it. */
 export const mbOf = (n: number): string => (n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : n >= 1e3 ? Math.round(n / 1e3) + ' KB' : (n || 0) + ' B');
 export const SUG_KINDS = new Set(['search', 'guess', 'past', 'go', 'tab', 'mark', 'history', 'closed']);
