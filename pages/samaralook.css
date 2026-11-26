@@ -224,3 +224,5 @@ html.sbdrag,html.sbdrag *{cursor:col-resize !important}
 @keyframes drawerout{from{clip-path:inset(0 -80px -80px -80px)}to{clip-path:inset(0 -80px 100% -80px)}}
 @keyframes rowsout{from{opacity:1}to{opacity:0}}
 @media (prefers-reduced-motion:reduce){#sitepanel.grown,#sitepanel.grown>*{animation:none}}
+/* Sheet 123 v13 (Bitwarden): the key in the bar is gold while its drawer of logins is out */
+.slot .vkey.open svg path{fill:var(--gold)}

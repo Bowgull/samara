@@ -126,5 +126,18 @@ app.whenReady().then(async () => {
   fw.sendInputEvent({ type: 'keyDown', keyCode: 'Return' }); fw.sendInputEvent({ type: 'keyUp', keyCode: 'Return' }); await wait(700);
   await shot('find-next');
   console.log('findbar ' + await fw.executeJavaScript(`document.getElementById('findn').textContent`));
+  // a match clicked in the drawer: find goes there and stays open
+  b.suggestAct('pick', 3); await wait(600);
+  console.log('findjump ' + await fw.executeJavaScript(`JSON.stringify({ n: document.getElementById('findn').textContent, findOpen: !document.getElementById('find').hidden })`));
+  fw.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' }); fw.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' }); await wait(700);
+  console.log('findclosed ' + JSON.stringify({ layer: b.pane.sugV?.getVisible?.() }));
+  // Sheet 123 v13 mode E: two logins for this site (made up), in the drawer; Down, then Esc
+  fw.send('browser:vault', { mode: 'pick', host: 'example.com', logins: [{ id: 'a', username: 'you@example.com', name: 'Personal' }, { id: 'b', username: 'you@example.org', name: 'Work' }] });
+  await wait(900); fw.focus();
+  await shot('vault');
+  fw.sendInputEvent({ type: 'keyDown', keyCode: 'Down' }); fw.sendInputEvent({ type: 'keyUp', keyCode: 'Down' }); await wait(400);
+  await shot('vault-down');
+  fw.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' }); fw.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' }); await wait(700);
+  console.log('vaultclosed ' + JSON.stringify({ layer: b.pane.sugV?.getVisible?.() }));
   app.exit(0);
 });

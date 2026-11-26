@@ -584,8 +584,12 @@ const vaultpw = el('vaultpw');
 window.samara?.onBrowserVault?.((v) => {
   const chip = el('vaultchip');
   vaultpw.value = '';
-  if (!v) { chip.hidden = true; return; }
+  if (!v) { chip.hidden = true; paintVault(null); return; }
   const unlock = v.mode === 'unlock';
+  // Sheet 123 v13 (mode E, his OK 2026-11-25): his logins for this site are the bar's drawer, not a chip that pushes
+  // the page down. Unlocking (the master password box) stays the chip. Nothing fills until he picks one.
+  if (!unlock) { chip.hidden = true; paintVault(Array.isArray(v.logins) ? v.logins : []); return; }
+  paintVault(null);
   el('vaultq').textContent = unlock ? (v.wrong ? 'That password did not open it' : 'Unlock Bitwarden') : 'Which login?';
   el('vaultm').textContent = unlock ? `Your Bitwarden master password, to fill a login on ${v.host}. It stays open 30 minutes.` : `You have more than one login for ${v.host}.`;
   el('vaultform').hidden = !unlock;
@@ -602,6 +606,35 @@ window.samara?.onBrowserVault?.((v) => {
   chip.hidden = false;
   if (unlock) setTimeout(() => vaultpw.focus(), 0);
 });
+let vaultRows = null, vaultPick = 0;
+function paintVault(logins) {
+  const was = Boolean(vaultRows);
+  vaultRows = logins && logins.length ? logins.slice(0, 14) : null;
+  el('vkey').classList.toggle('open', Boolean(vaultRows));
+  if (!vaultRows) {
+    if (was) { window.samara?.browserSuggestShow?.(null); clearTimeout(unopenT); unopenT = setTimeout(() => { if (!vaultRows && sugFirst && !findShown) el('slot').classList.remove('open'); }, 360); }
+    return;
+  }
+  if (!was) vaultPick = 0;
+  const max = innerHeight < 560 ? 3 : 5, start = Math.max(0, Math.min(vaultRows.length - max, vaultPick - Math.floor(max / 2)));
+  vaultStart = start;
+  const r = el('slot').getBoundingClientRect(), b = el('band').getBoundingClientRect();
+  window.samara?.browserSuggestShow?.({ rows: vaultRows.slice(start, start + max).map((l) => ({ kind: 'login', title: String(l.name || l.username || ''), url: String(l.username || ''), favicon: '' })),
+    pick: vaultPick - start, typed: '', first: !was, from: 0, max, expect: 0, mode: 'vault',
+    rect: { x: Math.round(r.left), y: Math.round(r.bottom), width: Math.round(r.width) },
+    band: { x: Math.round(b.left), top: Math.round(b.top), bottom: Math.round(b.bottom) } });
+  if (!was) { clearTimeout(unopenT); el('slot').classList.add('open'); }
+}
+let vaultStart = 0;
+const vaultChoose = (i) => { const l = vaultRows?.[i]; if (l) window.samara?.browserVaultPick?.(l.id); };
+// Up and Down move the lit login, Enter fills it, Esc puts the drawer away; going to the page does too.
+addEventListener('keydown', (e) => {
+  if (!vaultRows) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { vaultPick = (vaultPick + (e.key === 'ArrowDown' ? 1 : -1) + vaultRows.length) % vaultRows.length; paintVault(vaultRows); e.preventDefault(); }
+  else if (e.key === 'Enter') { vaultChoose(vaultPick); e.preventDefault(); }
+  else if (e.key === 'Escape') { window.samara?.browserAct?.('vaultcancel'); e.preventDefault(); }
+}, true);
+addEventListener('blur', () => setTimeout(() => { if (vaultRows && !document.hasFocus()) window.samara?.browserAct?.('vaultcancel'); }, 150));
 el('vaultform').addEventListener('submit', (e) => {
   e.preventDefault();
   const pw = vaultpw.value;
@@ -883,6 +916,7 @@ function choose(i) {
 // The layer says which line his mouse is on (the bar remembers it for Enter) or which one he clicked.
 window.samara?.onBrowserSuggestAct?.((a) => {
   if (finding && a && Number.isInteger(a.i)) { if (a.act === 'pick') findJump(findStart + a.i); return; }
+  if (vaultRows && a && Number.isInteger(a.i)) { if (a.act === 'pick') vaultChoose(vaultStart + a.i); else { vaultPick = vaultStart + a.i; } return; }
   if (edit.hidden || !a || !Number.isInteger(a.i) || !sugg[a.i]) return;
   if (a.act === 'pick') { choose(a.i); return; }
   // Sheet 123: the row his mouse is on lights up, and the bar shows where Enter goes now.
