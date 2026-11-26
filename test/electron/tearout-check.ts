@@ -106,10 +106,18 @@ app.whenReady().then(async () => {
   b.close(left.id);
   await wait(500);
   pointer = { x: -15000, y: 300 };
+  // Where Samara asks the window to go. The Mac keeps 40 px of every window on a screen, so a window sent this far off is
+  // pulled back by macOS itself: there the ask is checked; elsewhere where it really ended up too.
+  let asked: Electron.Rectangle | null = null;
+  const setBounds = A.win.setBounds;
+  A.win.setBounds = function (this: BrowserWindow, r: Electron.Rectangle, ...rest: any[]) { asked = r; return setBounds.call(this, r, ...rest); };
   b.tearOut(beeId);
   await wait(500);
+  A.win.setBounds = setBounds;
   const nb = A.win.getBounds();
-  check('the only tab: its window moves where it was let go', any.panes.length === 1 && Math.abs(nb.x - (-15000 + -140)) < 2, JSON.stringify(nb));
+  const atX = (r: Electron.Rectangle | null) => r !== null && Math.abs(r.x - (-15000 + -140)) < 2;
+  const ok = any.panes.length === 1 && atX(asked) && Math.abs(asked!.y - (300 - 24)) < 2 && (process.platform === 'darwin' || atX(nb));
+  check('the only tab: its window moves where it was let go', ok, JSON.stringify({ asked, nb }));
 
   b.closeAll(); srv.close(); pages.close();
   console.log(bad ? `${bad} failed` : 'all passed');
