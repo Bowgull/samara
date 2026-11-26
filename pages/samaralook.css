@@ -190,6 +190,8 @@ html.sbdrag,html.sbdrag *{cursor:col-resize !important}
 .band .slot.editing{--slotmax:1000px}
 .band .slot.open{border-radius:11px 11px 0 0}
 .band .slot.editing .star{display:none}
+/* widened over the keys in a small window: it sits on top of them */
+.band .slot.wide{position:relative;z-index:47}
 .slot .lock.dest{min-width:18px}
 .slot .lock .destfav{display:block;border-radius:3px}
 /* the typed address's selected finish (sheet 88) is shown dimmer, never painted yellow */

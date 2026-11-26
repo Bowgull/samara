@@ -55,6 +55,8 @@ app.whenReady().then(async () => {
   await fw.executeJavaScript(`document.getElementById('slot').click(); 1`); await wait(300); fw.focus();
   for (const k of 'clau') { fw.sendInputEvent({ type: 'char', keyCode: k }); await wait(90); }
   await wait(1200);
+  console.log('state ' + JSON.stringify({ last: Boolean(b.pane.sugLast), v: Boolean(b.pane.sugV), vis: b.pane.sugV?.getVisible?.() }));
+  console.log('frame ' + await fw.executeJavaScript(`JSON.stringify({ cls: document.getElementById('slot').className, editHidden: document.getElementById('edit').hidden, active: document.activeElement?.id })`));
   await shot('open');
   await fw.executeJavaScript(`JSON.stringify({ value: document.getElementById('edit').value, sel: [document.getElementById('edit').selectionStart, document.getElementById('edit').selectionEnd] })`).then((s: string) => console.log('bar ' + s));
   fw.sendInputEvent({ type: 'keyDown', keyCode: 'Down' }); fw.sendInputEvent({ type: 'keyUp', keyCode: 'Down' }); await wait(120);

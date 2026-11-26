@@ -776,6 +776,19 @@ function centreSlot() {
   const fit = w < room - 4 - 0.5 ? Math.floor(w) + 'px' : '99999px';
   if (slot.style.getPropertyValue('--slot-ml') !== x + 'px') slot.style.setProperty('--slot-ml', x + 'px');
   if (slot.style.getPropertyValue('--slot-fit') !== fit) slot.style.setProperty('--slot-fit', fit);
+  // Sheet 123 (v14): too narrow to read the rows (a small window), the open bar widens to 560, centred on the room,
+  // over the keys either side; they are back the moment it closes.
+  const want = Math.min(560, innerWidth - 48);
+  if (slot.classList.contains('editing') && room - 4 < want) {
+    let ml = Math.round((room - want) / 2), mr = ml;
+    // Never over the window's own keys (Windows' minimise, maximise, close) or past the band's ends.
+    const wk = document.querySelector('.winkeys'), wr = wk && wk.offsetWidth ? wk.getBoundingClientRect() : null;
+    const maxRight = (wr ? wr.left : b.right) - 6, right = left + ml + want;
+    if (right > maxRight) { const s = Math.ceil(right - maxRight); ml -= s; mr += s; }
+    if (left + ml < b.left + 6) { const s = Math.ceil(b.left + 6 - (left + ml)); ml += s; mr -= s; }
+    slot.style.setProperty('--slot-ml', ml + 'px'); slot.style.setProperty('--slot-fit', want + 'px');
+    slot.style.minWidth = want + 'px'; slot.style.marginRight = mr + 'px'; slot.classList.add('wide');
+  } else if (slot.classList.contains('wide')) { slot.style.minWidth = ''; slot.style.marginRight = ''; slot.classList.remove('wide'); }
   balanceEdit();
 }
 // The typed address is centred on the bar, not on the room left after the shield and star at its left end: the box
