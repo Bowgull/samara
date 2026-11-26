@@ -748,12 +748,16 @@ function editSlot(keepList = false) {
   }
   zeroSuggest();
 }
-const plainSel = () => edit.classList.remove('allsel');
+const plainSel = () => edit.classList.remove('allsel', 'finish');
 edit.addEventListener('pointerdown', plainSel);
 edit.addEventListener('input', plainSel);
 for (const b of [edit, el('find')]) b?.addEventListener('input', () => balanceEdit());
 edit.addEventListener('keydown', (e) => { if (e.key.length > 1 && e.key !== 'Enter' && e.key !== 'Escape' && e.key !== 'Tab') plainSel(); });
-function closeSlot() { plainSel(); if (!edit.hidden) window.samara?.browserSlot?.(false); edit.placeholder = ''; edit.hidden = true; urlEl.hidden = false; el('slot').classList.remove('editing'); centreSlot(); slotTo = null; }
+function closeSlot() {
+  plainSel(); if (!edit.hidden) window.samara?.browserSlot?.(false); edit.placeholder = ''; edit.hidden = true; urlEl.hidden = false;
+  el('slot').classList.remove('editing'); centreSlot(); slotTo = null; hoverShown = false;
+  if (lock.classList.contains('dest')) { lock.classList.remove('dest'); delete lock.dataset.u; paintUrl(state.tabs.find((x) => x.id === state.active)?.url ?? ''); }
+}
 // 2026-11-25 (his ask: "its off center"): the bar's middle sits on the window's middle. The keys either side are not
 // the same width (four on the left, one on the right, more when Downloads or Update pop in), so the room between them
 // is not centred. Resting, the bar gives up a little width to stay in the middle (down to 600); opened, it takes all
@@ -766,7 +770,8 @@ function centreSlot() {
   const mid = b.left + b.width / 2 - left;                      // the window's middle, inside the room
   let w = Math.min(parseFloat(cs.getPropertyValue('--slotmax')) || 1000, room - 4);
   const even = 2 * Math.min(mid - 4, room - mid);               // the widest bar that is still centred
-  if (!slot.classList.contains('editing') && even >= 600) w = Math.min(w, even);
+  // Sheet 123 (v14): it grows down, not sideways: typing, the bar keeps the width and centre it has at rest.
+  if (even >= 600) w = Math.min(w, even);
   const x = Math.round(Math.max(4, Math.min(mid - w / 2, room - w)));
   const fit = w < room - 4 - 0.5 ? Math.floor(w) + 'px' : '99999px';
   if (slot.style.getPropertyValue('--slot-ml') !== x + 'px') slot.style.setProperty('--slot-ml', x + 'px');
@@ -809,7 +814,8 @@ let own = '', mine = [], guesses = [];
 // still counts while it fits what he has typed since: the list keeps its lines instead of emptying on every letter.
 let guessTimer = 0, guessSeq = 0, guessShown = 0;
 function hideSuggest() {
-  if (!sugFirst) { window.samara?.browserSuggestShow?.(null); el('slot').classList.remove('open'); }
+  // Sheet 123: the bar keeps its square bottom until the drawer below it has slid shut (suggest.css, 350 ms).
+  if (!sugFirst) { window.samara?.browserSuggestShow?.(null); clearTimeout(unopenT); unopenT = setTimeout(() => { if (sugFirst) el('slot').classList.remove('open'); }, 360); }
   sugg = []; sugFirst = true; guesses = []; guessShown = guessSeq;
 }
 function paintSuggest() {
@@ -817,13 +823,33 @@ function paintSuggest() {
   const r = slotTo ?? el('slot').getBoundingClientRect();
   window.samara?.browserSuggestShow?.({
     rows: sugg.map((s) => ({ kind: s.kind, title: String(s.title ?? ''), url: String(s.url ?? ''), favicon: typeof s.favicon === 'string' ? s.favicon : '' })),
-    pick, typed: own.trim(), first: sugFirst, from: sugFirst ? slotFrom : 0,
+    pick, typed: own.trim(), first: sugFirst, from: sugFirst ? slotFrom : 0, max: innerHeight < 560 ? 3 : 5,
     // Sheet 102: his engine's guesses are still coming for what he typed: the list keeps room for 4 of them.
     expect: own.trim() && !guesses.length && !/^[a-z][a-z0-9+.-]*:\/\//i.test(own.trim()) ? 4 : 0,
     rect: { x: Math.round(r.left), y: Math.round(r.bottom), width: Math.round(r.width) },
+    // Sheet 123: where the band's wood is, so the drawer comes out from under its bottom edge with the grain lined up.
+    band: (() => { const b = el('band').getBoundingClientRect(); return { x: Math.round(b.left), top: Math.round(b.top), bottom: Math.round(b.bottom) }; })(),
   });
-  if (sugFirst) { sugFirst = false; el('slot').classList.add('open'); }
+  if (sugFirst) { sugFirst = false; clearTimeout(unopenT); el('slot').classList.add('open'); }
+  paintDest();
 }
+/**
+ * Sheet 123 (his ask: "this sheild looks like shit ... it doesnt fit at all" while the bar is open): while he types, the
+ * shield steps out and the icon of where Enter will go stands in its place. It comes back when the bar closes.
+ */
+function paintDest() {
+  if (edit.hidden) return;
+  const s = sugg[pick];
+  if (!s) return;
+  delete lock.dataset.u;                                     // paintUrl paints the shield for real once the bar closes
+  lock.hidden = false; lock.classList.remove('bad', 'open', 'popup'); lock.classList.add('dest');
+  if (s.favicon && !['search', 'guess', 'past', 'go'].includes(s.kind)) {
+    lock.replaceChildren(Object.assign(document.createElement('img'), { src: s.favicon, width: 18, height: 18, alt: '', className: 'destfav' }));
+  } else {
+    lock.innerHTML = '<svg viewBox="0 0 7 7" width="14" height="14" shape-rendering="crispEdges" aria-hidden="true"><path fill="#FFE096" d="M1 0h3v1H1zM0 1h1v3H0zM4 1h1v3H4zM1 4h3v1H1zM4 5h2v1H4zM5 6h2v1H5z"/></svg>';
+  }
+}
+let unopenT = 0;
 function choose(i) {
   const s = sugg[i];
   if (!s) return;
@@ -839,12 +865,17 @@ function choose(i) {
 // The layer says which line his mouse is on (the bar remembers it for Enter) or which one he clicked.
 window.samara?.onBrowserSuggestAct?.((a) => {
   if (edit.hidden || !a || !Number.isInteger(a.i) || !sugg[a.i]) return;
-  if (a.act === 'pick') choose(a.i); else pick = a.i;
+  if (a.act === 'pick') { choose(a.i); return; }
+  // Sheet 123: the row his mouse is on lights up, and the bar shows where Enter goes now.
+  if (pick === a.i) return;
+  pick = a.i; hoverShown = true; showPick();
 });
 /** His own things first, then at most 4 of his engine's guesses, none repeating a line already there. */
 function mergeSuggest() {
   const have = new Set(mine.map((x) => String(x.title).toLowerCase()));
   sugg = [...mine, ...guesses.filter((g) => !have.has(g.toLowerCase())).slice(0, 4).map((g) => ({ kind: 'guess', title: g, url: '' }))];
+  // Sheet 123 (his pick: "About 5"): five rows; three in a short window.
+  sugg = sugg.slice(0, innerHeight < 560 ? 3 : 5);
   if (pick >= sugg.length) pick = sugg.length ? 0 : -1;
   paintSuggest();
 }
@@ -873,12 +904,18 @@ function finishSite(text) {
     if (host.length <= t.length || !host.startsWith(t)) continue;
     edit.value = text + host.slice(t.length);
     edit.setSelectionRange(text.length, edit.value.length);
-    if (mine[0] && (mine[0].kind === 'search' || mine[0].kind === 'go')) mine[0] = { kind: 'go', title: host, url: 'https://' + host + '/' };
+    // Sheet 123 (his pick: "Any match"): the site it finished goes first and is the one Enter opens; what he typed,
+    // as a search, comes straight under it.
+    const typedLine = mine[0] && (mine[0].kind === 'search' || mine[0].kind === 'go') ? mine[0] : null;
+    mine = [s, ...(typedLine ? [typedLine] : []), ...mine.filter((x) => x !== s && x !== typedLine)];
+    finished = s; edit.classList.add('finish');
     return;
   }
 }
+let finished = null, hoverShown = false;
 edit.addEventListener('input', (e) => {
   const seq = ++suggSeq;
+  finished = null; hoverShown = false; edit.classList.remove('finish');
   const text = edit.value;
   own = text; pick = 0;
   const low = text.trim().toLowerCase();
@@ -915,6 +952,8 @@ function showPick() {
   paintSuggest();
 }
 edit.addEventListener('keydown', (e) => {
+  // A letter after the mouse moved the bar's words: his own typing comes back first, and the letter goes on the end.
+  if (hoverShown && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) { hoverShown = false; edit.value = own || zeroAt; edit.setSelectionRange(edit.value.length, edit.value.length); }
   if (e.key === 'ArrowDown' && sugg.length) { pick = (pick + 1) % sugg.length; showPick(); e.preventDefault(); return; }
   if (e.key === 'ArrowUp' && sugg.length) { pick = pick <= 0 ? sugg.length - 1 : pick - 1; showPick(); e.preventDefault(); return; }
   // Sheet 102 (Chrome's key): Shift+Delete on one of his past searches or pages forgets it.
@@ -928,7 +967,8 @@ edit.addEventListener('keydown', (e) => {
     e.preventDefault();
     return;
   }
-  if (e.key === 'Enter' && edit.value.trim()) { if (sugg.length && pick > 0) choose(pick); else if (!own && pick === 0 && sugg[0]) choose(0); else { window.samara?.browserGo?.(edit.value.trim()); hideSuggest(); closeSlot(); } }
+  if (e.key === 'Enter' && edit.value.trim()) { if (sugg.length && pick > 0) choose(pick); else if (!own && pick === 0 && sugg[0]) choose(0);
+    else if (pick === 0 && finished && sugg[0] === finished && finished.kind === 'tab') choose(0); else { window.samara?.browserGo?.(edit.value.trim()); hideSuggest(); closeSlot(); } }
   // Esc brings back what he typed first; a second Esc closes the bar.
   if (e.key === 'Escape') { if (sugg.length && edit.value !== (own || zeroAt)) { edit.value = own || zeroAt; pick = own ? 0 : -1; paintSuggest(); e.preventDefault(); return; } hideSuggest(); closeSlot(); }
 });
@@ -1053,9 +1093,16 @@ const hostOf = (u) => { try { return new URL(u).hostname; } catch { return ''; }
 // Shown at its exact pixel size, never scaled. tools/pixelart/shield/bar_arrow.py makes it.
 // Option C (2026-10-12, from how every browser does it): one quiet colour at rest; the full-colour shield
 // while he points at it or its panel is open; solid blue when it caught a popup; red when something is wrong.
-const SHIELD = '<span class="shieldbox"><img class="s-rest" src="art/browser/shield_rest.png" width="20" height="24" alt="">'
-  + '<img class="s-hover" src="art/browser/shield_hover.png" width="20" height="24" alt="">'
-  + '<img class="s-popup" src="art/browser/shield_popup.png" width="20" height="24" alt=""></span>';
+// Sheet 123 (2026-11-25, his pick B: "the sheild icon its realllyyyy low quality ... it doesnt fit at all"): the shield
+// is drawn in the band's own icon language, gold pixels at 2 px a pixel like Back and Forward. A gold edge, Samara's
+// purple inside, a lit top. It lights on hover and while its panel is open; a caught popup still glows air blue.
+const SHIELD = (() => {
+  const rows = ['XXXXXXXXX', 'XHHHHHHHX', 'XPPPPPPPX', 'XPPPPPPPX', 'XPPPPPPPX', '.XPPPPPX.', '.XPPPPPX.', '..XPPPX..', '...XPX...', '....X....'];
+  const cls = { X: 'sr', H: 'sh', P: 'sf' };
+  let r = '';
+  rows.forEach((row, y) => [...row].forEach((c, x) => { if (cls[c]) r += `<rect class="${cls[c]}" x="${x}" y="${y}" width="1" height="1"/>`; }));
+  return `<span class="shieldbox"><svg class="shieldpix" viewBox="0 0 9 10" width="18" height="20" shape-rendering="crispEdges" aria-hidden="true">${r}</svg></span>`;
+})();
 const SPEAKER = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6h3l4-3v10l-4-3H2z" fill="#2a1c00"/><path d="M11 5c1.5 1.5 1.5 4.5 0 6" stroke="#2a1c00" stroke-width="1.8" fill="none"/></svg>';
 // Rows are kept and only redrawn when something about that tab changed, so a title or a spinner on one
 // tab never rebuilds the whole rail (that rebuild was the flicker, and it dropped the hover under the mouse).

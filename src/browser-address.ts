@@ -52,7 +52,10 @@ export const AddressPart = {
     if (!m || typeof m !== 'object') {
       P.sugLast = null;
       const v = P.sugV && !P.sugV.webContents.isDestroyed() ? P.sugV : null;
-      if (v?.getVisible()) { v.webContents.send('suggest:show', null); setTimeout(() => { if (!P.sugLast && !v.webContents.isDestroyed()) v.setVisible(false); }, 20); }
+      // Sheet 123: the drawer slides shut first (rows 90 ms, then 260 ms), and only then does the layer go.
+      if (v?.getVisible()) { v.webContents.send('suggest:show', null); setTimeout(() => { if (!P.sugLast && !v.webContents.isDestroyed()) v.setVisible(false); }, 400); }
+      const back = P.sugHid; P.sugHid = null;
+      if (back?.length) setTimeout(() => { if (P.sugLast) { P.sugHid = back; return; } for (const h of back) if (!h.webContents.isDestroyed()) h.setVisible(true); }, 400);
       return;
     }
     const a = m as Record<string, unknown>, r = (a.rect ?? {}) as Record<string, unknown>;
@@ -63,17 +66,26 @@ export const AddressPart = {
       favicon: /^data:image\//.test(str(x?.favicon, 20_000)) ? str(x.favicon, 20_000) : '',
     }));
     const [cw, ch] = w.getContentSize();
-    const x = Math.max(0, Math.min(cw - 40, num(r.x))), y = Math.max(0, Math.min(ch - 40, num(r.y)));
-    const width = Math.max(40, Math.min(cw - x, num(r.width)));
-    const show: SugShow = { rows, pick: Number.isInteger(a.pick) ? Number(a.pick) : -1, typed: str(a.typed, 200), from: num(a.from), expect: Math.max(0, Math.min(4, num(a.expect))), first: a.first === true, x, y, width };
+    // Sheet 123: the layer is the rest of the bar plus the wood drawer round it, so it starts PAD to the left of the
+    // bar (its outline and 14 px of wood) and is that much wider on each side. The bar's own bottom edge is its top.
+    const PAD = 16, band = (a.band ?? {}) as Record<string, unknown>;
+    const bx = num(r.x), bw = Math.max(40, num(r.width));
+    const x = Math.max(0, Math.min(cw - 40, bx - PAD)), y = Math.max(0, Math.min(ch - 40, num(r.y)));
+    const width = Math.max(40, Math.min(cw - x, bw + 2 * PAD - Math.max(0, x - (bx - PAD))));
+    const woodTop = Math.max(0, Math.min(60, num(band.bottom) - 4 - y));
+    const show: SugShow = { rows, pick: Number.isInteger(a.pick) ? Number(a.pick) : -1, typed: str(a.typed, 200), from: num(a.from), expect: Math.max(0, Math.min(4, num(a.expect))), first: a.first === true, x, y, width,
+      max: Math.max(1, Math.min(14, num(a.max) || 5)), pad: bx - PAD >= 0 ? PAD : Math.max(0, bx), woodTop, woodX: x - num(band.x), woodY: y + woodTop - num(band.top) };
     const first = !P.sugLast || show.first;
     P.sugLast = show;
     const v = this.sugView();
     if (!v) return;
     // Its height is the list's own (the page says, suggestSize): a first guess until then, rows 40 tall.
-    const b = v.getBounds(), height = first || !v.getVisible() ? Math.min(ch - y, 14 + 40 * Math.max(1, rows.length)) : b.height;
+    const b = v.getBounds(), height = first || !v.getVisible() ? Math.min(ch - y, 74 + 40 * Math.max(1, Math.min(rows.length, show.max))) : b.height;
     v.setBounds({ x, y, width, height });
     if (first || !v.getVisible()) {
+      // Sheet 123: while the bar is open, the notice and the hand card under it step back; they come back when it shuts.
+      if (!P.sugHid) P.sugHid = [P.noticeV, P.handV].filter((x): x is WebContentsView => Boolean(x && !x.webContents.isDestroyed() && x.getVisible()));
+      for (const h of P.sugHid) h.setVisible(false);
       w.contentView.addChildView(v); v.setVisible(true);
       // The list never needs the keyboard (its rows act through suggestAct). Chromium gives it the keyboard when it is
       // first shown, and the bar then closed under him a moment after he opened it (2026-11-22, grabbed while Samara

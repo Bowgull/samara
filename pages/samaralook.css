@@ -183,3 +183,14 @@ html.sbdrag,html.sbdrag *{cursor:col-resize !important}
   background:linear-gradient(180deg,#FFE096,#FFC43C 60%,#C98C14);box-shadow:0 0 0 2px var(--outline),0 0 12px rgba(255,196,60,.7)}
 .hnd .sndmark[hidden],body.rail-out .hnd .sndmark{display:none}
 .hnd .sndmark svg{display:block}
+
+/* ---- sheet 123 (2026-11-25): the bar grows. Typing, it keeps its resting width and centre (it grows down, not
+   sideways); open, its bottom is square and its outline stops there, so the list layer below carries it on with no
+   seam (suggest.css). While he types, the icon of where Enter goes stands where the shield was (browser.js paintDest). */
+.band .slot.editing{--slotmax:1000px}
+.band .slot.open{border-radius:11px 11px 0 0}
+.band .slot.editing .star{display:none}
+.slot .lock.dest{min-width:18px}
+.slot .lock .destfav{display:block;border-radius:3px}
+/* the typed address's selected finish (sheet 88) is shown dimmer, never painted yellow */
+.slot .edit.finish::selection{background:transparent;color:#7d7398}

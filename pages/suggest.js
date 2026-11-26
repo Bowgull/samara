@@ -1,7 +1,7 @@
 // Sheet 102 (2026-10-29): the address bar's list on its own layer. It draws what the bar sends: the typed line,
 // his past searches, his tabs, bookmarks and history, then his engine's guesses. Rows stay where they are and only their
 // words change; the list never gets shorter while he types (empty rows hold its height until the bar closes).
-const box = document.getElementById('box'), rowsEl = document.getElementById('rows'), mark = document.getElementById('mark');
+const box = document.getElementById('box'), rowsEl = document.getElementById('rows'), grow = document.getElementById('grow');
 const SVGNS = 'http://www.w3.org/2000/svg';
 // One small glyph per kind, on the band's own 7 by 7 grid (sheet 19 A); the clock is his past search (sheet 102).
 const GLASS = ['0 0 7 7', 'M1 0h3v1H1zM0 1h1v3H0zM4 1h1v3H4zM1 4h3v1H1zM4 5h2v1H4zM5 6h2v1H5z'];
@@ -63,24 +63,26 @@ function fill(row, s, typed) {
   if (s.kind === 'search') st.textContent = typed;
   else if (s.kind === 'go') st.textContent = s.title || typed;
   else boldRest(st, s.kind === 'guess' || s.kind === 'past' ? String(s.title) : onlyUrl ? bare : String(s.title), typed);
-  su.textContent = s.kind === 'search' ? 'Search the web' : s.kind === 'go' || s.kind === 'guess' || s.kind === 'past' || onlyUrl ? '' : bare;
+  // Sheet 123: the address dimmed after the title; a tab he already has says Open, in green. No "Search the web" filler.
+  su.replaceChildren();
+  const addr = s.kind === 'search' || s.kind === 'go' || s.kind === 'guess' || s.kind === 'past' || onlyUrl ? '' : bare;
+  if (addr) su.append(Object.assign(document.createElement('span'), { className: 'u', textContent: addr }));
+  if (s.kind === 'tab') su.append(Object.assign(document.createElement('span'), { className: 'open', textContent: 'Open' }));
   sa.textContent = ACT[s.kind] ?? 'Open';
 }
 function setPick(i, jump = false) {
   pick = i;
   [...rowsEl.querySelectorAll('.srow')].forEach((r, j) => { r.classList.toggle('on', j === i); r.setAttribute('aria-selected', String(j === i)); });
-  const r = rowsEl.querySelectorAll('.srow')[i];
-  mark.classList.toggle('on', Boolean(r) && i >= 0);
-  if (!r) return;
-  mark.classList.toggle('jump', jump);
-  mark.style.transform = `translateY(${r.offsetTop + rowsEl.offsetTop}px)`;
+  rowsEl.classList.toggle('picked', i >= 0 && Boolean(rowsEl.querySelectorAll('.srow')[i]));
 }
 function paint(m) {
   const typed = String(m.typed ?? '').trim();
   const list = Array.isArray(m.rows) ? m.rows : [];
   if (m.first) { hold = 0; holdPx = 0; rowsEl.style.minHeight = ''; }
   // Room for the guesses still on their way (the bar says how many), so the list opens at its full size once.
-  hold = Math.min(14, Math.max(hold, list.length + (Number(m.expect) > 0 ? Math.min(4, Number(m.expect)) : 0)));
+  // Sheet 123: never more than the bar's row cap (5, or 3 in a short window), guesses still on their way included.
+  const cap = Number(m.max) > 0 ? Math.min(14, Number(m.max)) : 14;
+  hold = Math.min(cap, Math.max(hold, list.length + (Number(m.expect) > 0 ? Math.min(4, Number(m.expect)) : 0)));
   // Where his own things end and the engine's guesses begin (or, before a letter, his searches and his sites).
   const split = list.findIndex((s, i) => i > 0 && (s.kind === 'guess' || (s.kind === 'history' && list[i - 1].kind === 'past')));
   const want = [];
@@ -99,19 +101,22 @@ function paint(m) {
     if (s) fill(r, s, typed); else { r.classList.add('hold'); r.classList.remove('on'); }
   }
   setPick(Number.isInteger(m.pick) ? m.pick : -1, m.first === true);
-  // Opens once: from the bar's width now to its full width, sliding down in four pixel steps.
-  if (m.first || !open) {
-    open = true;
-    box.classList.remove('out', 'in');
-    if (Number(m.from) > 0) { box.style.transition = 'none'; box.style.width = Math.round(m.from) + 'px'; void box.offsetWidth; box.style.transition = ''; }
-    requestAnimationFrame(() => { box.style.width = '100%'; box.classList.add('in'); });
-  }
+  // Sheet 123: where the band's wood is, so the drawer's grain lines up with the band's.
+  const px = (v) => (Number.isFinite(Number(v)) ? Math.round(Number(v)) + 'px' : '0px');
+  document.documentElement.style.setProperty('--woodTop', px(m.woodTop));
+  document.documentElement.style.setProperty('--woodX', px(m.woodX));
+  document.documentElement.style.setProperty('--woodY', px(m.woodY));
+  document.documentElement.style.setProperty('--pad', px(m.pad));
   // Never shorter while it is open, whatever lines and dividers come and go.
   holdPx = Math.max(holdPx, rowsEl.offsetHeight);
   rowsEl.style.minHeight = holdPx + 'px';
-  window.samaraSuggest?.size(box.offsetHeight + 3);
+  const h = holdPx + 12;                                  // the box's own padding
+  document.documentElement.style.setProperty('--h', h + 'px');
+  // Opens once, on one clock with the drawer (suggest.css).
+  if (m.first || !open) { open = true; void grow.offsetHeight; requestAnimationFrame(() => grow.classList.add('in')); }
+  window.samaraSuggest?.size(h + 14 + 48);               // the drawer, its wood below the bar, and its shadow
 }
 window.samaraSuggest?.on((m) => {
-  if (!m) { open = false; hold = 0; holdPx = 0; box.classList.remove('in'); box.classList.add('out'); return; }
+  if (!m) { open = false; hold = 0; holdPx = 0; grow.classList.remove('in'); return; }
   paint(m);
 });
