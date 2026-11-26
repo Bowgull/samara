@@ -116,7 +116,10 @@ app.whenReady().then(async () => {
     p.style.setProperty('--woodTop', woodTop + 'px'); p.style.setProperty('--woodPos', (-left) + 'px ' + (bgY - (top + woodTop)) + 'px');
     p.hidden = false; $('slot').classList.add('open'); $('lock').classList.add('open'); return 1; })()`);
   await wait(900);
+  // the tab's page sits above the band's page; out of the way for this one picture
+  const pv = b.tabs.find((t: { id: number }) => t.id === b.active)?.view; pv?.setVisible(false); await wait(200);
   writeFileSync(`${out}-shieldband.png`, (await fw.capturePage({ x: 0, y: 0, width: W, height: Number(process.env.H) || 520 })).toPNG());
+  pv?.setVisible(true);
   await fw.executeJavaScript(`(() => { document.getElementById('sitepanel').hidden = true; document.getElementById('slot').classList.remove('open'); document.getElementById('lock').classList.remove('open'); document.documentElement.classList.add('floated'); return 1; })()`);
   // Sheet 123 v13 mode D: find, each match with the words around it
   fw.send('browser:findopen'); await wait(300); fw.focus();

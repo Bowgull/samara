@@ -105,7 +105,9 @@ function paint(m) {
   hold = Math.min(cap, Math.max(hold, list.length + (Number(m.expect) > 0 ? Math.min(4, Number(m.expect)) : 0)));
   // Where his own things end and the engine's guesses begin (or, before a letter, his searches and his sites).
   // Sheet 123 v13: before a letter, a small gap between his open tabs and the places he was last.
-  const split = list.findIndex((s, i) => i > 0 && (s.kind === 'guess' || (!typed && list[i - 1].kind === 'tab' && s.kind !== 'tab') || (s.kind === 'history' && list[i - 1].kind === 'past')));
+  let split = list.findIndex((s, i) => i > 0 && (s.kind === 'guess' || (!typed && list[i - 1].kind === 'tab' && s.kind !== 'tab') || (s.kind === 'history' && list[i - 1].kind === 'past')));
+  // The guesses still on their way get their gap now, so the list does not jump 10 px when they land.
+  if (split < 0 && typed && Number(m.expect) > 0 && list.length > 0 && hold > 1) split = Math.min(list.length, hold - 1);
   const want = [];
   for (let i = 0; i < hold; i++) { if (i === split) want.push('gl'); want.push(i); }
   // Rows are kept by position: only their words change, so nothing slides or grows.

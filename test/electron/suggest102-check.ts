@@ -77,12 +77,15 @@ app.whenReady().then(async () => {
   await js(`(() => { document.getElementById('slot').click(); document.getElementById('edit').focus(); return 1; })()`);
   await wait(600);
   const editW = await js(`Math.round(document.getElementById('slot').getBoundingClientRect().width)`);
-  check('while typing the bar is 1280 wide', editW === 1280, String(editW));
+  // Sheet 123 (v14): it grows down, not sideways, so typing keeps the resting width.
+  check('while typing the bar keeps its 1000 width', editW === 1000, String(editW));
   const z = JSON.parse(await lay(`JSON.stringify([...document.querySelectorAll('.srow:not(.hold)')].map((r) => [r.querySelector('.st').textContent, r.querySelector('.sa').textContent]))`));
   console.log(JSON.stringify(z));
-  check('a click shows his last 3 searches, newest first, then his top sites', z.length >= 4 && z[0][0] === 'weather tomorrow' && z[1][0] === 'pixel art tutorial' && z[2][0] === 'valheim ashlands map' && z[3][1] === 'Open', z.map((x: string[]) => x[0]).join(' | '));
+  // Sheet 123 v13 (mode A): his other open tabs (none here), then his last search, then the places he goes most; 5 at most.
+  check('a click shows his last search, then his top sites, 5 at most', z.length >= 2 && z.length <= 5 && z[0][0] === 'weather tomorrow' && z[1][1] === 'Open', z.map((x: string[]) => x[0]).join(' | '));
   check('nothing is picked before he moves, so Enter goes where the bar says', (await lay(`document.querySelectorAll('.srow.on').length`)) === 0);
-  check('the layer is exactly as wide as the bar', layer().getBounds().width === 1280, JSON.stringify(layer().getBounds()));
+  // Sheet 123: the drawer is the bar plus its wood, 16 px each side.
+  check('the layer is the bar plus its wood', layer().getBounds().width === editW + 32, JSON.stringify(layer().getBounds()));
   await picture('zero.png');
 
   // 3 typing "pixel" at a steady pace: the list never gets shorter, its first line never moves, no page picture
@@ -114,8 +117,9 @@ app.whenReady().then(async () => {
   const onPast = await js(`document.getElementById('edit').value`);
   check('Down puts the line he is on into the bar', onPast === 'pixel art tutorial', onPast);
   await wait(200);
-  const markY = await lay(`document.getElementById('mark').style.transform`);
-  check('the gold marker sits on that line', /translateY\(\d+px\)/.test(markY) && !markY.includes('(0px)'), markY);
+  // Sheet 123 (pick C): no marker; the line he is on is the one lit.
+  const lit = await lay(`document.querySelector('.srow.on .st')?.textContent ?? ''`);
+  check('that line is the lit one', lit === 'pixel art tutorial', lit);
   await key('Delete', true); await wait(300);
   check('Shift+Delete forgets that search from his History', !b.visits.list.some((v: any) => v.url.includes('pixel+art+tutorial')));
   const after = JSON.parse(await lay(`JSON.stringify([...document.querySelectorAll('.srow:not(.hold)')].map((r) => r.querySelector('.st').textContent))`));
@@ -141,7 +145,7 @@ app.whenReady().then(async () => {
   await js(`(() => { document.getElementById('slot').click(); document.getElementById('edit').focus(); return 1; })()`);
   await wait(400); await type('r'); await wait(500);
   check('the list opens again on the next click', layer().getVisible());
-  await key('Escape'); await wait(50); await key('Escape'); await wait(200);
+  await key('Escape'); await wait(50); await key('Escape'); await wait(500);   // sheet 123: the drawer slides shut first (360 ms)
   check('Esc twice puts it away', !layer().getVisible());
   console.log(bad ? `${bad} FAILED` : 'ALL PASS');
   setTimeout(() => app.exit(bad ? 1 : 0), 300);
