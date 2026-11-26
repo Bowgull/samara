@@ -150,6 +150,8 @@ contextBridge.exposeInMainWorld('samara', {
   browserFindStop: () => ipcRenderer.send('browser:findstop'),
   onBrowserFindOpen(fn) { const h = () => fn(); ipcRenderer.on('browser:findopen', h); return () => ipcRenderer.removeListener('browser:findopen', h); },
   onBrowserFound(fn) { const h = (_e, r) => fn(r); ipcRenderer.on('browser:found', h); return () => ipcRenderer.removeListener('browser:found', h); },
+  /** Sheet 123 v13: each match on the page with the words around it, for the find drawer. */
+  onBrowserFindHits(fn) { const h = (_e, r) => fn(r); ipcRenderer.on('browser:findhits', h); return () => ipcRenderer.removeListener('browser:findhits', h); },
   /** A switch in the browser's ⋯ menu: ads, popups, sounds. */
   browserPref: a => ipcRenderer.send('browser:pref', a),
   // --- 6.22b: the page's right-click menu, its own little window

@@ -110,7 +110,9 @@ if (!SOLO && !FLOAT) {
     const k = e.target instanceof Element ? e.target.closest(FLOAT_KEYS) : null;
     if (!k) return;
     e.stopPropagation(); e.preventDefault();
-    window.samara?.browserFloat?.({ click: k.id, kb: e.detail === 0 });
+    // Sheet 123 v13: the shield's drawer hangs from the real bar, so the layer is told where the bar is.
+    const sr = el('slot').getBoundingClientRect();
+    window.samara?.browserFloat?.({ click: k.id, kb: e.detail === 0, slot: { left: sr.left, width: sr.width, bottom: sr.bottom } });
   }, true);
   window.samara?.onBrowserFloat?.((f) => {
     if (!f) return;
@@ -121,6 +123,8 @@ if (!SOLO && !FLOAT) {
       el('dlkey').setAttribute('aria-expanded', String(f.over.includes('dl')));
       el('upkey').setAttribute('aria-expanded', String(f.over.includes('up')));
       lock.classList.toggle('open', f.over.includes('site'));
+      // Sheet 123 v13: the shield's drawer hangs from the bar, so the bar squares its bottom corners to meet it.
+      if (edit.hidden) el('slot').classList.toggle('open', f.over.includes('site'));
     }
     // A menu line that works on the band itself: find on the page, this site's notes, the tab list.
     if (f.do === 'find') setTimeout(openFind, 0);
@@ -131,6 +135,7 @@ if (!SOLO && !FLOAT) {
 if (FLOAT) {
   window.samara?.onBrowserFloat?.((f) => {
     if (!f || typeof f.click !== 'string' || !/^(menukey|star|lock|dlkey|upkey)$/.test(f.click)) return;
+    if (f.slot && [f.slot.left, f.slot.width, f.slot.bottom].every(Number.isFinite)) bandSlot = f.slot;
     el(f.click).click();
     if (f.kb && f.click === 'menukey' && menuOpen) menuFocus(0);
     // A key that opened nothing (the shield on a page with no site): the layer goes again at once.
@@ -140,7 +145,7 @@ if (FLOAT) {
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     closeMenu(); closeDl();
-    if (!el('sitepanel').hidden) { el('sitepanel').hidden = true; lock.classList.remove('open'); }
+    closeSite();
   });
 }
 /** A menu line meant for the band (the layer has no visible band): the band does it. */
@@ -579,8 +584,12 @@ const vaultpw = el('vaultpw');
 window.samara?.onBrowserVault?.((v) => {
   const chip = el('vaultchip');
   vaultpw.value = '';
-  if (!v) { chip.hidden = true; return; }
+  if (!v) { chip.hidden = true; paintVault(null); return; }
   const unlock = v.mode === 'unlock';
+  // Sheet 123 v13 (mode E, his OK 2026-11-25): his logins for this site are the bar's drawer, not a chip that pushes
+  // the page down. Unlocking (the master password box) stays the chip. Nothing fills until he picks one.
+  if (!unlock) { chip.hidden = true; paintVault(Array.isArray(v.logins) ? v.logins : []); return; }
+  paintVault(null);
   el('vaultq').textContent = unlock ? (v.wrong ? 'That password did not open it' : 'Unlock Bitwarden') : 'Which login?';
   el('vaultm').textContent = unlock ? `Your Bitwarden master password, to fill a login on ${v.host}. It stays open 30 minutes.` : `You have more than one login for ${v.host}.`;
   el('vaultform').hidden = !unlock;
@@ -597,6 +606,35 @@ window.samara?.onBrowserVault?.((v) => {
   chip.hidden = false;
   if (unlock) setTimeout(() => vaultpw.focus(), 0);
 });
+let vaultRows = null, vaultPick = 0;
+function paintVault(logins) {
+  const was = Boolean(vaultRows);
+  vaultRows = logins && logins.length ? logins.slice(0, 14) : null;
+  el('vkey').classList.toggle('open', Boolean(vaultRows));
+  if (!vaultRows) {
+    if (was) { window.samara?.browserSuggestShow?.(null); clearTimeout(unopenT); unopenT = setTimeout(() => { if (!vaultRows && sugFirst && !findShown) el('slot').classList.remove('open'); }, 360); }
+    return;
+  }
+  if (!was) vaultPick = 0;
+  const max = innerHeight < 560 ? 3 : 5, start = Math.max(0, Math.min(vaultRows.length - max, vaultPick - Math.floor(max / 2)));
+  vaultStart = start;
+  const r = el('slot').getBoundingClientRect(), b = el('band').getBoundingClientRect();
+  window.samara?.browserSuggestShow?.({ rows: vaultRows.slice(start, start + max).map((l) => ({ kind: 'login', title: String(l.name || l.username || ''), url: String(l.username || ''), favicon: '' })),
+    pick: vaultPick - start, typed: '', first: !was, from: 0, max, expect: 0, mode: 'vault',
+    rect: { x: Math.round(r.left), y: Math.round(r.bottom), width: Math.round(r.width) },
+    band: { x: Math.round(b.left), top: Math.round(b.top), bottom: Math.round(b.bottom) } });
+  if (!was) { clearTimeout(unopenT); el('slot').classList.add('open'); }
+}
+let vaultStart = 0;
+const vaultChoose = (i) => { const l = vaultRows?.[i]; if (l) window.samara?.browserVaultPick?.(l.id); };
+// Up and Down move the lit login, Enter fills it, Esc puts the drawer away; going to the page does too.
+addEventListener('keydown', (e) => {
+  if (!vaultRows) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { vaultPick = (vaultPick + (e.key === 'ArrowDown' ? 1 : -1) + vaultRows.length) % vaultRows.length; paintVault(vaultRows); e.preventDefault(); }
+  else if (e.key === 'Enter') { vaultChoose(vaultPick); e.preventDefault(); }
+  else if (e.key === 'Escape') { window.samara?.browserAct?.('vaultcancel'); e.preventDefault(); }
+}, true);
+addEventListener('blur', () => setTimeout(() => { if (vaultRows && !document.hasFocus()) window.samara?.browserAct?.('vaultcancel'); }, 150));
 el('vaultform').addEventListener('submit', (e) => {
   e.preventDefault();
   const pw = vaultpw.value;
@@ -877,6 +915,8 @@ function choose(i) {
 }
 // The layer says which line his mouse is on (the bar remembers it for Enter) or which one he clicked.
 window.samara?.onBrowserSuggestAct?.((a) => {
+  if (finding && a && Number.isInteger(a.i)) { if (a.act === 'pick') findJump(findStart + a.i); return; }
+  if (vaultRows && a && Number.isInteger(a.i)) { if (a.act === 'pick') vaultChoose(vaultStart + a.i); else { vaultPick = vaultStart + a.i; } return; }
   if (edit.hidden || !a || !Number.isInteger(a.i) || !sugg[a.i]) return;
   if (a.act === 'pick') { choose(a.i); return; }
   // Sheet 123: the row his mouse is on lights up, and the bar shows where Enter goes now.
@@ -1018,7 +1058,7 @@ function openFind() {
 }
 function closeFind() {
   if (!finding) return;
-  finding = false;
+  finding = false; findHits = { q: '', hits: [] }; paintFind();
   findTag.hidden = true; findBox.hidden = true; findN.hidden = true;
   urlEl.hidden = false;
   window.samara?.browserFindStop?.();
@@ -1037,7 +1077,45 @@ window.samara?.onBrowserFound?.((r) => {
   const none = findBox.value && r.of === 0;
   findN.classList.toggle('none', Boolean(none));
   findN.textContent = !findBox.value ? '' : none ? 'NONE' : `${r.at} OF ${r.of}`;
+  findAt = Number(r.at) || 0; findOf = Number(r.of) || 0; paintFind();
 });
+/**
+ * Sheet 123 v13 (mode D, his OK 2026-11-25): the bar is already the find field; grown, it shows each match with the
+ * words around it, so he can jump straight to the right one. The match he is on is the lit row; a click goes there.
+ * The same drawer as the address list (suggest.html), on the same clock.
+ */
+let findHits = { q: '', hits: [] }, findAt = 0, findOf = 0, findStart = 0, findShown = false;
+window.samara?.onBrowserFindHits?.((r) => {
+  if (!finding || !r || r.q !== findBox.value.slice(0, 200) || !Array.isArray(r.hits)) return;
+  findHits = { q: r.q, hits: r.hits }; paintFind();
+});
+findBox.addEventListener('input', () => { if (!findBox.value) paintFind(); });
+function paintFind() {
+  const q = findBox.value.slice(0, 200);
+  const hits = finding && q && findHits.q === q ? findHits.hits : [];
+  if (!hits.length) {
+    if (findShown) {
+      findShown = false; window.samara?.browserSuggestShow?.(null);
+      clearTimeout(unopenT); unopenT = setTimeout(() => { if (!findShown && sugFirst) el('slot').classList.remove('open'); }, 360);
+    }
+    return;
+  }
+  const max = innerHeight < 560 ? 3 : 5, cur = Math.max(0, Math.min(hits.length - 1, (findAt || 1) - 1));
+  findStart = Math.max(0, Math.min(hits.length - max, cur - Math.floor(max / 2)));
+  const rows = hits.slice(findStart, findStart + max).map((h, k) => ({ kind: 'hit', title: h.join('\u2063'), url: String(findStart + k + 1), favicon: '' }));
+  const r = el('slot').getBoundingClientRect(), b = el('band').getBoundingClientRect();
+  window.samara?.browserSuggestShow?.({ rows, pick: cur - findStart, typed: q, first: !findShown, from: 0, max, expect: 0, mode: 'find',
+    rect: { x: Math.round(r.left), y: Math.round(r.bottom), width: Math.round(r.width) },
+    band: { x: Math.round(b.left), top: Math.round(b.top), bottom: Math.round(b.bottom) } });
+  if (!findShown) { findShown = true; clearTimeout(unopenT); el('slot').classList.add('open'); }
+}
+/** A match row clicked: Enter's own next-match steps, as many as it takes to land on it. */
+function findJump(k) {
+  if (!findOf || !findBox.value) return;
+  const steps = ((k + 1) - (findAt || 1) + findOf) % findOf;
+  for (let i = 0; i < steps; i++) window.samara?.browserFind?.({ text: findBox.value, next: true });
+  findBox.focus();
+}
 
 // The browser's keys work here too, when the frame has the keyboard.
 window.addEventListener('keydown', (e) => {
@@ -1473,15 +1551,45 @@ lock.addEventListener('click', (e) => {
   const fav = state.tabs.find((x) => x.id === state.active)?.favicon;
   el('sitefav').hidden = !fav; el('sitefav').onerror = () => { el('sitefav').hidden = true; }; if (fav) el('sitefav').src = fav;
   paintSite();
-  el('sitepanel').hidden = !el('sitepanel').hidden;
-  lock.classList.toggle('open', !el('sitepanel').hidden);
+  const sp = el('sitepanel');
+  if (sp.classList.contains('shut')) { clearTimeout(siteShutT); sp.classList.remove('shut'); }   // back open mid-close
+  else if (!sp.hidden) { closeSite(); return; }
+  else sp.hidden = false;
+  lock.classList.add('open');
   // Hung from the shield itself (2026-10-14: it sat off to the side): its pointer (24px in, 18 wide) under the
   // shield's middle, measured each time, since the address bar moves with the window and the band.
-  if (!el('sitepanel').hidden) {
-    const band = el('band').getBoundingClientRect(), r = lock.getBoundingClientRect();
-    el('sitepanel').style.left = Math.max(8, Math.round(r.left + r.width / 2 - band.left - 33)) + 'px';
-  }
+  if (!el('sitepanel').hidden) placeSiteDrawer();
 });
+/**
+ * Sheet 123 v13 (mode C, his OK 2026-11-25): the shield's panel is the bar growing, not a pop-up. The rest of the bar
+ * (the same ink, rounded at the bottom) hangs from the bar's bottom edge, as wide as the bar, and a drawer of the band's
+ * wood comes out around it from under the band's edge, its grain lined up with the band's.
+ */
+/**
+ * Sheet 123 v14's clock, closing: the rows go first (90 ms), then the drawer slides shut (260 ms). The panel is hidden,
+ * and its layer put away, only once it has shut. Reduced motion: it goes at once.
+ */
+let siteShutT = 0;
+function closeSite() {
+  const p = el('sitepanel');
+  lock.classList.remove('open');
+  if (p.hidden || p.classList.contains('shut')) return;
+  if (!p.classList.contains('grown') || matchMedia('(prefers-reduced-motion: reduce)').matches) { p.hidden = true; return; }
+  p.classList.add('shut');
+  siteShutT = setTimeout(() => { p.hidden = true; p.classList.remove('shut'); }, 360);
+}
+let bandSlot = null;                                  // the layer: where the band's real bar is (its own copy is unseen)
+function placeSiteDrawer() {
+  const p = el('sitepanel'), band = el('band'), b = band.getBoundingClientRect(), s = (FLOAT && bandSlot) || el('slot').getBoundingClientRect();
+  const PAD = 16, left = Math.round(s.left - b.left - PAD), top = Math.round(s.bottom - b.top);
+  const woodTop = Math.max(0, Math.round(b.bottom - 4 - s.bottom));
+  const bg = getComputedStyle(band), bgY = parseFloat(bg.backgroundPositionY) || 0;
+  p.classList.add('grown');
+  p.style.left = left + 'px'; p.style.top = top + 'px'; p.style.width = Math.round(s.width + 2 * PAD) + 'px';
+  p.style.setProperty('--woodTop', woodTop + 'px');
+  p.style.setProperty('--woodPos', `${-left}px ${bgY - (top + woodTop)}px`);
+}
+addEventListener('resize', () => { if (!el('sitepanel').hidden) placeSiteDrawer(); });
 // Sheet 37: the shield's panel, every rule for this site. The Shell sends them in state.site.
 for (const s of document.querySelectorAll('#sitepanel [data-pix]')) { const svg = pixIcon(s.dataset.pix, 2); if (svg) s.append(svg); }
 function setSw(id, on, disabled = false) { el(id).classList.toggle('on', on); el(id).setAttribute('aria-checked', String(on)); el(id).disabled = disabled; }
@@ -1534,15 +1642,15 @@ el('loginsw').addEventListener('click', (e) => { e.preventDefault(); if (state.s
 segRow(el('camk'), (v) => { setTri('camk', v); rule('camera', v); });
 segRow(el('mick'), (v) => { setTri('mick', v); rule('mic', v); });
 segRow(el('notk'), (v) => { setTri('notk', v); rule('notify', v); });
-document.addEventListener('click', (e) => { if (!el('sitepanel').contains(e.target) && !lock.contains(e.target)) { el('sitepanel').hidden = true; lock.classList.remove('open'); } });
+document.addEventListener('click', (e) => { if (!el('sitepanel').contains(e.target) && !lock.contains(e.target)) closeSite(); });
 // The shield's panel sits OVER the page, like the ... menu, on a still picture of it (2026-10-14: pushing the live
 // page down to make room left a big white bar above it). However it closes, the live page comes back.
 // Only on a real change: every click anywhere sets hidden again, and a stray "unfreeze" put the live page back over the open
 // tab list (2026-10-14).
 let siteOver = false;
-new MutationObserver(() => { const open = !el('sitepanel').hidden; if (open === siteOver) return; siteOver = open; if (open) freeze('site'); else unfreeze('site'); }).observe(el('sitepanel'), { attributes: true, attributeFilter: ['hidden'] });
-el('popopen').addEventListener('click', () => { window.samara?.browserAct?.('popupopen'); el('sitepanel').hidden = true; lock.classList.remove('open'); });
-el('popallow').addEventListener('click', () => { window.samara?.browserAct?.('popupallow'); el('sitepanel').hidden = true; lock.classList.remove('open'); });
+new MutationObserver(() => { const open = !el('sitepanel').hidden; if (open === siteOver) return; siteOver = open; if (!FLOAT && edit.hidden) el('slot').classList.toggle('open', open); if (open) freeze('site'); else unfreeze('site'); }).observe(el('sitepanel'), { attributes: true, attributeFilter: ['hidden'] });
+el('popopen').addEventListener('click', () => { window.samara?.browserAct?.('popupopen'); closeSite(); });
+el('popallow').addEventListener('click', () => { window.samara?.browserAct?.('popupallow'); closeSite(); });
 
 // ---- a finished download: the little wood tap (the notice itself is on Samara's notice layer, sheet 106)
 window.samara?.onBrowserDownload?.((d) => { if (d?.state === 'completed') tap(1.4); });

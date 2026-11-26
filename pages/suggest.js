@@ -11,6 +11,7 @@ const GLYPH = {
   go: ['0 0 7 7', 'M1 0h1v1H1zM2 0h1v1H2zM2 1h1v1H2zM3 1h1v1H3zM3 2h1v1H3zM4 2h1v1H4zM4 3h1v1H4zM5 3h1v1H5zM3 4h1v1H3zM4 4h1v1H4zM2 5h1v1H2zM3 5h1v1H3zM1 6h1v1H1zM2 6h1v1H2z'],
   tab: ['0 0 7 7', 'M1 0h3v1H1zM0 1h7v1H0zM0 2h1v4H0zM6 2h1v4H6zM0 6h7v1H0z'],
   mark: ['0 0 9 8', 'M1 0h2v1H1zM6 0h2v1H6zM0 1h4v4H0zM5 1h4v4H5zM0 5h1v1H0zM8 5h1v1H8zM0 6h4v1H0zM5 6h4v1H5zM3 7h3v1H3z'],
+  login: ['0 0 10 5', 'M1 0h2v1H1zM0 1h1v3H0zM3 1h1v1H3zM3 2h7v1H3zM3 3h1v1H3zM7 3h1v2H7zM9 3h1v2H9zM1 4h2v1H1z'],
   closed: ['0 0 7 7', 'M2 0h1v1H2zM1 1h2v1H1zM0 2h7v1H0zM1 3h2v1H1zM6 3h1v3H6zM2 4h1v1H2zM2 6h4v1H2z'],
 };
 GLYPH.history = GLYPH.go;
@@ -18,9 +19,9 @@ const ACT = { search: 'Search', guess: 'Search', past: 'Search', go: 'Go', tab: 
 let hold = 0, holdPx = 0, pick = -1, open = false;
 
 function glyph(kind) {
-  const [vb, d] = GLYPH[kind] ?? GLYPH.go, wide = vb === '0 0 9 8';
+  const [vb, d] = GLYPH[kind] ?? GLYPH.go, wide = vb === '0 0 9 8', key = vb === '0 0 10 5';
   const svg = document.createElementNS(SVGNS, 'svg');
-  svg.setAttribute('viewBox', vb); svg.setAttribute('width', wide ? '18' : '14'); svg.setAttribute('height', wide ? '16' : '14');
+  svg.setAttribute('viewBox', vb); svg.setAttribute('width', key ? '20' : wide ? '18' : '14'); svg.setAttribute('height', key ? '10' : wide ? '16' : '14');
   svg.setAttribute('shape-rendering', 'crispEdges'); svg.setAttribute('aria-hidden', 'true');
   const p = document.createElementNS(SVGNS, 'path'); p.setAttribute('d', d); svg.append(p);
   return svg;
@@ -58,6 +59,25 @@ function fill(row, s, typed) {
       sg.replaceChildren(img);
     } else sg.replaceChildren(glyph(s.kind));
   }
+  // Sheet 123 v13 (find): the words around the match, the match itself bright and underlined in gold, its number last.
+  row.classList.toggle('hit', s.kind === 'hit');
+  row.classList.toggle('login', s.kind === 'login');
+  // Sheet 123 v13 (Bitwarden): the login's name, then its username dimmed; the lit one says Fill.
+  if (s.kind === 'login') {
+    st.textContent = String(s.title);
+    su.replaceChildren(Object.assign(document.createElement('span'), { className: 'u', textContent: String(s.url) }),
+      Object.assign(document.createElement('span'), { className: 'fill', textContent: 'Fill' }));
+    sa.textContent = '';
+    return;
+  }
+  if (s.kind === 'hit') {
+    const [before = '', word = '', after = ''] = String(s.title).split('\u2063');
+    st.replaceChildren(document.createTextNode((before.length >= 40 ? '…' : '') + before.trimStart()),
+      Object.assign(document.createElement('mark'), { textContent: word }), document.createTextNode(after.trimEnd() + (after.length >= 40 ? '…' : '')));
+    su.replaceChildren(Object.assign(document.createElement('span'), { className: 'n', textContent: String(s.url) }));
+    sa.textContent = '';
+    return;
+  }
   const bare = String(s.url ?? '').replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
   const onlyUrl = !s.title || s.title === s.url;
   if (s.kind === 'search') st.textContent = typed;
@@ -84,7 +104,8 @@ function paint(m) {
   const cap = Number(m.max) > 0 ? Math.min(14, Number(m.max)) : 14;
   hold = Math.min(cap, Math.max(hold, list.length + (Number(m.expect) > 0 ? Math.min(4, Number(m.expect)) : 0)));
   // Where his own things end and the engine's guesses begin (or, before a letter, his searches and his sites).
-  const split = list.findIndex((s, i) => i > 0 && (s.kind === 'guess' || (s.kind === 'history' && list[i - 1].kind === 'past')));
+  // Sheet 123 v13: before a letter, a small gap between his open tabs and the places he was last.
+  const split = list.findIndex((s, i) => i > 0 && (s.kind === 'guess' || (!typed && list[i - 1].kind === 'tab' && s.kind !== 'tab') || (s.kind === 'history' && list[i - 1].kind === 'past')));
   const want = [];
   for (let i = 0; i < hold; i++) { if (i === split) want.push('gl'); want.push(i); }
   // Rows are kept by position: only their words change, so nothing slides or grows.
