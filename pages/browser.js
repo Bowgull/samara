@@ -145,7 +145,7 @@ if (FLOAT) {
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     closeMenu(); closeDl();
-    if (!el('sitepanel').hidden) { el('sitepanel').hidden = true; lock.classList.remove('open'); }
+    closeSite();
   });
 }
 /** A menu line meant for the band (the layer has no visible band): the band does it. */
@@ -1478,8 +1478,11 @@ lock.addEventListener('click', (e) => {
   const fav = state.tabs.find((x) => x.id === state.active)?.favicon;
   el('sitefav').hidden = !fav; el('sitefav').onerror = () => { el('sitefav').hidden = true; }; if (fav) el('sitefav').src = fav;
   paintSite();
-  el('sitepanel').hidden = !el('sitepanel').hidden;
-  lock.classList.toggle('open', !el('sitepanel').hidden);
+  const sp = el('sitepanel');
+  if (sp.classList.contains('shut')) { clearTimeout(siteShutT); sp.classList.remove('shut'); }   // back open mid-close
+  else if (!sp.hidden) { closeSite(); return; }
+  else sp.hidden = false;
+  lock.classList.add('open');
   // Hung from the shield itself (2026-10-14: it sat off to the side): its pointer (24px in, 18 wide) under the
   // shield's middle, measured each time, since the address bar moves with the window and the band.
   if (!el('sitepanel').hidden) placeSiteDrawer();
@@ -1489,6 +1492,19 @@ lock.addEventListener('click', (e) => {
  * (the same ink, rounded at the bottom) hangs from the bar's bottom edge, as wide as the bar, and a drawer of the band's
  * wood comes out around it from under the band's edge, its grain lined up with the band's.
  */
+/**
+ * Sheet 123 v14's clock, closing: the rows go first (90 ms), then the drawer slides shut (260 ms). The panel is hidden,
+ * and its layer put away, only once it has shut. Reduced motion: it goes at once.
+ */
+let siteShutT = 0;
+function closeSite() {
+  const p = el('sitepanel');
+  lock.classList.remove('open');
+  if (p.hidden || p.classList.contains('shut')) return;
+  if (!p.classList.contains('grown') || matchMedia('(prefers-reduced-motion: reduce)').matches) { p.hidden = true; return; }
+  p.classList.add('shut');
+  siteShutT = setTimeout(() => { p.hidden = true; p.classList.remove('shut'); }, 360);
+}
 let bandSlot = null;                                  // the layer: where the band's real bar is (its own copy is unseen)
 function placeSiteDrawer() {
   const p = el('sitepanel'), band = el('band'), b = band.getBoundingClientRect(), s = (FLOAT && bandSlot) || el('slot').getBoundingClientRect();
@@ -1553,15 +1569,15 @@ el('loginsw').addEventListener('click', (e) => { e.preventDefault(); if (state.s
 segRow(el('camk'), (v) => { setTri('camk', v); rule('camera', v); });
 segRow(el('mick'), (v) => { setTri('mick', v); rule('mic', v); });
 segRow(el('notk'), (v) => { setTri('notk', v); rule('notify', v); });
-document.addEventListener('click', (e) => { if (!el('sitepanel').contains(e.target) && !lock.contains(e.target)) { el('sitepanel').hidden = true; lock.classList.remove('open'); } });
+document.addEventListener('click', (e) => { if (!el('sitepanel').contains(e.target) && !lock.contains(e.target)) closeSite(); });
 // The shield's panel sits OVER the page, like the ... menu, on a still picture of it (2026-10-14: pushing the live
 // page down to make room left a big white bar above it). However it closes, the live page comes back.
 // Only on a real change: every click anywhere sets hidden again, and a stray "unfreeze" put the live page back over the open
 // tab list (2026-10-14).
 let siteOver = false;
 new MutationObserver(() => { const open = !el('sitepanel').hidden; if (open === siteOver) return; siteOver = open; if (!FLOAT && edit.hidden) el('slot').classList.toggle('open', open); if (open) freeze('site'); else unfreeze('site'); }).observe(el('sitepanel'), { attributes: true, attributeFilter: ['hidden'] });
-el('popopen').addEventListener('click', () => { window.samara?.browserAct?.('popupopen'); el('sitepanel').hidden = true; lock.classList.remove('open'); });
-el('popallow').addEventListener('click', () => { window.samara?.browserAct?.('popupallow'); el('sitepanel').hidden = true; lock.classList.remove('open'); });
+el('popopen').addEventListener('click', () => { window.samara?.browserAct?.('popupopen'); closeSite(); });
+el('popallow').addEventListener('click', () => { window.samara?.browserAct?.('popupallow'); closeSite(); });
 
 // ---- a finished download: the little wood tap (the notice itself is on Samara's notice layer, sheet 106)
 window.samara?.onBrowserDownload?.((d) => { if (d?.state === 'completed') tap(1.4); });

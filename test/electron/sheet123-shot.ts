@@ -92,6 +92,13 @@ app.whenReady().then(async () => {
   console.log('float ' + JSON.stringify({ has: Boolean(fv), vis: fv?.getVisible?.(), floated: await fw.executeJavaScript(`document.documentElement.classList.contains('floated')`) }));
   if (fv) console.log('floatdoc ' + JSON.stringify(fv.getBounds()) + ' ' + await fv.webContents.executeJavaScript(`JSON.stringify({ hidden: document.getElementById('sitepanel').hidden, r: document.getElementById('sitepanel').getBoundingClientRect(), op: getComputedStyle(document.documentElement).opacity, kids: [...document.getElementById('sitepanel').children].map((k) => k.className + ':' + Math.round(k.getBoundingClientRect().height) + ':' + getComputedStyle(k).display), slot: document.getElementById('slot').getBoundingClientRect(), band: document.getElementById('band').getBoundingClientRect(), parent: document.getElementById('sitepanel').offsetParent?.id, style: document.getElementById('sitepanel').getAttribute('style'), cs: (() => { const c = getComputedStyle(document.getElementById('sitepanel')); return [c.left, c.height, c.transform, c.display, c.position]; })() })`));
   await shot('shield');
+  // closing: the rows go, the drawer slides shut, and only then is the panel hidden and the layer put away
+  if (fv) {
+    const sp = () => fv.webContents.executeJavaScript(`(() => { const p = document.getElementById('sitepanel'); return p.hidden ? 'hidden' : p.className; })()`);
+    await fw.executeJavaScript(`document.getElementById('lock').click(); 1`);
+    await wait(150); const mid = await sp(); await wait(500); const end = await sp();
+    console.log('shieldclose ' + JSON.stringify({ mid, end, layer: fv.getVisible() }));
+  }
   // The float layer is see-through and does not capture in this hidden window, so the same panel (same page, CSS and
   // placing code) is drawn in the band's own page for the picture.
   await fw.executeJavaScript(`(() => { const $ = (i) => document.getElementById(i); document.documentElement.classList.remove('floated');
