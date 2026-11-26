@@ -196,6 +196,12 @@ html.sbdrag,html.sbdrag *{cursor:col-resize !important}
 .slot .lock .destfav{display:block;border-radius:3px}
 /* the typed address's selected finish (sheet 88) is shown dimmer, never painted yellow */
 .slot .edit.finish::selection{background:transparent;color:#7d7398}
+/* Sheet 123 v13 (mode A): clicked, before a letter, the address he is on shows faint. It is still all selected, so
+   typing replaces it and copy still copies it; it turns bright again once he moves in it or types. */
+.slot .edit.allsel::selection{background:transparent;color:#7d7398}
+/* Sheet 123 v13 (mode C): while its drawer is out, the shield glows gold. A caught popup keeps its own blue glow. */
+.slot .lock .shieldpix{transition:filter .15s ease-out}
+.slot .lock.open:not(.popup) .shieldpix{filter:drop-shadow(0 0 6px rgba(255,196,60,.55))}
 
 /* ---- Sheet 123 v13 (mode C): the shield's panel is the bar growing (browser.js placeSiteDrawer). The rest of the bar,
    the same ink with its outline down the sides and round its bottom, hangs from the bar; a drawer of the band's wood
