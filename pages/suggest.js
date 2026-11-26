@@ -84,7 +84,8 @@ function paint(m) {
   const cap = Number(m.max) > 0 ? Math.min(14, Number(m.max)) : 14;
   hold = Math.min(cap, Math.max(hold, list.length + (Number(m.expect) > 0 ? Math.min(4, Number(m.expect)) : 0)));
   // Where his own things end and the engine's guesses begin (or, before a letter, his searches and his sites).
-  const split = list.findIndex((s, i) => i > 0 && (s.kind === 'guess' || (s.kind === 'history' && list[i - 1].kind === 'past')));
+  // Sheet 123 v13: before a letter, a small gap between his open tabs and the places he was last.
+  const split = list.findIndex((s, i) => i > 0 && (s.kind === 'guess' || (!typed && list[i - 1].kind === 'tab' && s.kind !== 'tab') || (s.kind === 'history' && list[i - 1].kind === 'past')));
   const want = [];
   for (let i = 0; i < hold; i++) { if (i === split) want.push('gl'); want.push(i); }
   // Rows are kept by position: only their words change, so nothing slides or grows.

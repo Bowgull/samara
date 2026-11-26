@@ -68,10 +68,17 @@ export const PopoutPart = {
   suggest(this: SamaraBrowser, text: string): { kind: string; title: string; url: string; id?: number }[] {
     const q = String(text ?? '').trim().toLowerCase().slice(0, 200);
     // Sheet 102 : a click in the bar, before a letter, shows his last searches, then the sites he uses most.
+    // Sheet 123 v13 (mode A): his other open tabs first, the latest he looked at on top, then the last couple of places.
     if (!q) {
       const now = Date.now();
-      return [...pastSearches(this.visits.list, '', now, 3).map((p) => ({ kind: 'past', title: p.query, url: p.url })),
-        ...topSites(this.visits.list, now, 3).map((v) => ({ kind: 'history', title: v.title, url: v.url }))].map((x) => ({ ...x, favicon: this.iconOf(x.url) }));
+      const tabs = this.tabs.filter((t) => t.id !== this.active && !t.internal && isWeb(t.url))
+        .sort((a, b) => b.lastSeen - a.lastSeen).slice(0, 3);
+      const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } };
+      const open = new Set(tabs.map((t) => host(t.url)));      // a site he has open shows once, as its tab
+      const places = [...pastSearches(this.visits.list, '', now, 1).map((p) => ({ kind: 'past', title: p.query, url: p.url })),
+        ...topSites(this.visits.list, now, 5).filter((v) => !open.has(host(v.url))).map((v) => ({ kind: 'history', title: v.title, url: v.url }))];
+      return [...tabs.map((t) => ({ kind: 'tab', title: t.title, url: t.url, id: t.id })), ...places].slice(0, 5)
+        .map((x) => ({ ...x, favicon: this.iconOf(x.url) }));
     }
     const typed = addressFor(q);
     const out: { kind: string; title: string; url: string; id?: number }[] = [];

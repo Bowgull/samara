@@ -30,13 +30,28 @@ app.whenReady().then(async () => {
   b.win.setContentSize(W, 700);
   await wait(4000);
   const fw = b.win.webContents;
-  b.suggest = (typed: string) => typed ? [
+  // Sheet 123 v13 mode A: the empty bar goes through Samara's real rule, on made-up tabs and visits.
+  const now = Date.now();
+  const fake = { tabs: [
+      { id: 1, url: 'https://claude.ai/', title: 'Claude', lastSeen: now },
+      { id: 2, url: 'https://github.com/anthropics/claude-code', title: 'anthropics/claude-code', lastSeen: now - 1000 },
+      { id: 3, url: 'https://www.youtube.com/', title: 'YouTube', lastSeen: now - 5000 },
+      { id: 4, url: 'https://www.reddit.com/r/ClaudeAI/', title: 'r/ClaudeAI', lastSeen: now - 3000 },
+      { id: 5, url: 'samara:hyrule', title: 'Hyrule', lastSeen: now, internal: true },
+    ], active: 1, visits: { list: [
+      { url: 'https://docs.claude.com/claude-code', title: 'Claude Code overview', at: now - 60_000 },
+      { url: 'https://search.brave.com/search?q=claude+code+worktrees', title: 'claude code worktrees', at: now - 30_000 },
+      { url: 'https://www.reddit.com/r/ClaudeAI/', title: 'r/ClaudeAI', at: now - 20_000 },
+    ] }, iconOf: (u: string) => b.iconOf(u), marks: [], closed: [], ses: b.ses };
+  const zero = (b.suggest as Function).call(fake, '');
+  console.log('zero ' + JSON.stringify(zero.map((x: any) => x.kind + ':' + x.title)));
+  b.suggest = (typed: string) => !typed ? zero : [
     { kind: 'search', title: typed, url: '' },
     { kind: 'history', title: 'Claude', url: 'https://claude.ai/' },
     { kind: 'history', title: 'Claude Code overview', url: 'https://docs.claude.com/claude-code' },
     { kind: 'history', title: 'anthropics/claude-code', url: 'https://github.com/anthropics/claude-code' },
     { kind: 'history', title: 'r/ClaudeAI', url: 'https://www.reddit.com/r/ClaudeAI/' },
-  ] : [];
+  ];
   b.guesses = async () => [];
   // the band and the list layer, laid together as the screen shows them
   const shot = async (name: string) => {
@@ -53,6 +68,8 @@ app.whenReady().then(async () => {
   };
   await shot('closed');
   await fw.executeJavaScript(`document.getElementById('slot').click(); 1`); await wait(300); fw.focus();
+  await wait(1200);
+  await shot('empty');
   for (const k of 'clau') { fw.sendInputEvent({ type: 'char', keyCode: k }); await wait(90); }
   await wait(1200);
   console.log('state ' + JSON.stringify({ last: Boolean(b.pane.sugLast), v: Boolean(b.pane.sugV), vis: b.pane.sugV?.getVisible?.() }));
